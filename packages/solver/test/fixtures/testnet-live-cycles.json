@@ -1,0 +1,26 @@
+{
+  "_comment": "Captured 2026-09-18 via `cast call getInvoice(...)` against the live Arc testnet ContraflowRegistry (0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312) -- the real, already-settled-once SET-01 3-cycle from plans/03-live-testnet-e2e-tests.md. Static snapshot, not fetched live by the test suite (keeps vitest hermetic/offline). Re-capture if this needs refreshing.",
+  "source": "plans/03-live-testnet-e2e-tests.md SET-01",
+  "registry": "0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312",
+  "invoices": [
+    {
+      "id": "0xaf60f641282d49e14f56bd48f73a38d24b02a25d19b3abcf1ae457501c0b7216",
+      "debtor": "0x2ED54Ecffd30353F28Fcc313F822f5c9fD47817d",
+      "creditor": "0x2a49Ec9DF4ABf345bDc3EB6B5220FFd03e7CCAa1",
+      "amountRemaining": "500000"
+    },
+    {
+      "id": "0x29eee6c00f3566766e31ff123bc57938d20f724ddbdc8f45c945f89b1d187522",
+      "debtor": "0x2a49Ec9DF4ABf345bDc3EB6B5220FFd03e7CCAa1",
+      "creditor": "0x33246da9da2a67F8Ae62f321F04007c818fbcd7b",
+      "amountRemaining": "500000"
+    },
+    {
+      "id": "0xf5331fddc9c7447b77a369ebe0420183222f3338a0d9c75fd862587edc081cf3",
+      "debtor": "0x33246da9da2a67F8Ae62f321F04007c818fbcd7b",
+      "creditor": "0x2ED54Ecffd30353F28Fcc313F822f5c9fD47817d",
+      "amountRemaining": "500000"
+    }
+  ],
+  "expectedWNet": "500000"
+}

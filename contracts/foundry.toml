@@ -8,9 +8,10 @@ script = "script"
 # Fixed, never floating — per the repo's global Solidity style rules.
 solc_version = "0.8.28"
 auto_detect_solc = false
-# "cancun" is fine for local Foundry test runs. RE-CONFIRM Arc mainnet's actual
-# supported EVM version against docs.arc.io before the (separate, later) deploy step —
-# do not assume compatibility, per this repo's "research before integrating" rule.
+# Confirmed against live research for plans/02-deploy-testnet.md (2026-09-18): Arc mainnet is
+# Osaka-active (newer than cancun); Solidity >=0.8.20 contracts compiled with evm_version =
+# "cancun" deploy and run correctly on Arc mainnet today. Re-verify at actual mainnet-deploy
+# time (03-*.md) since Arc mainnet is very new (launched 2026-09-16) and could still shift.
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
@@ -20,7 +21,10 @@ via_ir = false
 # not just errors — catches sloppiness before it reaches a test run.
 deny = "warnings"
 
-fs_permissions = [{ access = "read", path = "./" }]
+fs_permissions = [
+    { access = "read", path = "./" },
+    { access = "read-write", path = "./deployments" },
+]
 
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
