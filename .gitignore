@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+AGENTS.md
+plans/
 *.pem
 *.key
 id_rsa

@@ -1,0 +1,39 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+# Fixed, never floating — per the repo's global Solidity style rules.
+solc_version = "0.8.28"
+auto_detect_solc = false
+# "cancun" is fine for local Foundry test runs. RE-CONFIRM Arc mainnet's actual
+# supported EVM version against docs.arc.io before the (separate, later) deploy step —
+# do not assume compatibility, per this repo's "research before integrating" rule.
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+
+# Fail the build on any compiler warning (unused var, shadowed var, etc.),
+# not just errors — catches sloppiness before it reaches a test run.
+deny = "warnings"
+
+fs_permissions = [{ access = "read", path = "./" }]
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+[fuzz]
+runs = 512
+
+[invariant]
+runs = 128
+depth = 64
+fail_on_revert = true
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
