@@ -244,3 +244,10 @@ PASS  UPG-06  rollback complete, registry() wiring intact (0x8a04cd9856c5A9F240C
 PASS  UPG-08a  attempt to call initialize() a second time on the live, already-initialized Registry proxy  (reverted: InvalidInitialization)
 PASS  UPG-08  attempt to call initialize() a second time on the live, already-initialized Settler proxy  (reverted: InvalidInitialization)
 === §6 fully done, all UPG cases complete ===
+
+=== 2026-09-18 (later same day): DuplicateParty fix pushed live via UUPS upgrade ===
+New Settler implementation: 0xfC104C272A7c8AF99cbA75632516ed707d4Bea2f (deploy tx 0x023e1377680f136eace5ad5f754005b212f3ecaf1dcb037632fadffd7b13e955)
+upgradeToAndCall tx: 0xb4f833818681f6919c1bc19431effb58fa3dbb49558e1258aedfeb8c478b0f1c (status 1)
+Verified via direct ERC-1967 slot read (0x...382bbc), not just the Upgraded event; owner and registry() wiring confirmed unchanged.
+PASS  SET-16-POSTFIX  non-distinct-party cycle now rejected after DuplicateParty upgrade  (reverted: DuplicateParty)
+PASS  POSTUPG-HAPPY  legitimate 3-distinct-party cycle still settles after upgrade

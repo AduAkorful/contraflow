@@ -24,6 +24,11 @@ interface IContraflowSettler {
     /// reciprocal, zero-cash guarantee the protocol depends on.
     error DuplicateInvoiceId(bytes32 id);
 
+    /// @notice The same party (address) appears as debtor in more than one invoice in the
+    /// cycle. A valid simple cycle visits each of its `n` parties exactly once — the same
+    /// two (or more) addresses trading invoices back and forth is not a multilateral cycle.
+    error DuplicateParty(address party);
+
     /// @notice `wNet` was zero. A netting of zero value is not a valid cancel — rejected to
     /// avoid a permissionless, free way to spam `Settled`/`InvoiceNetted` events.
     error ZeroWNet();
@@ -39,7 +44,8 @@ interface IContraflowSettler {
     /// @notice Cancels `wNet` off every invoice in a simple directed cycle, in one transaction.
     /// @dev Reverts entirely on any failed check — no partial cancel. Permissionless: any
     /// address may call this if the cycle it submits is valid.
-    /// @param invoiceIds Ids of the invoices forming the cycle, length in [3, 5], each distinct.
+    /// @param invoiceIds Ids of the invoices forming the cycle, length in [3, 5], each distinct,
+    /// and each invoice's debtor a distinct party (a simple cycle visits every party once).
     /// @param wNet The amount subtracted from every invoice in the cycle; must be nonzero and
     /// no invoice may have less than `wNet` remaining.
     function settle(bytes32[] calldata invoiceIds, uint256 wNet) external;

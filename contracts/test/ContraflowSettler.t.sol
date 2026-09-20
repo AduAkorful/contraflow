@@ -229,6 +229,22 @@ contract ContraflowSettlerTest is InvoiceSigningHelpers, ContraflowDeployHelpers
         settler.settle(ids, 100e6);
     }
 
+    function test_Settle_RevertWhen_CycleRevisitsSameParty() public {
+        // A->B->A->B, 4 distinct invoice ids but only 2 distinct parties — must be rejected
+        // even though PathBroken and DuplicateInvoiceId both pass.
+        uint64 maturity = uint64(block.timestamp + 30 days);
+        Party memory a = _party("revisit-a");
+        Party memory b = _party("revisit-b");
+        bytes32[] memory ids = new bytes32[](4);
+        ids[0] = _registerInvoice(a, b, 1, DEFAULT_AMOUNT, true, maturity);
+        ids[1] = _registerInvoice(b, a, 1, DEFAULT_AMOUNT, true, maturity);
+        ids[2] = _registerInvoice(a, b, 2, DEFAULT_AMOUNT, true, maturity);
+        ids[3] = _registerInvoice(b, a, 2, DEFAULT_AMOUNT, true, maturity);
+
+        vm.expectRevert(abi.encodeWithSelector(IContraflowSettler.DuplicateParty.selector, a.addr));
+        settler.settle(ids, 100e6);
+    }
+
     function test_Settle_RevertWhen_InvoiceNotFound() public {
         (bytes32[] memory ids,) = _defaultCycle(3);
         ids[2] = bytes32(uint256(0xdead));

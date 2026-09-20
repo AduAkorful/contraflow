@@ -1,0 +1,112 @@
+Contraflow Step 13 live-proof results: resumable fundResidualViaGateway + runSettlementPipeline
+Plan: plans/13-orchestration-pipeline.md
+Date: 2026-09-20
+Network: Arc testnet (5042002) + Ethereum Sepolia (Gateway source chain), real Circle production
+services, never mocked for the live-proof passes below (anvil-backed unit/integration tests cover
+the stubbed/logic-only paths — see app/test/unifiedBalance.test.ts, app/test/pipeline.integration.test.ts).
+
+Contracts (unchanged this step):
+  registry: 0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312
+  settler:  0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03
+  usdc:     0x3600000000000000000000000000000000000000
+Raw-key operator EOA: 0x74B4134C8d527a8D8AE8cb9503ab2043bCfC0ffd
+
+Baseline before this step: forge test 98/98 (unchanged, no contract touched), pnpm typecheck
+clean, pnpm test 37/37 (before this step's new tests were added).
+
+================================================================================
+PART 1 -- runSettlementPipeline live on Arc testnet
+================================================================================
+Script: app/scripts/step13-pipeline-live-proof.mts (deleted after use)
+Signer: raw-key. 4 fresh generated addresses, a real 3-party cycle A->B->C->A (1,000,000 base
+units each) plus one dangling invoice D->E (400,000 base units, no cycle reaches it).
+
+All 4 real registrations landed:
+  A->B: 0xa0dc9449b59f40dbf0a28a0210117cdd9a90ade417c734f1f36c64ecb8b852b3
+        tx 0x2d20ddfddc4054e8599fe128411a785114f3408b9a28bef3527df0a3c90cd2ef
+  B->C: 0x9d94ec1aa11822c87dc7d6598e0f6247e3036cd6b9d387268d56bb129bc6d977
+        tx 0x6025c2ed60f4a7dbcbd348ccbe2d4a9bb1966598503bc12a81e1b216f1175a7d
+  C->A: 0x723c948e96c5c572646045f8824c5542d15dd802dfa51d4cd7aac7ff30854fb1
+        tx 0x2c246e21530db9b48cbbacbace214094d885d8d45e8eed6fb712c2bf29d0d918
+  D->E: 0x206c6954571337ea0e66ca4e253cc1136da64fc3b94a512fc3a6eed5dd47e9a4
+        tx 0x3cdd324c9ba7269ff162cd3c206cfe9b8181536897ba609f6d113ab31e1b8ee1
+
+Settle: wNet=1,000,000, invoiceIds=[C->A, A->B, B->C] (all 3 cycle invoices),
+  tx 0xd571a9526cefc86463204d335af8462cde1d14859436f4dcb897665c62f9c24a.
+
+danglingInvoiceIds returned by the pipeline: exactly [D->E's id] -- correct, matches expectation.
+dashboardTiles: grossCancelledUsdc=3,000,000, cashMovedUsdc=0, multiplier=null,
+  gasPaidWei=2,414,525,000,000,000.
+
+Independent on-chain verification (not trusting the pipeline's own return value):
+  `getInvoice` for D->E: status=0 (Active), amountRemaining=400,000 -- untouched, as expected for
+  an invoice no cycle reached.
+  `getInvoice` for A->B: status=1 (ExtinguishedOnchain), amountRemaining=0 -- confirms the cycle
+  genuinely settled on-chain, not just that the pipeline's return value claimed it did.
+
+RESULT: PASS. Dangling-invoice detection is correct against real on-chain state, not just the
+anvil-backed unit tests' synthetic setup.
+
+================================================================================
+PART 2 -- resumeFundResidualViaGateway live on Arc testnet + Ethereum Sepolia
+================================================================================
+Scripts: app/scripts/step13-resume-live-proof.mts, step13-resume-retry.mts (both deleted after use)
+
+Deposited 1.30 USDC directly via `depositToGateway` (not through `fundResidualViaGateway`) --
+deliberately simulating "the deposit already succeeded, now resume" without needing to wait for
+another real transient failure to occur naturally, per the plan's own test scoping.
+
+FIRST resumeFundResidualViaGateway call: while polling for confirmation, hit a REAL (not staged)
+transient failure -- `NETWORK_GATEWAY_API_ERROR: Maximum retry attempts (10) exceeded: Request
+timed out` from Circle's own `getConfirmedDeposits` endpoint, the same class of failure the
+2026-09-20 Phase 2/3 campaign (step 12) hit twice already. This time, the function correctly
+caught it and threw the new `GatewayFundResidualPartialFailureError` -- carrying sourceChain,
+arcChainId, amountUsdc, depositAmountUsdc, and target verbatim -- rather than crashing with the
+raw underlying error. This is real, unplanned confirmation that the wrapping behavior works
+correctly even inside `resumeFundResidualViaGateway` itself (not just `fundResidualViaGateway`),
+and that Circle's testnet Gateway API transient-failure rate is high enough that this project
+should expect to hit it again, not treat it as a one-off.
+
+RETRY (using the thrown error's own fields verbatim, per its own documented contract): resolved
+successfully after ~4 minutes of polling:
+  tx 0xa2346dc8e220838ca0033f584d19f4214b988277b545a115bb30242ece1755a6
+  https://testnet.arcscan.app/tx/0xa2346dc8e220838ca0033f584d19f4214b988277b545a115bb30242ece1755a6
+
+Independent on-chain verification:
+  `cast receipt`: status 1 (success), `from` is the raw-key operator EOA's own address, a real
+  `Transfer` log mints exactly 100,000 base units (0.10 USDC).
+  Operator's Arc-testnet USDC balance: 46,819,693 -> 46,897,050 base units (+77,357, ~0.0774 USDC
+  -- the same small forwarder-fee-split gap seen in every prior Unified Balance proof this
+  project has run).
+  Operator's Ethereum-Sepolia USDC balance: 11,700,000 -> 10,400,000 base units, a decrease of
+  EXACTLY 1,300,000 (1.30 USDC) across the entire sequence -- the initial deposit, the failed
+  resume attempt, and the successful retry combined. Proves `resumeFundResidualViaGateway` never
+  deposited a second time, even across a real repeated transient failure, not just in the
+  best-case single-call path.
+
+RESULT: PASS -- and a stronger proof than originally planned, since the failure encountered was a
+real one (Circle's own flaky testnet API), not a staged/simulated one.
+
+================================================================================
+PART 3 -- rpcUrl wiring smoke check
+================================================================================
+Script: app/scripts/step13-rpcurl-smoke.mts (deleted after use)
+`createOperatorAdapter(privateKey, "https://ethereum-sepolia-rpc.publicnode.com")` constructed
+successfully and a real `getUsdcBalances` call through the resulting adapter succeeded. Confirms
+the new optional `rpcUrl` parameter doesn't break adapter construction or basic calls. Not a full
+proof that a *different, more reliable* RPC would have prevented the raw-key path's earlier
+RPC_ENDPOINT_ERROR (this check reused the same public endpoint, since the point was structural,
+not a reliability upgrade) -- the fix's value is making the endpoint configurable at all, which
+this confirms works.
+
+================================================================================
+SUMMARY
+================================================================================
+Both step 13 fixes proven live, one of them (resumability) against a real repeated failure rather
+than a staged one -- stronger evidence than planned. `pnpm typecheck` clean, `pnpm test` 43/43
+(was 37, +6: 2 new unifiedBalance.test.ts cases for the wrap/resume behavior, 4 new
+pipeline.integration.test.ts cases for dangling-detection, settle:null, and residual opt-in).
+`forge test` unaffected (98/98, no contract touched this step). Zero contract bugs, zero
+application-code bugs found. All one-off proof scripts deleted after use, per this project's
+standing convention.
+================================================================================

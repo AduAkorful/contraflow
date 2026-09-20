@@ -64,10 +64,16 @@ contract ContraflowSettler is Initializable, OwnableUpgradeable, UUPSUpgradeable
         // Pass 2 (checks): confirm the invoices form a single simple directed cycle. Needs a
         // separate pass from the read above — checking creditor[i] == debtor[i+1] requires
         // invoices[i+1] to already be populated, which isn't guaranteed mid-read for any i
-        // other than the final wraparound.
+        // other than the final wraparound. Also rejects a cycle that revisits the same party
+        // (e.g. A->B->A->B) — creditor[i] == debtor[(i+1)%n] always holds for a valid path, so
+        // checking debtor addresses are pairwise distinct is sufficient to prove all n parties
+        // in the cycle are distinct, without a separate creditor check.
         for (uint256 i = 0; i < n; ++i) {
             uint256 next = (i + 1) % n;
             if (invoices[i].creditor != invoices[next].debtor) revert PathBroken(i);
+            for (uint256 j = 0; j < i; ++j) {
+                if (invoices[i].debtor == invoices[j].debtor) revert DuplicateParty(invoices[i].debtor);
+            }
         }
 
         // Pass 3 (effects): the registry re-validates active/remaining/nettable per invoice

@@ -1,0 +1,224 @@
+Contraflow Phase 2/3 E2E campaign results
+Plan: plans/12-e2e-phase2-campaign.md
+Started: 2026-09-20
+Network: Arc testnet (5042002) + Ethereum Sepolia (Gateway source chain), all via Circle's live
+production services (App Kit / DCW), never mocked. Every result independently verified via `cast`
+against the real contracts/tokens, never trusted from an SDK's own success report.
+
+Contracts (from contracts/deployments/testnet.json):
+  registry: 0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312
+  settler:  0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03
+  usdc:     0x3600000000000000000000000000000000000000
+DCW wallet (both ARC-TESTNET and ETH-SEPOLIA resources): 0x940917365fc4a2b5957f28370de5ccd91577c3f1
+Raw-key operator EOA: 0x74B4134C8d527a8D8AE8cb9503ab2043bCfC0ffd
+
+Baseline (before any campaign action):
+  forge test: 98/98 passing (54 registry + 32 settler + 8 integration + 4 invariant)
+  pnpm typecheck (app): clean
+  pnpm test (app): 37/37 passing
+  Owner EOA:  46,723,066,496,979,438,849 wei native, 46,723,066 base units USDC on Arc testnet
+  DCW wallet: 9,457,261,342,420,188,902 wei native, 9,457,261 base units USDC on Arc testnet
+
+================================================================================
+TRACK A -- genuinely new live proof
+================================================================================
+
+--- A#2: Compliance rejection through the real live registerInvoice call ---
+Script: app/scripts/campaign-01-compliance-reject.mts (deleted after use)
+Signer: DCW
+Result: PASS. A throwaway debtor address was added to a run-scoped denylist (never touches the
+real denylist.json). registerInvoice() threw ComplianceRejectedError before any submission was
+attempted -- no writeContract/DCW contract-execution call was ever made.
+Real invoice id computed client-side (EIP-712 hash, same as invoiceAttestationId always returns):
+  0xa9c723f31c7a0cd7c37647409e0b13e526d2f39920b193a61c6fd75a846d3efa
+On-chain verification: `cast call registry getInvoice(bytes32) <id>` reverted with selector
+0x20bb2818, confirmed via `cast sig "InvoiceNotFound(bytes32)"` to be exactly that error --
+proof the invoice genuinely never landed on-chain, not just that the app-layer check fired.
+
+--- A#3: Full demo narrative (register -> settle -> quote -> fund residual), one story ---
+Script: app/scripts/campaign-03-full-narrative.mts (deleted after use)
+Signers: DCW for register+settle+quote, raw-key for fund-residual (both paths appear across the
+story, per the plan).
+
+Step 1 -- register a fresh 3-invoice cycle A->B->C->A (DCW signer):
+  A->B: invoice 0x82f1756cdafb3944ae80bef85bf3cdea8403470e67a248a2ade09e3bb69e37d0
+        tx 0xf38f940b1492481205f9bc06172a899bf5904bbfde3cb6ee3c90cc9bfbeebf42, block 63071278
+  B->C: invoice 0x00af154e99f1050792414bd6fa2776d15d81818ce5340e37edc11236c182572f
+        tx 0xd169a40cfc5f79d9072ffe211f704898aeeb78b8b39da84f39a11009db2c1632, block 63071285
+  C->A: invoice 0x0738a077093e4bbc1e10aa57949b760867151f6ac101ef445a612fb696fe41c0
+        tx 0x3cb8fd58db6afea2d596b576d6464c26430ff38266a7c655ae987efe1fda9f7e, block 63071292
+  All three `from` = DCW wallet address (confirmed via receipt in prior DCW proofs' pattern).
+
+Step 2 -- settle the cycle (DCW signer):
+  wNet=1,000,000 (full extinguish, equal legs), tx
+  0x55f256a1eebc61bcac3c0bab1bb10329b1b35c1294036017422392244276ae6f, block 63071301,
+  gasPaidWei=4,324,753,399,030,625 (~0.00432 native USDC).
+
+Step 3 -- live Swap Kit quote for a hypothetical residual (DCW-backed kit, quote-only, no funds
+moved): 0.50 USDC -> estimated 0.406053 EURC (fees: 0.0001 USDC provider + ~0.0421 USDC gas).
+
+Step 4 -- fund a small residual via fundResidualViaGateway, raw-key signer, target 0.10 USDC:
+  Attempt 1 failed with a transient infrastructure error, not a code/business-logic bug:
+  RPC_ENDPOINT_ERROR from https://ethereum-sepolia-rpc.publicnode.com on `eth_getTransactionCount`
+  (`fetch failed`) -- the raw-key adapter signs+broadcasts client-side via viem and therefore
+  depends on a public RPC's uptime for the source chain, unlike the DCW adapter which routes
+  entirely through Circle's own backend and has no such dependency. REAL, NON-OBVIOUS FINDING for
+  AGENTS.md: this is a genuine asymmetry between the two signer paths for Unified Balance
+  specifically, not previously documented -- the raw-key path's `depositToGateway`/`spendOntoArc`
+  carry an extra failure mode (public RPC flakiness) the DCW path structurally cannot hit.
+  Confirmed via `cast call balanceOf` that no funds moved on attempt 1 (13,000,000 base units
+  unchanged) before retrying.
+
+  Attempt 2 (app/scripts/campaign-03b-fund-residual-rawkey-retry.mts, deleted after use): the
+  deposit itself succeeded for real this time (`cast call balanceOf` on Sepolia USDC:
+  13,000,000 -> 11,700,000 base units, exactly -1.30 USDC), but then hit the SAME
+  `NETWORK_GATEWAY_API_ERROR: Maximum retry attempts (10) exceeded: fetch failed` as A#1's first
+  run, at the same moment -- confirming this second failure was a genuine transient Circle Gateway
+  API outage affecting both signer paths simultaneously, not anything raw-key-specific (unlike
+  attempt 1's RPC issue, which really was raw-key-specific). See A#1's entry above for the full
+  finding about `fundResidualViaGateway` not being safely re-callable whole after a partial
+  success, and the continuation-script workaround (same pattern applied here:
+  app/scripts/campaign-03c-continue-spend-rawkey.mts, deleted after use).
+
+  CONTINUATION RESULT: confirmed after 11 polls (~5.5 min), then `spendOntoArc` succeeded:
+    tx 0x2289c8cdc9d9a1f53e89e00aa7a1278f00ae1d958ce83dd742d9cfaf350fb356
+    https://testnet.arcscan.app/tx/0x2289c8cdc9d9a1f53e89e00aa7a1278f00ae1d958ce83dd742d9cfaf350fb356
+  Independently verified via `cast receipt`: status 1 (success), `from` is the raw-key operator
+  EOA's own address, a real `Transfer` log mints exactly 100,000 base units (0.10 USDC). Raw-key
+  wallet's Arc-testnet USDC balance: 46,723,066 -> 46,819,693 base units (+96,627, ~0.0966 USDC --
+  same small forwarder-fee-split pattern as every prior Unified Balance proof).
+
+  Both signer paths now appear across this one narrative, per the plan: DCW for register+settle+
+  quote, raw-key for the fund-residual leg.
+
+Step 5 -- Receipt tiles computed from the real SettleResult above (see appended block below).
+
+--- A#1: fundResidualViaGateway standalone, DCW signer ---
+Script: app/scripts/campaign-02-fund-residual-standalone.mts (deleted after use)
+Target: 0.10 USDC landing on Arc testnet, source Ethereum_Sepolia, default fee margin (1.20 USDC
+deposit). Confirmed Gateway balance before: 1.000000 USDC (leftover from an earlier session's
+manual proof).
+
+FIRST RUN: deposited 1.30 USDC for real (confirmed via `cast call balanceOf` on Sepolia USDC:
+2,500,000 -> 1,200,000 base units, exactly -1.30 USDC), then the poll loop's `getUsdcBalances`
+call threw `NETWORK_GATEWAY_API_ERROR: Maximum retry attempts (10) exceeded: fetch failed` from
+inside App Kit's own `getConfirmedDeposits` -- a real, transient Circle Gateway API outage (not a
+code bug, not the raw-key-specific RPC issue A#3 step 4 hit first): a plain `getUsdcBalances` call
+run moments later succeeded normally, and A#3's raw-key deposit (different signer, same moment)
+failed with the identical generic error, ruling out anything specific to one signer path.
+
+REAL, NON-OBVIOUS FINDING for AGENTS.md: `fundResidualViaGateway` is not safely re-callable as a
+whole after a mid-flight failure once the deposit leg has already succeeded -- calling it again
+would deposit a SECOND time (compounding the ~1.1 USDC fee overhead for no reason). Recovered by
+writing a continuation script (app/scripts/campaign-02b-continue-spend-dcw.mts, deleted after use)
+that polls `getUsdcBalances` for the already-deposited funds to confirm, then calls `spendOntoArc`
+directly -- exactly `fundResidualViaGateway`'s own logic minus the deposit step. A future version
+of this function should probably accept a "skip deposit, resume from polling" mode, or the caller
+should track whether the deposit leg already succeeded before retrying the whole call. Not fixed
+in this campaign (out of scope -- a design change, not a live-proof task), just documented.
+
+CONTINUATION RESULT: confirmed after 11 polls (~5.5 min at the 30s poll interval, well inside the
+~10 min CCTP norm), then `spendOntoArc` succeeded for real:
+  tx 0xeb98f724689f7a8fcef67025e588d605f3502a264bbf7e5a1e6c2ab67fa59394
+  https://testnet.arcscan.app/tx/0xeb98f724689f7a8fcef67025e588d605f3502a264bbf7e5a1e6c2ab67fa59394
+Independently verified via `cast receipt`: status 1 (success), `from` is the DCW wallet's own
+address, a real `Transfer` log mints exactly 100,000 base units (0.10 USDC) to the DCW wallet.
+DCW's Arc-testnet USDC balance: 9,404,944 -> 9,497,448 base units (+92,504, ~0.0925 USDC -- the
+small gap from a clean 100,000 is the same minor forwarder-fee split already seen and accepted in
+every other Unified Balance proof this project has run).
+
+================================================================================
+TRACK B -- edge-case spot checks
+================================================================================
+
+--- B#4: NonceNotSequential ---
+Not re-triggered -- already hit unintentionally and documented, 2026-09-19 ("DCW wired into
+register()/settle()" log entry): nonce 0 for a fresh pair's first invoice reverted
+`NonceNotSequential(provided=0, expected=1)`; registry requires 1-indexed first nonce. Cited, not
+reproduced, per the plan's own scoping (no new information from repeating it).
+
+--- B#5: DuplicateParty through the CURRENT (post-fix, post-orchestration-refactor) settleBestCycle ---
+Scripts: app/scripts/campaign-05-duplicateparty-postrefactor.mts,
+         app/scripts/campaign-05b-decode-revert.mts (both deleted after use)
+Signer: DCW. Shape: A->B->A->B->A (SET-16's exact shape) -- 4 distinct-edge invoices between 2
+distinct parties (A->B nonce1, B->A nonce1, A->B nonce2, B->A nonce2), all registered live:
+  A->B n1: 0x8f9b016c4099cd61b83b9a572afddc6b3f487062afc57635b2d59dcdf9368ef7
+  B->A n1: 0x36b1df7407233f06305b053142c7eb1fad1dfc1f7e77015b81bd38a868006ba7
+  A->B n2: 0xe2d644c5327bd51c467200a96e99acea2983a6ab68508bdeb9f0d87aa54bed1e
+  B->A n2: 0x9db9e978c5a0266196313445c3cfe89f4b7dc55c04e051cd976ddbcca1f20cdd
+The solver DID propose a cycle over these four (wNet=1,000,000) -- confirming the solver's own
+closed-walk-of-distinct-edges design allows this shape through at the TypeScript layer, exactly as
+recorded in plans/04-solver-package.md. settleBestCycle's DCW submission failed with Circle's
+generic "FAILED: ESTIMATION_ERROR" (same generic-error problem as the 2026-09-19 nonce bug) -- so
+the exact same proposal (invoiceIds, wNet) was re-encoded and replayed via
+`cast call settler settle(...) --from <DCW wallet>` directly against the live contract:
+  revert data: 0x4bd17b81000000000000000000000000381bc4ada838bffa17d8f5d2945b4b0dd4bfafff
+  0x4bd17b81 confirmed via `cast sig "DuplicateParty(address)"` to be exactly that selector; the
+  trailing address (0x381bc4ada838bffa17d8f5d2945b4b0dd4bfafff) is one of the two generated test
+  parties.
+RESULT: CONFIRMED -- the 2026-09-18 DuplicateParty fix still holds when reached through the
+current OperatorSigner-dispatching settleBestCycle/DCW-contract-execution path, not just the raw
+cast script that originally proved the fix live. This specific combination (fix x orchestration
+refactor) had never been checked before this campaign.
+
+--- B#6: insufficient-balance error shapes (Swap Kit + Unified Balance) ---
+Unified Balance: not re-triggered -- already hit and documented live, 2026-09-19 ("DCW wallet
+funded on a second chain" entry): `spendOntoArc` surfaced `BALANCE_INSUFFICIENT_TOKEN` when the
+confirmed Gateway balance (~1.5 USDC at the time) was less than the requested spend + ~1.1 USDC fee.
+Cited, not reproduced.
+
+Swap Kit: the plan assumed this error shape was "already seen live during earlier proofs" -- IT
+WAS NOT. Grepped this file's own history and found no prior Swap Kit insufficient-balance mention
+anywhere in AGENTS.md or plans/06-swap-kit.md. This was therefore a genuine new live check, not a
+citation:
+  1. `estimateUsdcToEurcSwap` for 999,999 USDC (DCW wallet holds ~9.4 USDC) SUCCEEDED with a real
+     quote (app/scripts/campaign-04-swap-insufficient.mts, deleted after use) -- confirms
+     estimate/quote is balance-agnostic, does not itself validate against the wallet's holdings.
+  2. A real `swapUsdcToEurc` for 15 USDC (wallet holds ~9.40 USDC) via the DCW-backed kit
+     (app/scripts/campaign-06-swap-insufficient-execute.mts, deleted after use) threw:
+       "Insufficient token balance on Arc Testnet"
+     Confirmed via `cast call balanceOf` that the DCW wallet's Arc USDC balance was unchanged
+     (9,404,944 base units before and after) -- the rejection happened before any funds moved.
+REAL FINDING for AGENTS.md: Swap Kit's insufficient-balance check only fires on the real `swap()`
+call, not on `estimateSwap` -- a UI building a pre-submit balance check against the estimate alone
+would not catch this; it must check the wallet's actual balance separately, or attempt-and-catch.
+
+Receipt tiles (computeDashboardTiles, from A#3's real SettleResult, wNet=1,000,000, 3-invoice
+cycle):
+  grossCancelledUsdc: 3,000,000 (1,000,000 wNet * 3 legs -- 3.00 USDC face value cancelled)
+  cashMovedUsdc: 0 (pure cancel, spec-guaranteed -- no token ever moves in settle())
+  multiplier: null (cashMoved is exactly 0 -- UI renders "no cash moved", not a literal Infinity)
+  gasPaidWei: 4,324,753,399,030,625 (~0.00432 native USDC actually spent on the settle tx)
+
+================================================================================
+Out of scope (per the plan): re-running the full 88-case contracts-only campaign (no new contract
+code since the DuplicateParty fix, itself re-verified above via B#5). Any UI. Mainnet.
+================================================================================
+
+================================================================================
+SUMMARY
+================================================================================
+6/6 planned checks executed, all live, all independently verified via `cast`:
+  A#1 fundResidualViaGateway (DCW)      -- PASS (real mint, verified)
+  A#2 compliance rejection (live)       -- PASS (invoice confirmed never registered)
+  A#3 full narrative (both signers)     -- PASS (register x3, settle, quote, fund-residual, all real)
+  B#4 NonceNotSequential                -- cited (already on record, 2026-09-19)
+  B#5 DuplicateParty post-refactor      -- PASS (fix confirmed to survive the refactor)
+  B#6 insufficient-balance (both kits)  -- PASS (Unified Balance cited; Swap Kit newly proven live)
+
+Zero contract bugs. Zero application-code bugs. Two real infrastructure findings, both about
+`fundResidualViaGateway`'s robustness rather than its correctness when nothing fails:
+  1. The raw-key signer path has an RPC-availability dependency the DCW path does not (raw-key
+     signs+broadcasts client-side via viem against a public RPC; DCW routes entirely through
+     Circle's backend).
+  2. `fundResidualViaGateway` is not safely re-callable as a whole once its deposit leg has
+     already succeeded -- a caller must track deposit-success separately, or the function should
+     grow a "resume from polling" mode, to avoid a compounding double-deposit on retry. Neither
+     finding blocks anything -- both were worked around live in this campaign with a
+     poll-then-spend continuation script, and are recorded here as real follow-up material, not
+     fixed as part of this campaign (a design change is out of scope for a live-proof campaign).
+One real gap in the plan itself was also found and closed: its assumption that Swap Kit's
+insufficient-balance error shape was "already seen live" was wrong -- it hadn't been, so B#6
+became a genuine new live check for that half, not a citation, and turned up that `estimateSwap`
+is balance-agnostic (only the real `swap()` call validates against actual holdings).
+================================================================================

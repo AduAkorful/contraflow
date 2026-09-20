@@ -9,6 +9,8 @@ id_rsa
 id_ed25519
 secrets/
 wallets/
+*.entity-secret*
+contracts/recovery/
 broadcast/
 cache/
 out/

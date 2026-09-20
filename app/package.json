@@ -1,0 +1,25 @@
+{
+  "name": "@contraflow/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "sync-abi": "node scripts/sync-abi.mjs"
+  },
+  "dependencies": {
+    "@circle-fin/adapter-circle-wallets": "^1.8.0",
+    "@circle-fin/adapter-viem-v2": "^1.18.0",
+    "@circle-fin/app-kit": "^1.15.2",
+    "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@contraflow/solver": "workspace:*",
+    "viem": "^2.21.54"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
