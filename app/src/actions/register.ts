@@ -113,17 +113,24 @@ export async function registerFixtureInvoices(params: {
   /// Defaults to `defaultComplianceProvider()` per `registerInvoice`, applied to each fixture
   /// invoice individually.
   complianceProvider?: ComplianceProvider;
+  /// Floor for the `InvoiceRegistered` event scan `readNextNonce` uses to resolve each pair's next
+  /// nonce. Defaults to `0n` (fine for a fresh local anvil chain, e.g. the integration test) — a
+  /// live deployment should pass its actual deploy block (see `ChainAddresses.registryDeployBlock`
+  /// in `contracts/addresses.ts`), since scanning from block 0 against a real RPC with pruned
+  /// history fails outright (confirmed live 2026-09-21, plans/16-app-demo.md).
+  nonceFromBlock?: bigint;
 }): Promise<RegisterResult[]> {
-  const { publicClient, signer, registry, currency, chainId, roles, privateKeys, complianceProvider } = params;
+  const { publicClient, signer, registry, currency, chainId, roles, privateKeys, complianceProvider, nonceFromBlock } = params;
   const results: RegisterResult[] = [];
+  const fromBlock = { fromBlock: nonceFromBlock ?? 0n };
 
   // Resolve nonces up front against current chain state; re-resolved to `undefined` gaps aren't
   // possible here since each fixture pair (northwind->meridian, meridian->atlas, atlas->northwind)
   // is distinct, so none of these three register() calls can race each other's nonce.
   const nextNonces = {
-    "northwind->meridian": await readNextNonce(publicClient, registry, roles.northwind, roles.meridian),
-    "meridian->atlas": await readNextNonce(publicClient, registry, roles.meridian, roles.atlas),
-    "atlas->northwind": await readNextNonce(publicClient, registry, roles.atlas, roles.northwind),
+    "northwind->meridian": await readNextNonce(publicClient, registry, roles.northwind, roles.meridian, fromBlock),
+    "meridian->atlas": await readNextNonce(publicClient, registry, roles.meridian, roles.atlas, fromBlock),
+    "atlas->northwind": await readNextNonce(publicClient, registry, roles.atlas, roles.northwind, fromBlock),
   } as const;
 
   const fixtures = buildFixtureAttestations({ roles, currency, registry, chainId, nextNonces });
