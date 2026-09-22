@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { isAddress, type Address } from "viem";
-import { WalletModal } from "../../../components/wallet/WalletModal";
+import { usePrivy } from "@privy-io/react-auth";
 import { ReviewAndSign } from "../../../components/attest/ReviewAndSign";
 import { invoiceAttestationTypedData, type InvoiceAttestation } from "../../../src/attest/signAttestation";
 import { encodeAttestLink } from "../../../src/attest/link";
@@ -29,6 +29,7 @@ function shortAddr(addr: string): string {
 export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const { address, isConnected } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { login } = usePrivy();
 
   const [counterparty, setCounterparty] = useState("");
   const [amountUsd, setAmountUsd] = useState("");
@@ -42,7 +43,6 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const [error, setError] = useState<string | null>(null);
   const [grantNote, setGrantNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   async function ensureGrant() {
     const result = await requestGrant();
@@ -174,12 +174,11 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           </p>
         )}
         <button
-          onClick={() => setWalletModalOpen(true)}
+          onClick={() => login()}
           className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
         >
           Connect wallet
         </button>
-        <WalletModal open={walletModalOpen} onClose={() => setWalletModalOpen(false)} />
       </div>
     );
   }

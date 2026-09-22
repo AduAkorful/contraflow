@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { buildSiweMessage } from "../../src/siwe/message";
 import { requestNonce, signIn, signOut, whoAmI } from "../../app/app/siwe/actions";
-import { WalletModal } from "./WalletModal";
 
 function shortAddr(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -14,13 +14,12 @@ type Phase = "idle" | "signing" | "signed-in" | "error";
 
 export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNode } = {}) {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
+  const { login, logout } = usePrivy();
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     whoAmI().then((r) => {
@@ -65,7 +64,7 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
 
   async function handleSignOut() {
     await signOut();
-    disconnect();
+    await logout();
     setSessionAddress(null);
     setPhase("idle");
   }
@@ -95,7 +94,7 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
         <button
           onClick={() => {
             setError(null);
-            setModalOpen(true);
+            login();
           }}
           className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
         >
@@ -111,7 +110,6 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
         </button>
       )}
       {error && <p className="max-w-xs text-center text-xs text-red-300">{error}</p>}
-      <WalletModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }
