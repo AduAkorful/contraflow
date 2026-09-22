@@ -11,8 +11,8 @@ import {ContraflowDeployHelpers} from "../helpers/ContraflowDeployHelpers.sol";
 
 /// @notice End-to-end scenarios exercising the real Registry + Settler pair the way the
 /// product actually gets used — full register-then-settle lifecycles, multi-cycle graphs,
-/// chained partial nets, and the dashboard KPI formulas from spec §9.2 — rather than isolated
-/// single-check unit assertions (those live in ContraflowRegistry.t.sol / ContraflowSettler.t.sol).
+/// chained partial nets, and the dashboard KPI formulas — rather than isolated single-check
+/// unit assertions (those live in ContraflowRegistry.t.sol / ContraflowSettler.t.sol).
 contract ContraflowIntegrationTest is InvoiceSigningHelpers, ContraflowDeployHelpers {
     ContraflowRegistry internal registry;
     ContraflowSettler internal settler;
@@ -70,11 +70,11 @@ contract ContraflowIntegrationTest is InvoiceSigningHelpers, ContraflowDeployHel
         }
     }
 
-    // ==================== scenario: the actual Phase 1 demo shape ====================
+    // ==================== scenario: the shipped demo's cycle shape ====================
 
-    /// @dev Mirrors spec §2.2's fixture structurally (three parties, same face value on every
-    /// edge, a perfect $0-cash cycle) without hardcoding the fixture's fictional names — per
-    /// plans/01-registry-settler.md's own instruction to keep tests fixture-name-agnostic.
+    /// @dev Mirrors the demo fixture's structure (three parties, same face value on every
+    /// edge, a perfect $0-cash cycle) without hardcoding the fixture's fictional names,
+    /// keeping this test fixture-name-agnostic.
     function test_Integration_ThreePartyEqualCycle_FullLifecycle() public {
         uint256 faceValue = 100_000e6;
         (bytes32[] memory ids, Party[] memory parties) =
@@ -95,17 +95,17 @@ contract ContraflowIntegrationTest is InvoiceSigningHelpers, ContraflowDeployHel
             assertEq(uint8(inv.status), uint8(InvoiceStatus.ExtinguishedOnchain));
         }
 
-        // spec §9.2 dashboard tiles, computed the same way the app will compute them
+        // Dashboard tiles, computed the same way the app computes them
         uint256 grossCancelled = faceValue * ids.length; // sum(wNet x cycleLength)
         assertEq(grossCancelled, 300_000e6);
         for (uint256 i = 0; i < parties.length; ++i) {
             assertEq(usdc.balanceOf(parties[i].addr), faceValue, "cash moved must be $0 - balances unchanged");
         }
 
-        // Informational gas canary, not a hard spec requirement: spec §8.2's "<250k" target was
-        // written for the pre-3.3.0 non-upgradeable design; UUPS delegatecall + three
-        // cross-contract calls into the registry will genuinely cost more. This just catches a
-        // wild regression (e.g. an accidental unbounded loop), not a precise budget.
+        // Informational gas canary, not a hard budget: the UUPS delegatecall plus three
+        // cross-contract calls into the registry cost more than a simpler, non-upgradeable
+        // design would. This just catches a wild regression (e.g. an accidental unbounded
+        // loop), not a precise budget.
         assertLt(gasUsed, 700_000, "settle() gas usage regressed unexpectedly for a 3-node cycle");
     }
 

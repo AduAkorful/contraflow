@@ -12,8 +12,8 @@ import {InvoiceAttestation, Invoice} from "../src/interfaces/IContraflowRegistry
 
 /// @title SmokeTestRegister
 /// @notice One-off functional smoke test for a freshly-deployed `ContraflowRegistry` on Arc
-/// testnet, per `plans/02-deploy-testnet.md` step 5. Registers one throwaway 2-party invoice
-/// signed by two disposable keys (never funded, used for nothing else) and reads it back,
+/// testnet. Registers one throwaway 2-party invoice signed by two disposable keys (never
+/// funded, used for nothing else) and reads it back,
 /// proving EIP-712 domain binding and nonce handling work against real Arc testnet state, not
 /// just Foundry's local EVM. Not part of the fixture/app flow — this is deploy-verification
 /// scaffolding, safe to ignore once the app's own attest flow exists.

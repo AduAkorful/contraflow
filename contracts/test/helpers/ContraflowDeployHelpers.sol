@@ -9,11 +9,11 @@ import {ContraflowSettler} from "../../src/ContraflowSettler.sol";
 
 /// @notice Deploys a wired ContraflowRegistry + ContraflowSettler pair behind UUPS proxies,
 /// resolving the circular address dependency (Registry needs Settler's address and vice versa)
-/// the same way plans/00-architecture.md §10 describes for the real deploy script: predict the
-/// Settler proxy's address before it exists (here via Foundry's nonce-prediction cheatcode
-/// rather than CREATE2), initialize the Registry with that predicted address, then deploy and
-/// initialize the Settler with the now-known Registry address. This setUp is itself a live
-/// check that the two-step wiring approach actually works, not just an assertion in a doc.
+/// the same way the real deploy script does: predict the Settler proxy's address before it
+/// exists (here via Foundry's nonce-prediction cheatcode rather than CREATE2), initialize the
+/// Registry with that predicted address, then deploy and initialize the Settler with the
+/// now-known Registry address. This setUp is itself a live check that the two-step wiring
+/// approach actually works, not just an assertion in a doc.
 abstract contract ContraflowDeployHelpers is Test {
     function _deployContraflow(address usdc_, address owner_)
         internal

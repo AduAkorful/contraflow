@@ -593,9 +593,9 @@ contract ContraflowRegistryTest is InvoiceSigningHelpers {
 
     /// @dev Plain Ownable's one-step transfer means a typo'd or unreachable `newOwner` argument
     /// silently locks out future upgrades — nothing reverts, there is no acceptance step to
-    /// catch the mistake. Documenting this as an accepted Phase 1 risk (operator's explicit
-    /// choice), not an oversight: the deployer must double-check the address before calling
-    /// transferOwnership, since the contract itself provides no safety net here.
+    /// catch the mistake. This is an accepted, deliberate risk, not an oversight: the deployer
+    /// must double-check the address before calling transferOwnership, since the contract
+    /// itself provides no safety net here.
     function test_OwnershipTransfer_ToUnreachableAddress_SucceedsWithNoSafetyNet() public {
         address unreachable = address(0xdeadbeef);
         vm.prank(owner);

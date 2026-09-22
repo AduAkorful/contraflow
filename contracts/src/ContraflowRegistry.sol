@@ -16,11 +16,10 @@ import {IContraflowRegistry, InvoiceAttestation, Invoice, InvoiceStatus} from ".
 /// @title ContraflowRegistry
 /// @notice Canonical onchain store of bilaterally-signed invoices. Holds no custody and never
 /// transfers a token — `amountRemaining` only ever moves via `netInvoice`, called by the settler.
-/// @dev UUPS-upgradeable (spec 3.3.0, reversing the original non-upgradeable decision). Upgrade
-/// authority is a single Ownable-controlled EOA in Phase 1 — plain single-step `Ownable`, not
-/// `Ownable2Step`, per explicit operator instruction (a deliberate deviation from this repo's
-/// usual security-first default, which prefers Ownable2Step). See plans/contraflow-spec.md §5
-/// for exactly what that key can and cannot do. `usdc` and `settler` are regular storage, not
+/// @dev UUPS-upgradeable. Upgrade authority is a single Ownable-controlled EOA — plain
+/// single-step `Ownable`, not `Ownable2Step` — a deliberate choice for this deployment;
+/// `_authorizeUpgrade` is the only gate on what that key can do. `usdc` and `settler` are
+/// regular storage, not
 /// `immutable`, because they are set in `initialize()` on the proxy, not in this contract's own
 /// constructor — immutables can only be assigned during the constructor of the exact contract
 /// whose bytecode is executing, which a proxy's delegatecall never runs.

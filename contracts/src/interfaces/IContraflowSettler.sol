@@ -10,7 +10,7 @@ interface IContraflowSettler {
     /// has been netted.
     event Settled(bytes32[] invoiceIds, uint256 wNet, address indexed caller);
 
-    /// @notice `invoiceIds.length` was outside the Phase 1 bound of [3, 5].
+    /// @notice `invoiceIds.length` was outside the allowed [3, 5] bound.
     error CycleLengthInvalid(uint256 length);
 
     /// @notice `invoiceIds` is not a simple cycle: `creditor` of the invoice at `index` does
@@ -18,10 +18,9 @@ interface IContraflowSettler {
     error PathBroken(uint256 index);
 
     /// @notice The same invoice id appeared more than once in `invoiceIds`. Rejected outright
-    /// rather than relying on the path check to catch it incidentally — see
-    /// plans/01-registry-settler.md for why a repeated id would otherwise let one invoice
-    /// absorb a multiple of `wNet` while the rest of the cycle only nets once, breaking the
-    /// reciprocal, zero-cash guarantee the protocol depends on.
+    /// rather than relying on the path check to catch it incidentally: a repeated id would
+    /// otherwise let one invoice absorb a multiple of `wNet` while the rest of the cycle only
+    /// nets once, breaking the reciprocal, zero-cash guarantee the protocol depends on.
     error DuplicateInvoiceId(bytes32 id);
 
     /// @notice The same party (address) appears as debtor in more than one invoice in the

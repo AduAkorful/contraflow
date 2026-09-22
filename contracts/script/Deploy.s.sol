@@ -10,21 +10,19 @@ import {ContraflowRegistry} from "../src/ContraflowRegistry.sol";
 import {ContraflowSettler} from "../src/ContraflowSettler.sol";
 
 /// @title Deploy
-/// @notice Testnet-rehearsal deploy script for Arc testnet (`5042002`), per
-/// `plans/02-deploy-testnet.md`. Deploys implementation + `ERC1967Proxy` pairs for
-/// `ContraflowRegistry` and `ContraflowSettler`, wiring them atomically via nonce-prediction —
-/// the same pattern `contracts/test/helpers/ContraflowDeployHelpers.sol` already proves across
-/// 97 passing tests. Each proxy is constructed *and* initialized in the same transaction, which
-/// closes the initializer-front-running window a bare `deploy-then-initialize` sequence would
-/// leave open (see the 2026-09-18 adversarial audit note in `AGENTS.md`).
-/// @dev Refuses to run against any chain ID other than Arc testnet — mainnet (`5042`) is a
-/// separate, not-yet-written step plan with its own operator go-ahead, per `AGENTS.md`.
+/// @notice Deploy script for Arc testnet (`5042002`). Deploys implementation + `ERC1967Proxy`
+/// pairs for `ContraflowRegistry` and `ContraflowSettler`, wiring them atomically via
+/// nonce-prediction, matching the pattern proven in
+/// `contracts/test/helpers/ContraflowDeployHelpers.sol`. Each proxy is constructed *and*
+/// initialized in the same transaction, which closes the initializer-front-running window a
+/// bare `deploy-then-initialize` sequence would leave open.
+/// @dev Refuses to run against any chain ID other than Arc testnet — mainnet uses a separate
+/// deploy script.
 contract Deploy is Script {
     /// @notice Arc's canonical ERC-20 USDC interface. Identical address on mainnet and testnet.
     /// @dev Hardcoded, not read from an env var — this is a verified protocol constant, not
-    /// per-environment config (per `contract-addresses.md`: don't let an env var typo silently
-    /// wire a fake token). Verified live on both networks on 2026-09-18 via `cast code` /
-    /// `cast call symbol()/decimals()` — see `plans/02-deploy-testnet.md`'s research table.
+    /// per-environment config, so a typo in an env var can never silently wire a fake token.
+    /// Verified on-chain via `cast code` / `cast call symbol()/decimals()` before use.
     address internal constant USDC = 0x3600000000000000000000000000000000000000;
 
     uint256 internal constant ARC_TESTNET_CHAIN_ID = 5042002;
@@ -53,13 +51,11 @@ contract Deploy is Script {
         ContraflowSettler settlerImpl = new ContraflowSettler();
 
         // The Registry proxy lands at the deployer's *current* nonce (after both
-        // implementations above already consumed two), the Settler proxy right after it —
+        // implementations above already consumed one each), the Settler proxy right after it —
         // predict that address now so the Registry can be initialized with it in the same
-        // transaction it is created, per plans/02-deploy-testnet.md decision 1. Must be captured
-        // here, after the implementation deploys, exactly matching
-        // contracts/test/helpers/ContraflowDeployHelpers.sol — capturing it any earlier (e.g.
-        // before the implementation deploys) predicts the wrong slot, as this script's own
-        // testnet dry run caught on 2026-09-18 (see plans/02-deploy-testnet.md's research notes).
+        // transaction it is created. Must be captured here, after the implementation deploys,
+        // exactly matching contracts/test/helpers/ContraflowDeployHelpers.sol — capturing it
+        // any earlier (e.g. before the implementation deploys) predicts the wrong slot.
         address predictedSettlerProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 1);
 
         registry = ContraflowRegistry(
@@ -95,10 +91,10 @@ contract Deploy is Script {
         _writeDeploymentRecord(address(registryImpl), address(registry), address(settlerImpl), address(settler), owner);
     }
 
-    /// @dev Writes a curated, chain-id-keyed summary to `deployments/testnet.json` — the shape
-    /// `plans/00-architecture.md` §8 says `app/lib/contracts/` will eventually consume. This is
-    /// distinct from Foundry's own `broadcast/` transaction log (raw, gitignored); this file is
-    /// public addresses only, no secrets.
+    /// @dev Writes a curated, chain-id-keyed summary to `deployments/testnet.json`, the shape
+    /// the app's own contract-address config consumes. This is distinct from Foundry's own
+    /// `broadcast/` transaction log (raw, gitignored); this file is public addresses only, no
+    /// secrets.
     function _writeDeploymentRecord(
         address registryImpl,
         address registryProxy,
@@ -116,8 +112,8 @@ contract Deploy is Script {
         string memory finalJson = vm.serializeAddress(obj, "settlerProxy", settlerProxy);
 
         // deployments/ is not git-tracked (empty dirs aren't) and vm.writeJson does not create
-        // missing directories itself — this script's own dry run hit that on a fresh checkout
-        // (2026-09-18). Create it defensively rather than depending on it already existing.
+        // missing directories itself, which breaks a fresh checkout's first run. Create it
+        // defensively rather than depending on it already existing.
         vm.createDir("deployments", true);
         vm.writeJson(finalJson, "deployments/testnet.json");
     }

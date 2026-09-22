@@ -14,9 +14,9 @@ import {IContraflowRegistry, Invoice} from "./interfaces/IContraflowRegistry.sol
 /// @notice Validates a proposed netting cycle and atomically subtracts `wNet` from every
 /// invoice in it via the registry. Never holds custody, never calls a token contract, never
 /// restricts who may call `settle` — only whether the cycle submitted is valid.
-/// @dev UUPS-upgradeable (spec 3.3.0). Upgrade authority is a single plain-Ownable-controlled
-/// EOA in Phase 1, same deliberate deviation from the Ownable2Step default as ContraflowRegistry.
-/// `registry` is regular storage, not `immutable`, for the same reason as ContraflowRegistry's
+/// @dev UUPS-upgradeable. Upgrade authority is a single plain-Ownable-controlled EOA, not
+/// `Ownable2Step`, same deliberate choice as `ContraflowRegistry`. `registry` is regular
+/// storage, not `immutable`, for the same reason as `ContraflowRegistry`'s
 /// `usdc`/`settler`: it is set in `initialize()` on the proxy, which a constructor never runs.
 contract ContraflowSettler is Initializable, OwnableUpgradeable, UUPSUpgradeable, IContraflowSettler {
     uint256 private constant MIN_CYCLE_LENGTH = 3;
