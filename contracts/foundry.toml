@@ -6,7 +6,7 @@ test = "test"
 script = "script"
 
 # Fixed, never floating — per the repo's global Solidity style rules.
-solc_version = "0.8.28"
+solc_version = "0.8.37"
 auto_detect_solc = false
 # Confirmed against live research for plans/02-deploy-testnet.md (2026-09-18): Arc mainnet is
 # Osaka-active (newer than cancun); Solidity >=0.8.20 contracts compiled with evm_version =

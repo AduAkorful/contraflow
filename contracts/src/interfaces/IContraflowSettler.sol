@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 /// @title IContraflowSettler
 /// @notice Path/cycle validation and atomic multilateral netting. Never holds custody, never

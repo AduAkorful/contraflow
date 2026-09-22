@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 /// @notice A contract that is intentionally NOT UUPS-proxiable (no `proxiableUUID`), used by
 /// both ContraflowRegistry and ContraflowSettler upgrade tests to prove `upgradeToAndCall`

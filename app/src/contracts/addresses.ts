@@ -19,11 +19,17 @@ export const ARC_MAINNET_CHAIN_ID = 5042;
 /// Source: `plans/02-deploy-testnet.md` "Testnet deployment record" / `contracts/deployments/testnet.json`.
 /// `registryDeployBlock` read directly from `contracts/broadcast/Deploy.s.sol/5042002/run-latest.json`'s
 /// receipts, not hand-typed.
+///
+/// **Redeployed 2026-09-22** — fresh proxies, not an upgrade of the prior deployment: the
+/// contracts were rebuilt with Solidity 0.8.37 (was 0.8.28, no source logic change, see
+/// `contracts/foundry.toml`). All history under the previous addresses
+/// (`0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312` / `0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03`)
+/// stays permanently on-chain and inspectable, just no longer what this app points at.
 const ARC_TESTNET_ADDRESSES: ChainAddresses = {
-  registry: "0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312",
-  settler: "0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03",
+  registry: "0x304450Dc27f644AcA55773895409ff500AFb2Bf7",
+  settler: "0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015",
   usdc: "0x3600000000000000000000000000000000000000",
-  registryDeployBlock: 62699872n,
+  registryDeployBlock: 63390626n,
 };
 
 const ADDRESSES_BY_CHAIN_ID: Record<number, ChainAddresses> = {
