@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "pnpm --filter @contraflow/solver build",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
