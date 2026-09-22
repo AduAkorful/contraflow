@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -14,11 +17,25 @@
     "@circle-fin/adapter-viem-v2": "^1.18.0",
     "@circle-fin/app-kit": "^1.15.2",
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@circle-fin/user-controlled-wallets": "^10.8.0",
+    "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@contraflow/solver": "workspace:*",
-    "viem": "^2.21.54"
+    "@neondatabase/serverless": "^1.1.0",
+    "@tanstack/react-query": "^5.103.2",
+    "@upstash/redis": "^1.39.0",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "viem": "^2.21.54",
+    "wagmi": "^3.7.7"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

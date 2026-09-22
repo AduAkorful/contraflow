@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #0a0a15;
+  --color-bg-warm: #100f0b;
+  --color-surface: #000000;
+  --color-foreground: #ffffff;
+  --color-muted: #8a8a8a;
+  --color-gold: #f5be09;
+  --color-gold-dark: #ecb500;
+
+  --radius-pill: 42px;
+  --radius-card: 20px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+@keyframes card-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes error-shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 32;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-card-entrance {
+  animation: card-entrance 0.35s ease-out both;
+}
+
+.animate-error-shake {
+  animation: error-shake 0.4s ease-in-out;
+}
+
+.animate-skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.animate-check-draw {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: check-draw 0.4s ease-out 0.1s forwards;
+}
+
+/* One rule for every CSS-only animated/transitioned effect in the app. SVG <animate>/<animateMotion>
+   elements aren't reachable from CSS at all — those are gated in JS via useReducedMotion instead
+   (see src/hooks/useReducedMotion.ts, used by CycleDiagram.tsx). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
