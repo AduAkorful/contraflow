@@ -19,7 +19,12 @@ node_modules/
 dist/
 .next/
 coverage/
+.vercel/
 *.db
 *.db-wal
 *.db-shm
 .DS_Store
+*.tsbuildinfo
+.claude/
+.agents/
+skills-lock.json
