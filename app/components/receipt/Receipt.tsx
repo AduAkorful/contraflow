@@ -1,12 +1,10 @@
-/// The canonical settlement receipt (spec §9.1 journey 6 / §9.2): block, transaction hash, and
-/// before/after amountRemaining for every invoice a settle() call extinguished — the on-chain
-/// evidence a cycle really cleared, not just a UI claim that it did. Shared, not demo-specific: any
-/// future `/app/receipt/[txHash]` page (plans/14-app-shell-refactor.md's route table) should render
-/// the same component against the same shape, so "the demo's receipt" and "the real receipt" are
-/// never two different designs.
+/// The canonical settlement receipt: block, transaction hash, and before/after amountRemaining
+/// for every invoice a settle() call extinguished — the on-chain evidence a cycle really
+/// cleared, not just a UI claim that it did. Shared, not demo-specific: `/app/receipt/[txHash]`
+/// renders the same component against the same shape, so "the demo's receipt" and "the real
+/// receipt" are never two different designs.
 ///
-/// Layout follows the Dribbble reference approved in plans/14-app-shell-refactor.md's visual
-/// references table: header block -> dashed separator -> itemized rows -> totals.
+/// Layout: header block -> dashed separator -> itemized rows -> totals.
 
 export interface ReceiptInvoiceRow {
   label: string;

@@ -1,14 +1,11 @@
 "use client";
 
-/// The connect-wallet surface, redesigned after the operator asked for something closer to
-/// Uniswap's connect modal (a centered dialog listing every real detected wallet as its own row,
-/// plus an alternative sign-in path below a divider) rather than the previous inline pill-picker.
-/// Wallet discovery logic itself is unchanged from the old inline picker — still `useConnectors()`,
-/// not `useConnect().connectors`, still filtering the generic "injected" duplicate — this file only
-/// changes how that list is presented. The email/Circle UCW option now lives in this same dialog
-/// too, per the operator's explicit request, though it still shows "not configured yet" until a
-/// real `NEXT_PUBLIC_CIRCLE_APP_ID` exists (plans/22-circle-ucw-signing-method.md) — moving where it
-/// renders doesn't unblock what it does.
+/// The connect-wallet surface: a centered dialog listing every real detected wallet as its own
+/// row, plus an alternative sign-in path below a divider. Wallet discovery uses
+/// `useConnectors()`, not `useConnect().connectors`, filtering out the generic "injected"
+/// duplicate whenever a named (EIP-6963) connector exists. The email/Circle UCW option lives in
+/// this same dialog, though it still shows "not configured yet" until a real
+/// `NEXT_PUBLIC_CIRCLE_APP_ID` exists — rendering it here doesn't unblock what it does.
 
 import { useEffect } from "react";
 import { useConnectors, useConnect, ProviderNotFoundError } from "wagmi";

@@ -1,6 +1,4 @@
-/// Starter-grant tracking against the `addresses` table (schema created by
-/// plans/19-database-blockscout-reconciliation.md, unused until this step). See
-/// plans/21-real-mode-attest-flow.md.
+/// Starter-grant tracking against the `addresses` table.
 
 import { sql, withDbRetry } from "./client";
 

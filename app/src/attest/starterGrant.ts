@@ -1,9 +1,7 @@
-/// One-time starter gas grant — plans/21-real-mode-attest-flow.md, mirroring
-/// plans/14-app-shell-refactor.md's "Starter gas grant + self-submission" section. A plain
-/// native-currency transfer from the operator wallet, gated by: a verified session (design
-/// decision 2 — never a client-supplied address), one-time-per-address (DB), a rate limit, a
-/// rolling daily spend cap, and an operator-balance-floor check (log/alert only, no auto top-up,
-/// per plan 14). Every guardrail fails closed — rejected with a specific reason before any value
+/// One-time starter gas grant: a plain native-currency transfer from the operator wallet, gated
+/// by a verified session (never a client-supplied address), one-time-per-address (DB), a rate
+/// limit, a rolling daily spend cap, and an operator-balance-floor check (log/alert only, no
+/// auto top-up). Every guardrail fails closed — rejected with a specific reason before any value
 /// moves.
 
 import type { Address } from "viem";
@@ -15,9 +13,8 @@ import { checkRateLimit, incrementWindowCounter } from "../ratelimit/limiter";
 const GRANT_RATE_LIMIT_MAX = 3;
 const GRANT_RATE_LIMIT_WINDOW_SECONDS = 60;
 const DAILY_SPEND_CAP_USDC = 1;
-/// Alert-only threshold, native USDC (18 decimals) — plan 14 explicitly says "log/alert... no auto
-/// top-up," not a hard block; an actually-insufficient balance still fails naturally at the
-/// transfer step below.
+/// Alert-only threshold, native USDC (18 decimals) — log/alert, not a hard block; an
+/// actually-insufficient balance still fails naturally at the transfer step below.
 const OPERATOR_BALANCE_FLOOR_USDC = "1";
 
 function grantAmountUsdc(): string {

@@ -1,8 +1,7 @@
 "use server";
 
-/// Server Action behind `/app/history` — plans/19-database-blockscout-reconciliation.md. Address
-/// lookup, not session-gated: no SIWE/sign-in layer exists yet (plan 14 step 4), and this is the
-/// deliberate non-signed-in path plan 14 already scoped ("an auditor checking a counterparty").
+/// Server Action behind `/app/history`. Address lookup, deliberately not session-gated — this
+/// path is meant to work for an auditor checking a counterparty without signing in at all.
 
 import { reconcileAddress } from "../../../src/blockscout/reconcile";
 import { isAddress } from "viem";

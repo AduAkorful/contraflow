@@ -1,7 +1,6 @@
 "use server";
 
-/// Server Actions behind `/app/demo` (plans/16-app-demo.md, plans/17-app-demo-n-party.md,
-/// plans/18-app-demo-unequal-amounts.md) — thin wrappers around the already-tested `app/src/`
+/// Server Actions behind `/app/demo` — thin wrappers around the already-tested `app/src/`
 /// functions. Never imported by client-bundled code; the operator private key this file
 /// constructs a signer from must never reach the browser.
 
@@ -94,14 +93,13 @@ export async function registerCycleInvoiceStep(
       creditorSignature,
     });
 
-    // Write-through to the database (plans/19-database-blockscout-reconciliation.md) —
-    // deliberately isolated from this action's own success/failure: a DB write failing here must
-    // never turn a real, already-broadcast, already-paid-for chain write into a reported failure.
-    // Live-verified this actually happens: Neon's HTTP driver has a known intermittent
-    // "TypeError: fetch failed" (a documented connection-drop issue, not specific to this app —
-    // github.com/neondatabase/serverless/issues/146/127), and the first version of this write-through
-    // put it inside the same try/catch as the chain call, so a transient DB hiccup after a
-    // *successful* register() reported the whole step as failed. Reconciliation
+    // Write-through to the database — deliberately isolated from this action's own
+    // success/failure: a DB write failing here must never turn a real, already-broadcast,
+    // already-paid-for chain write into a reported failure. This matters concretely: Neon's HTTP
+    // driver has a known intermittent "TypeError: fetch failed" (a documented connection-drop
+    // issue, not specific to this app — github.com/neondatabase/serverless/issues/146/127), so
+    // putting the DB write inside the same try/catch as the chain call would let a transient DB
+    // hiccup after a *successful* register() report the whole step as failed. Reconciliation
     // (src/blockscout/reconcile.ts) exists precisely to backfill a write this call misses, so
     // swallowing the failure here (logged, not silent) is the correct tradeoff, not a shortcut.
     try {
@@ -127,11 +125,10 @@ export async function registerCycleInvoiceStep(
   }
 }
 
-/// No `faceValueUsdc` field here (it existed briefly, computed as `wNet * cycleLength`) — that's
-/// actually "gross cancelled" (spec §9.2's own metric, correct for the receipt's summary tile),
-/// not "total invoiced." They only coincide when every invoice's amount happens to equal wNet.
-/// Now that demo invoices carry unequal amounts (plans/18-app-demo-unequal-amounts.md), the two
-/// numbers really differ — the client computes "total invoiced" itself, from the amounts it
+/// No `faceValueUsdc` field here — `wNet * cycleLength` is "gross cancelled" (the receipt's
+/// summary tile metric), not "total invoiced." They only coincide when every invoice's amount
+/// happens to equal wNet, which isn't true once invoices carry unequal amounts — the client
+/// computes "total invoiced" itself, from the amounts it
 /// already has off each register step, rather than this action returning a same-named-but-wrong
 /// value.
 export interface CycleProposalView {
@@ -217,8 +214,8 @@ export async function settleProposedCycle(invoiceIds: string[], labels: Record<s
     const tiles = computeDashboardTiles(result);
 
     // Real post-settle on-chain state per invoice, not assumed — "before" is derived via the
-    // documented formula (before = remainingAfter + wNet), matching how a receipt reconstructed
-    // purely from chain events would compute it (plans/14-app-shell-refactor.md's receipt section).
+    // formula (before = remainingAfter + wNet), matching how a receipt reconstructed purely from
+    // chain events would compute it.
     const perInvoice: ReceiptInvoiceRow[] = await Promise.all(
       result.invoiceIds.map(async (id) => {
         const onchain = await getInvoice(client, registry, id);

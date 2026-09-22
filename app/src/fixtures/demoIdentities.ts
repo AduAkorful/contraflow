@@ -1,13 +1,13 @@
-/// Per-run burner identities for the `/app/demo` fixture (plans/16-app-demo.md), generalized to a
-/// configurable party count (plans/17-app-demo-n-party.md). Each demo run derives fresh addresses,
-/// salted with a random run id, rather than reusing one fixed set — deliberately, not an
-/// oversight: a truly fresh address is provably at nonce 1 with a trivial, near-instant on-chain
-/// check (no prior event can exist for an address that's never been derived before), sidestepping
-/// `readNextNonce`'s full-history event scan entirely. Arc testnet's public RPC both rejects
-/// scanning from block 0 ("pruned history unavailable") and caps any single `eth_getLogs` range at
-/// a few thousand blocks ("requested range too large") — both confirmed live 2026-09-21 — so a
-/// fixed, reused identity set would need an ever-growing chain of chunked scans as the deployment
-/// ages. Per-run identities also mean two concurrent demo runs never contend for the same nonce.
+/// Per-run burner identities for the `/app/demo` fixture, generalized to a configurable party
+/// count. Each demo run derives fresh addresses, salted with a random run id, rather than
+/// reusing one fixed set — deliberately, not an oversight: a truly fresh address is provably at
+/// nonce 1 with a trivial, near-instant on-chain check (no prior event can exist for an address
+/// that's never been derived before), sidestepping `readNextNonce`'s full-history event scan
+/// entirely. Arc testnet's public RPC both rejects scanning from block 0 ("pruned history
+/// unavailable") and caps any single `eth_getLogs` range at a few thousand blocks ("requested
+/// range too large"), so a fixed, reused identity set would need an ever-growing chain of
+/// chunked scans as the deployment ages. Per-run identities also mean two concurrent demo runs
+/// never contend for the same nonce.
 
 import { keccak256, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -25,11 +25,10 @@ export interface DemoParty {
   privateKey: Hex;
 }
 
-/// The spec's own documented 3-node fixture (`plans/contraflow-spec.md` §7, "Phase 1 fixture"):
-/// Northwind DSP -> Meridian Exchange -> Atlas Publisher -> Northwind DSP. Used verbatim when the
-/// party count is exactly 3, so the default demo experience matches what the spec describes.
-/// Any other count (4 or 5) uses generic, obviously-synthetic labels instead of inventing more
-/// fake company names beyond what the spec actually documents.
+/// The canonical 3-node fixture: Northwind DSP -> Meridian Exchange -> Atlas Publisher ->
+/// Northwind DSP. Used verbatim when the party count is exactly 3, so the default demo
+/// experience is the one reviewers see documented. Any other count (4 or 5) uses generic,
+/// obviously-synthetic labels instead of inventing more fake company names.
 const NAMED_TRIO = ["Northwind DSP", "Meridian Exchange", "Atlas Publisher"];
 
 function partyLabel(index: number, count: number): string {

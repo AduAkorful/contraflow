@@ -1,8 +1,7 @@
 /// Thin, typed wrappers over Circle App Kit's Swap Kit (`kit.estimateSwap` / `kit.swap`),
-/// scoped to Contraflow's one residual scenario: USDC -> EURC (spec §4.2 FR-2.3, §4.3 FR-3.2).
-/// Deliberately never imported by `ContraflowSettler` or any Solidity code — App Kit runs in
-/// TypeScript against wallet adapters and does not share a revert boundary with the settler
-/// (spec preamble, `00-architecture.md`'s `kits` bounded context). See `plans/06-swap-kit.md`.
+/// scoped to Contraflow's one residual scenario: USDC -> EURC. Deliberately never imported by
+/// `ContraflowSettler` or any Solidity code — App Kit runs in TypeScript against wallet adapters
+/// and does not share a revert boundary with the settler.
 
 import type { SwapEstimate, SwapParams, SwapResult } from "@circle-fin/app-kit";
 
@@ -38,14 +37,13 @@ function buildSwapParams(params: UsdcToEurcSwapParams): SwapParams {
   };
 }
 
-/// Quote-only — spec §9.1 screen #5 ("Quote — not a fill") and FR-2.3. No funds move, no gas
-/// spent, no signature requested.
+/// Quote-only — a preview, not a fill. No funds move, no gas spent, no signature requested.
 export function estimateUsdcToEurcSwap(params: UsdcToEurcSwapParams): Promise<SwapEstimate> {
   return params.swapKit.kit.estimateSwap(buildSwapParams(params));
 }
 
-/// Executes the swap for real (spec FR-3.2, Phase 2 — pulled forward per the 2026-09-18 phase-
-/// sequencing decision). Moves the operator's USDC and returns a real `SwapResult`/`txHash`.
+/// Executes the swap for real. Moves the operator's USDC and returns a real
+/// `SwapResult`/`txHash`.
 export function swapUsdcToEurc(params: UsdcToEurcSwapParams): Promise<SwapResult> {
   return params.swapKit.kit.swap(buildSwapParams(params));
 }

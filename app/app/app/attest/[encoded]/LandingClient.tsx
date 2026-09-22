@@ -1,8 +1,8 @@
 "use client";
 
-/// Party B's link-landing page — plans/21-real-mode-attest-flow.md. Decodes and re-verifies
-/// `signatureA` entirely client-side, before rendering any of the terms as trustworthy (plan 14's
-/// own explicit ordering) — a mismatch is a full stop, not a warning banner.
+/// Party B's link-landing page. Decodes and re-verifies `signatureA` entirely client-side,
+/// before rendering any of the terms as trustworthy — a mismatch is a full stop, not a warning
+/// banner.
 
 import { useEffect, useState } from "react";
 import { useAccount, useSignTypedData, useWriteContract, usePublicClient } from "wagmi";
@@ -124,7 +124,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
       if (!recordResult.ok) {
         // The on-chain register() already succeeded at this point — a record failure means the
         // database write didn't land, not that the invoice registration failed. Reconciliation
-        // (plans/19) backfills this the same way it does for the demo's write path.
+        // backfills this the same way it does for the demo's write path.
         console.error("record() failed after a successful register():", recordResult.error);
       }
 

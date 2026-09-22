@@ -1,7 +1,7 @@
-/// Shared operator-client construction from env vars — factored out once real-mode's server
-/// actions (`src/attest/`, plans/21-real-mode-attest-flow.md) needed the exact same construction
-/// `/app/demo/actions.ts` already had inline. Server-only: constructs an `OperatorSigner` from
-/// `CONTRAFLOW_OPERATOR_PK`, which must never reach client-bundled code.
+/// Shared operator-client construction from env vars — factored out so `src/attest/`'s server
+/// actions and `/app/demo/actions.ts` share the same construction instead of each inlining it.
+/// Server-only: constructs an `OperatorSigner` from `CONTRAFLOW_OPERATOR_PK`, which must never
+/// reach client-bundled code.
 
 import type { Hex } from "viem";
 import { createArcPublicClient, createArcWalletClient } from "./client";

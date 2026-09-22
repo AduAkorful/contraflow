@@ -1,9 +1,9 @@
 "use server";
 
-/// Server Actions behind `/app/attest` — plans/21-real-mode-attest-flow.md. Every action that acts
-/// "on behalf of the signed-in party" derives the address from the verified session
-/// (`getSession()`), never from a client-supplied parameter — same discipline plan 14 states for
-/// `/app/history`, applied here too (design decision 2).
+/// Server Actions behind `/app/attest`. Every action that acts "on behalf of the signed-in
+/// party" derives the address from the verified session (`getSession()`), never from a
+/// client-supplied parameter — same discipline applied consistently across every action here
+/// and in `/app/history`.
 
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
@@ -44,10 +44,10 @@ export async function nextNonceFor(debtor: string, creditor: string): Promise<No
 
 export type FreshnessResult = { ok: true; fresh: boolean; expectedNonce: string } | { ok: false; error: string };
 
-/// Deliberately NOT session-gated — this is the "catch a stale link before investing effort
-/// signing" check plan 14 describes for Party B's landing page, meant to run *before* they've
-/// connected or signed in at all. The nonce comparison itself reveals nothing sensitive (it's
-/// derived from public on-chain events either way).
+/// Deliberately NOT session-gated — this catches a stale link before Party B invests effort
+/// signing, on their landing page, meant to run *before* they've connected or signed in at all.
+/// The nonce comparison itself reveals nothing sensitive (it's derived from public on-chain
+/// events either way).
 export async function checkLinkFreshness(debtor: string, creditor: string, claimedNonce: string): Promise<FreshnessResult> {
   if (!isAddress(debtor) || !isAddress(creditor)) return { ok: false, error: "Invalid address." };
   const expected = await resolveNextNonce(debtor as Address, creditor as Address);

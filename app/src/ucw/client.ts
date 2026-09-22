@@ -1,7 +1,6 @@
-/// Circle User-Controlled Wallets — server-side half, plans/22-circle-ucw-signing-method.md. Method
-/// names and input shapes below are taken directly from `@circle-fin/user-controlled-wallets`'s
-/// compiled `.d.ts` files, not from Circle's own quickstart doc (which showed a plausible but not
-/// fully accurate flow — see that plan's "Research" section for the specific discrepancies found).
+/// Circle User-Controlled Wallets — server-side half. Method names and input shapes below are
+/// taken directly from `@circle-fin/user-controlled-wallets`'s compiled `.d.ts` files, not from
+/// Circle's own quickstart doc, which showed a plausible but not fully accurate flow.
 
 import { initiateUserControlledWalletsClient, HttpResponseError } from "@circle-fin/user-controlled-wallets";
 

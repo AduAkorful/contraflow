@@ -1,4 +1,4 @@
--- Step 19 (plans/19-database-blockscout-reconciliation.md). Run once against Neon:
+-- Run once against Neon:
 --   node --env-file=.env.local scripts/migrate.mjs
 
 CREATE TABLE IF NOT EXISTS invoices (

@@ -1,5 +1,5 @@
-/// viem client factories for Arc, per `plans/00-architecture.md` §8's environments table.
-/// `rpcUrl` is always overridable (not just chain-default) so tests can point at a local anvil
+/// viem client factories for Arc. `rpcUrl` is always overridable (not just chain-default) so
+/// tests can point at a local anvil
 /// instance without touching the real network config.
 
 import { createPublicClient, createWalletClient, http, type Chain, type Hex, type PublicClient, type WalletClient } from "viem";

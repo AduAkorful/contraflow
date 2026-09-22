@@ -1,7 +1,7 @@
 /// Reads against `ContraflowRegistry`. Three things worth knowing before touching this file:
 /// - `getInvoice` **reverts** `InvoiceNotFound(id)` for an unregistered id — it never returns a
-///   zero-valued struct (confirmed live on testnet, `plans/03-live-testnet-e2e-tests.md`). Code
-///   here maps that specific revert to `null`, and re-throws anything else.
+///   zero-valued struct. Code here maps that specific revert to `null`, and re-throws anything
+///   else.
 /// - There is no on-chain view function for the per-pair nonce counter (`_lastNonce` is private,
 ///   no getter in the ABI) — the "next nonce to use" has to be derived by scanning
 ///   `InvoiceRegistered` events for that (debtor, creditor) pair and taking `max(nonce) + 1`.

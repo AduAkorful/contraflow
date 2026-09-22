@@ -3,8 +3,8 @@ import { SiteFooter } from "../../../../components/site-footer";
 import { Receipt } from "../../../../components/receipt/Receipt";
 import { getReceiptData } from "../../../../src/receipt/getReceiptData";
 
-/// DB-first, Blockscout-fallback receipt page — plans/19-database-blockscout-reconciliation.md.
-/// Works for any settle() tx hash on this deployment, not just ones `/app/demo` itself produced:
+/// DB-first, Blockscout-fallback receipt page. Works for any settle() tx hash on this
+/// deployment, not just ones `/app/demo` itself produced:
 /// register()/settle() are permissionless, so a tx this app never saw still renders correctly via
 /// the Blockscout fallback in `getReceiptData`.
 export default async function ReceiptPage({ params }: { params: Promise<{ txHash: string }> }) {

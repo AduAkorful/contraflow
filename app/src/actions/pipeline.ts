@@ -1,11 +1,8 @@
 /// Top-level orchestration: register a set of invoices, settle the best cycle among them, and
-/// optionally quote/fund a residual for whatever's left dangling (no cycle reached them) — the
-/// "run the whole demo in one call" function `plans/11-orchestration.md` deliberately deferred,
-/// built once step 12's live campaign gave a concrete worked shape to build from. See
-/// `plans/13-orchestration-pipeline.md`.
+/// optionally quote/fund a residual for whatever's left dangling (no cycle reached them).
 ///
 /// "Residual" here is *not* a settle() byproduct — settle() always fully extinguishes whatever
-/// cycle it's given (spec: same-asset in-place cancel only), so there's never a partial leftover
+/// cycle it's given (same-asset in-place cancel only), so there's never a partial leftover
 /// on an invoice that was part of the settled cycle. A residual is an invoice that no cycle
 /// reached at all. Funding one just lands USDC on the operator's Arc balance (via the existing,
 /// independently-proven Unified Balance path) — nothing in this protocol pays an invoice down
@@ -62,7 +59,7 @@ export interface SettlementPipelineResult {
   residualFund?: Awaited<ReturnType<typeof fundResidualViaGateway>>;
   /// Set instead of throwing when funding the residual fails after its deposit already landed —
   /// call `resumeFundResidualViaGateway` with this error's own fields to retry without
-  /// re-depositing (`plans/13-orchestration-pipeline.md`).
+  /// re-depositing.
   residualFundError?: GatewayFundResidualPartialFailureError;
   /// `null` when `settle` is `null` — no settle result to compute tiles from.
   dashboardTiles: DashboardTiles | null;

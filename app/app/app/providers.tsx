@@ -1,9 +1,9 @@
 "use client";
 
 /// Wagmi/wallet-connect provider, scoped to `/app/*` only via `app/app/app/layout.tsx` — the
-/// marketing pages never load any wallet code. Injected connector only (browser-extension wallets:
-/// MetaMask, Rabby, Coinbase Wallet extension, etc.) — see plans/20-session-wallet-connect.md
-/// design decision 2 for why WalletConnect/RainbowKit are out of scope for this step.
+/// marketing pages never load any wallet code. Injected connector only (browser-extension
+/// wallets: MetaMask, Rabby, Coinbase Wallet extension, etc.) — WalletConnect/RainbowKit are out
+/// of scope.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http, injected } from "wagmi";

@@ -1,11 +1,9 @@
-/// Real-mode nonce resolution — plans/21-real-mode-attest-flow.md design decision 1. Deliberately
-/// NOT `src/chain/readInvoices.ts`'s `readNextNonce` (raw `eth_getLogs`): that function is correct
-/// for the demo's fresh-per-run identities (provably nonce 1, `fromBlock` barely matters) but real
-/// parties are reused addresses, so a genuine scan is required — and the registry-deploy-block-to-
-/// now gap is now ~590,000 blocks, well past the public RPC's confirmed ~9,500-block
-/// `eth_getLogs` cap (`plans/16-app-demo.md`). Reuses the Blockscout pagination already built and
-/// verified for reconciliation (`plans/19-database-blockscout-reconciliation.md`), which has no
-/// such cap.
+/// Real-mode nonce resolution. Deliberately NOT `src/chain/readInvoices.ts`'s `readNextNonce`
+/// (raw `eth_getLogs`): that function is correct for the demo's fresh-per-run identities
+/// (provably nonce 1, `fromBlock` barely matters) but real parties are reused addresses, so a
+/// genuine scan is required — and the registry-deploy-block-to-now gap can easily exceed the
+/// public RPC's confirmed block-range cap on a single `eth_getLogs` call. Reuses the Blockscout
+/// pagination already built for reconciliation, which has no such cap.
 
 import type { Address } from "viem";
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";

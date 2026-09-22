@@ -1,6 +1,6 @@
-/// Address pre-screening (spec §4.1 FR-1.3, §6). Application-layer only — Arc validators do not
-/// screen senders, and no contract in this repo gains compliance logic because of this module.
-/// Never imported by `ContraflowSettler`/`ContraflowRegistry`. See `plans/08-compliance-prescreen.md`.
+/// Address pre-screening. Application-layer only — Arc validators do not screen senders, and no
+/// contract in this repo gains compliance logic because of this module. Never imported by
+/// `ContraflowSettler`/`ContraflowRegistry`.
 
 import type { Address } from "viem";
 import type { InvoiceEdge } from "@contraflow/solver";

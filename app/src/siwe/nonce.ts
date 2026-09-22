@@ -1,6 +1,4 @@
-/// SIWE nonce issuance and single-use tracking — plans/20-session-wallet-connect.md design
-/// decision 4. Uses the already-provisioned Upstash Redis (plans/19-database-blockscout-reconciliation.md
-/// provisioned it for exactly this: plan 14 design decision 6 named "payload dedupe" as its job).
+/// SIWE nonce issuance and single-use tracking, backed by Upstash Redis.
 /// A stateless (signed, no-storage) nonce was considered and rejected — it can prove freshness but
 /// not single-use, which is the actual property SIWE's replay protection needs.
 

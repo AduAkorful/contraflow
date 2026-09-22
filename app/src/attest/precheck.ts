@@ -1,6 +1,5 @@
-/// Non-broadcasting pre-check — plans/21-real-mode-attest-flow.md / plan 14's "Starter gas grant +
-/// self-submission" §2. Re-derives everything itself rather than trusting the client's claims
-/// (design decision 5): re-recovers both signatures against the exact struct sent, re-resolves the
+/// Non-broadcasting pre-check. Re-derives everything itself rather than trusting the client's
+/// claims: re-recovers both signatures against the exact struct sent, re-resolves the
 /// nonce live, and runs the real compliance screen. Only if every check passes is the caller told
 /// it's safe to self-submit `register()`.
 

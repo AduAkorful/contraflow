@@ -1,6 +1,6 @@
 "use server";
 
-/// Server Actions behind the wallet-connect sign-in flow — plans/20-session-wallet-connect.md.
+/// Server Actions behind the wallet-connect sign-in flow.
 
 import { cookies } from "next/headers";
 import { issueNonce } from "../../../src/siwe/nonce";

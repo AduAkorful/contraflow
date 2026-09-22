@@ -1,8 +1,7 @@
-/// Thin client for Blockscout's REST v2 API against `explorer.testnet.arc.io` — confirmed live
-/// (not assumed) this session: it's v2 (`/api/v2/...`), not the legacy Etherscan-compatible
-/// module, and the legacy module's topic-filtered log search silently returns zero results even
-/// for real matches — see plans/19-database-blockscout-reconciliation.md's "Live discovery"
-/// section. Reconciliation therefore paginates full decoded contract logs and filters client-side.
+/// Thin client for Blockscout's REST v2 API against `explorer.testnet.arc.io`: it's v2
+/// (`/api/v2/...`), not the legacy Etherscan-compatible module, and the legacy module's
+/// topic-filtered log search silently returns zero results even for real matches.
+/// Reconciliation therefore paginates full decoded contract logs and filters client-side.
 
 const BLOCKSCOUT_BASE = "https://explorer.testnet.arc.io";
 

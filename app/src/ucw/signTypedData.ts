@@ -1,7 +1,6 @@
-/// Signing via Circle UCW — plans/22-circle-ucw-signing-method.md. **Corrected mid-implementation,
-/// this session:** the first version of this file assumed `client.signTypedData()` returns a
-/// signature directly, based on the client SDK's `signTypedData` method signature alone. Checked
-/// further (Circle's actual REST reference for `POST /v1/w3s/user/sign/typedData`, not just the
+/// Signing via Circle UCW. `client.signTypedData()` does **not** return a signature directly,
+/// despite what the server SDK's method signature alone would suggest. Confirmed against
+/// Circle's actual REST reference for `POST /v1/w3s/user/sign/typedData`, not just the
 /// Node SDK's own — possibly also generator-artifacted — types) and found it returns a
 /// `challengeId`, same as every other PIN-gated operation in this API (`createUserPinWithWallets`,
 /// etc.) — the real signature only exists after the *client* executes that challenge through

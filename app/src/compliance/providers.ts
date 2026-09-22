@@ -1,22 +1,20 @@
-/// Phase 1 compliance providers — spec FR-1.3's documented fallback ("a stub + manual denylist
-/// if API access is not granted in time"), not a placeholder pending a real vendor. See
-/// `plans/08-compliance-prescreen.md`.
+/// Compliance providers: a stub plus a manual denylist, used until a real sanctions-screening
+/// vendor is integrated.
 
 import type { Address } from "viem";
 import type { ComplianceProvider, ScreenResult } from "./screen";
 
-/// Always clears. The "stub" half of spec FR-1.3's fallback — real screening (Compliance Engine
-/// / Chainalysis / Elliptic / TRM) is Phase 2, gated behind access this project doesn't have.
+/// Always clears. Real screening (Compliance Engine / Chainalysis / Elliptic / TRM) requires
+/// vendor access this deployment doesn't have yet.
 export class StubClearProvider implements ComplianceProvider {
   async screenAddress(address: Address): Promise<ScreenResult> {
     return { address, status: "clear", provider: "stub" };
   }
 }
 
-/// Flags exactly the addresses the operator has manually added. Case-insensitive — EIP-55
-/// checksum casing must not affect matching. Starts empty by convention (see
-/// `denylist.json` and `plans/08-compliance-prescreen.md`'s note on never seeding this with an
-/// invented "sanctioned" address).
+/// Flags exactly the addresses an administrator has manually added. Case-insensitive — EIP-55
+/// checksum casing must not affect matching. Starts empty by convention — never seed this with
+/// an invented "sanctioned" address.
 export class ManualDenylistProvider implements ComplianceProvider {
   private readonly denylist: ReadonlySet<string>;
   private readonly reasons: ReadonlyMap<string, string>;

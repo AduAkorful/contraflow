@@ -1,4 +1,4 @@
-/// Business logic behind the Attest screen (spec §9.1 screen 2): sign + submit `register()` for
+/// Business logic behind the Attest screen: sign + submit `register()` for
 /// the fixture invoices. Framework-agnostic on purpose — a Next.js server action just imports
 /// and calls `registerFixtureInvoices`; this file has no dependency on Next.js itself, so it's
 /// directly unit/integration-testable without spinning up a dev server.
@@ -20,8 +20,8 @@ export interface RegisterResult {
   blockNumber: bigint;
 }
 
-/// Spec FR-1.3: "Before register, the application calls ... screening. Flagged addresses are not
-/// inserted." Thrown before any submission is attempted — no gas spent screening off-chain.
+/// Thrown before any submission is attempted, when compliance pre-screening flags a party's
+/// address — no gas spent screening off-chain.
 export class ComplianceRejectedError extends Error {
   constructor(public readonly flagged: Address[]) {
     super(`registerInvoice: address(es) flagged by compliance pre-screen: ${flagged.join(", ")}`);
@@ -30,10 +30,9 @@ export class ComplianceRejectedError extends Error {
 }
 
 /// Submits one already-signed attestation's `register()` call, regardless of which kind of
-/// `OperatorSigner` is given — callers no longer choose between a raw-key function and a
-/// `*ViaDcw` one (see `plans/11-orchestration.md`; this replaces the two-function shape from
-/// `plans/10-dcw-register-settle.md`). Signer may be any funded account — `register()` is open to
-/// "either party or the operator" (spec FR-1.2), not restricted to the debtor or creditor.
+/// `OperatorSigner` is given — callers never choose between a raw-key function and a `*ViaDcw`
+/// one. Signer may be any funded account — `register()` is open to either party or the
+/// operator, not restricted to the debtor or creditor.
 export async function registerInvoice(params: {
   publicClient: PublicClient;
   signer: OperatorSigner;
@@ -117,7 +116,7 @@ export async function registerFixtureInvoices(params: {
   /// nonce. Defaults to `0n` (fine for a fresh local anvil chain, e.g. the integration test) — a
   /// live deployment should pass its actual deploy block (see `ChainAddresses.registryDeployBlock`
   /// in `contracts/addresses.ts`), since scanning from block 0 against a real RPC with pruned
-  /// history fails outright (confirmed live 2026-09-21, plans/16-app-demo.md).
+  /// history fails outright.
   nonceFromBlock?: bigint;
 }): Promise<RegisterResult[]> {
   const { publicClient, signer, registry, currency, chainId, roles, privateKeys, complianceProvider, nonceFromBlock } = params;

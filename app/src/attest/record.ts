@@ -1,6 +1,6 @@
-/// Record action — plans/21-real-mode-attest-flow.md, plan 14's explicit "never trusts client-
-/// supplied data for what to write" requirement. Takes only a tx hash, never the client's claimed
-/// invoice struct: independently fetches the real receipt, confirms it's a genuine successful call
+/// Record action — never trusts client-supplied data for what to write. Takes only a tx hash,
+/// never the client's claimed invoice struct: independently fetches the real receipt, confirms
+/// it's a genuine successful call
 /// to the Registry contract, and decodes `InvoiceRegistered` itself. Without this, anyone could
 /// report a fabricated tx hash/invoice pairing and write false rows into someone else's history.
 

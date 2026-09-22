@@ -1,9 +1,9 @@
 "use server";
 
-/// Server Action bridging the compose/attest UI to Circle UCW — plans/22-circle-ucw-signing-method.md.
-/// No OTP-verified email login built here (Circle's own "Social & Email Authentication" category) —
-/// a deliberate scope simplification: the App ID blocker already prevents live-testing anything past
-/// this point this session, so building unprovable OTP UI on top wouldn't add verified value.
+/// Server Action bridging the compose/attest UI to Circle UCW.
+/// No OTP-verified email login built here (Circle's own "Social & Email Authentication"
+/// category) — a deliberate scope simplification, since it can't be live-tested without a
+/// configured Circle Web3 Services App ID.
 /// `userId` is derived from the typed email (hashed, not stored raw as a Circle identifier) — the
 /// PIN Circle's own hosted UI collects is the actual security boundary being relied on here, not
 /// this email step.

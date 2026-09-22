@@ -1,5 +1,5 @@
-/// Shared Upstash Redis client — factored out once a second module (the rate limiter,
-/// plans/21-real-mode-attest-flow.md) needed the same connection `src/siwe/nonce.ts` already made.
+/// Shared Upstash Redis client — factored out so the rate limiter and `src/siwe/nonce.ts` reuse
+/// the same connection instead of each opening their own.
 
 import { Redis } from "@upstash/redis";
 

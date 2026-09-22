@@ -1,6 +1,6 @@
-/// Hand-rolled EIP-4361 (Sign-In with Ethereum) message construction — no `siwe` npm package, see
-/// plans/20-session-wallet-connect.md's design decision 1: that package's `.verify()` requires
-/// `ethers` internally, which this project has deliberately avoided throughout. The message format
+/// Hand-rolled EIP-4361 (Sign-In with Ethereum) message construction — no `siwe` npm package,
+/// since that package's `.verify()` requires `ethers` internally and this project is viem-only.
+/// The message format
 /// itself is just a fixed string template (https://eips.ethereum.org/EIPS/eip-4361#message-format),
 /// not complex logic — verification is done separately via viem, see `verifySignIn.ts`.
 

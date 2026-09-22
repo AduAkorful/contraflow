@@ -1,9 +1,9 @@
 "use client";
 
-/// Circle UCW sign-in entry point — plans/22-circle-ucw-signing-method.md. **Genuinely untested
-/// past `beginUcwSignIn` returning a real challengeId** (confirmed live, see that plan) — everything
-/// from here down needs a real Circle Web3 Services App ID this session doesn't have. Written
-/// against the client SDK's actual compiled types, not guessed; still flagged as unverified.
+/// Circle UCW sign-in entry point. **Genuinely untested past `beginUcwSignIn` returning a real
+/// challengeId** — everything from here down needs a real Circle Web3 Services App ID that
+/// isn't configured in this deployment. Written against the client SDK's actual compiled types,
+/// not guessed; still flagged as unverified.
 
 import { useState } from "react";
 import { beginUcwSignIn, getUcwWallet } from "../../app/app/ucw/actions";

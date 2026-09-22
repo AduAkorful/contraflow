@@ -1,8 +1,6 @@
 /// One abstraction for "the operator," whether backed by a raw private key or a Circle
-/// Developer-Controlled Wallet — the thing actually missing from the "swappable signer" claim
-/// made about this codebase before this step existed. `register.ts`/`settle.ts` dispatch on
-/// `kind` internally so callers never choose between parallel raw-key/DCW functions again.
-/// See `plans/11-orchestration.md`.
+/// Developer-Controlled Wallet. `register.ts`/`settle.ts` dispatch on `kind` internally so
+/// callers never choose between parallel raw-key/DCW functions.
 
 import type { WalletClient } from "viem";
 

@@ -1,6 +1,6 @@
-/// Chain-id-keyed contract registry, per `plans/00-architecture.md` §8. Populated with real
-/// addresses once a deploy exists for that chain — never hardcoded inline in UI components, so a
-/// testnet rehearsal deploy and the eventual mainnet deploy can coexist without a find-and-replace.
+/// Chain-id-keyed contract registry. Populated with real addresses once a deploy exists for that
+/// chain — never hardcoded inline in UI components, so a testnet deploy and the eventual mainnet
+/// deploy can coexist without a find-and-replace.
 
 export interface ChainAddresses {
   registry: `0x${string}`;
@@ -9,22 +9,17 @@ export interface ChainAddresses {
   /// The registry proxy's deployment block — the earliest block any `InvoiceRegistered` event for
   /// this deployment can exist at. Used as a floor for event-log scans (e.g. `readNextNonce`) so
   /// they never need to scan from block 0, which this project's public Arc testnet RPC rejects
-  /// ("pruned history unavailable" — confirmed live 2026-09-21, plans/16-app-demo.md).
+  /// ("pruned history unavailable").
   registryDeployBlock: bigint;
 }
 
 export const ARC_TESTNET_CHAIN_ID = 5042002;
 export const ARC_MAINNET_CHAIN_ID = 5042;
 
-/// Source: `plans/02-deploy-testnet.md` "Testnet deployment record" / `contracts/deployments/testnet.json`.
-/// `registryDeployBlock` read directly from `contracts/broadcast/Deploy.s.sol/5042002/run-latest.json`'s
-/// receipts, not hand-typed.
-///
-/// **Redeployed 2026-09-22** — fresh proxies, not an upgrade of the prior deployment: the
-/// contracts were rebuilt with Solidity 0.8.37 (was 0.8.28, no source logic change, see
-/// `contracts/foundry.toml`). All history under the previous addresses
-/// (`0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312` / `0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03`)
-/// stays permanently on-chain and inspectable, just no longer what this app points at.
+/// `registryDeployBlock` is read directly from the deploy broadcast's transaction receipts, not
+/// hand-typed. This is a fresh deployment, not an upgrade of any prior one — a previous testnet
+/// deployment's history stays permanently on-chain and inspectable under its own addresses, just
+/// no longer what this app points at.
 const ARC_TESTNET_ADDRESSES: ChainAddresses = {
   registry: "0x304450Dc27f644AcA55773895409ff500AFb2Bf7",
   settler: "0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015",
@@ -34,7 +29,7 @@ const ARC_TESTNET_ADDRESSES: ChainAddresses = {
 
 const ADDRESSES_BY_CHAIN_ID: Record<number, ChainAddresses> = {
   [ARC_TESTNET_CHAIN_ID]: ARC_TESTNET_ADDRESSES,
-  // [ARC_MAINNET_CHAIN_ID]: not deployed yet — deferred per the 2026-09-18 sequencing decision.
+  // [ARC_MAINNET_CHAIN_ID]: not deployed yet.
 };
 
 export class UnknownChainError extends Error {

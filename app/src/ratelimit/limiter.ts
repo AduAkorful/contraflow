@@ -1,7 +1,6 @@
-/// Shared fixed-window rate limiter — plans/21-real-mode-attest-flow.md. One mechanism (`INCR` +
-/// `EXPIRE` on a window-scoped key) serves the starter grant, the pre-check, and (lightly) the
-/// existing `/app/history` lookup, per that plan's design decision 3 rather than three bespoke
-/// limiters.
+/// Shared fixed-window rate limiter. One mechanism (`INCR` + `EXPIRE` on a window-scoped key)
+/// serves the starter grant, the pre-check, and (lightly) the `/app/history` lookup, rather than
+/// three bespoke limiters.
 
 import { redis } from "../upstash/client";
 

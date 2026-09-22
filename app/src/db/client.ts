@@ -1,8 +1,6 @@
 /// Thin wrapper around `@neondatabase/serverless`'s HTTP driver — chosen over an ORM (Drizzle,
-/// Prisma) to match this project's existing dependency-austerity pattern (no wagmi beyond the
-/// real-attest signing surface, no Supabase auth/RLS layer, viem directly rather than a wrapper
-/// library). The schema is small and stable enough that raw parameterized SQL is clearer than an
-/// ORM's generated types would be. See `plans/19-database-blockscout-reconciliation.md`.
+/// Prisma) to keep dependencies minimal. The schema is small and stable enough that raw
+/// parameterized SQL is clearer than an ORM's generated types would be.
 
 import { neon } from "@neondatabase/serverless";
 

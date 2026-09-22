@@ -9,8 +9,8 @@ export interface DemoEdge {
   toLabel: string;
   status: EdgeStatus;
   /// Present once this specific invoice's real amount is known (from the moment its registration
-  /// is submitted onward) — invoices carry unequal amounts on purpose
-  /// (plans/18-app-demo-unequal-amounts.md), so there's no single fixed figure to fall back to.
+  /// is submitted onward) — invoices carry unequal amounts on purpose, so there's no single
+  /// fixed figure to fall back to.
   amountUsdc?: string;
   explorerUrl?: string;
 }
@@ -179,8 +179,8 @@ function EdgeLabel({
   amountUsdc?: string;
   explorerUrl?: string;
 }) {
-  // Amounts are unequal per edge (plans/18-app-demo-unequal-amounts.md) — shown once known
-  // (signing onward), not before, since "pending" invoices haven't been built yet client-side.
+  // Amounts are unequal per edge — shown once known (signing onward), not before, since
+  // "pending" invoices haven't been built yet client-side.
   // "settled" says so generically rather than implying every invoice reached $0: the real
   // per-invoice before/after lives in the receipt below, where it's actually precise.
   const text =

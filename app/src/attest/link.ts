@@ -1,6 +1,6 @@
-/// Self-contained attest link payload — no server-side state (plan 14's own explicit design,
-/// plans/21-real-mode-attest-flow.md decision 6). `InvoiceAttestation`'s `amount`/`maturity`/
-/// `nonce`/`chainId` fields are `bigint`, which `JSON.stringify` can't serialize directly — encoded
+/// Self-contained attest link payload — no server-side state.
+/// `InvoiceAttestation`'s `amount`/`maturity`/`nonce`/`chainId` fields are `bigint`, which
+/// `JSON.stringify` can't serialize directly — encoded
 /// as decimal strings here and parsed back to `bigint` on decode, never round-tripped through a
 /// JS `number`.
 ///

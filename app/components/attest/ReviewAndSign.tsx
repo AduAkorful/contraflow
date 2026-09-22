@@ -1,8 +1,8 @@
 "use client";
 
-/// The one "review & sign" component serving both landing spots — plan 14 design decision 3
-/// (plans/21-real-mode-attest-flow.md): Party A's confirm-before-send step and Party B's
-/// link-landing page. Plain-language terms by default (amount, counterparty, maturity,
+/// The one "review & sign" component serving both landing spots: Party A's confirm-before-send
+/// step and Party B's link-landing page. Plain-language terms by default (amount, counterparty,
+/// maturity,
 /// earlyNetConsent, network); the raw signed struct is available expanded, never the default view.
 
 import { useState } from "react";

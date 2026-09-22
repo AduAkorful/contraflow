@@ -1,9 +1,9 @@
 "use client";
 
-/// plans/23-visual-accessibility-polish.md — the one JS-level reduced-motion check this codebase
-/// needs; every other animated effect is plain CSS, covered by the global
-/// `@media (prefers-reduced-motion: reduce)` rule in `globals.css`. SVG `<animate>`/`<animateMotion>`
-/// elements aren't reachable by that CSS rule at all, so `CycleDiagram.tsx` reads this directly.
+/// The one JS-level reduced-motion check this codebase needs; every other animated effect is
+/// plain CSS, covered by the global `@media (prefers-reduced-motion: reduce)` rule in
+/// `globals.css`. SVG `<animate>`/`<animateMotion>` elements aren't reachable by that CSS rule
+/// at all, so `CycleDiagram.tsx` reads this directly.
 
 import { useEffect, useState } from "react";
 

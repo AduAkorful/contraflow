@@ -1,6 +1,5 @@
-/// The one function any future "my data" server action should call to find out who's signed in —
-/// never trust an address passed as a request parameter for that purpose (plan 14's own stated
-/// requirement for this layer, plans/20-session-wallet-connect.md).
+/// The one function any "my data" server action should call to find out who's signed in — never
+/// trust an address passed as a request parameter for that purpose.
 
 import { cookies } from "next/headers";
 import { verifySessionToken, type SessionPayload } from "./cookie";

@@ -2,7 +2,6 @@
 /// for it to reach a terminal state. Separate from `app/src/kits/appkit.ts`'s adapters —
 /// `register()`/`settle()` are raw `writeContract` calls, not an App Kit adapter operation, so
 /// they need Circle's contract-execution transaction API instead of a Swap-Kit-style adapter.
-/// See `plans/10-dcw-register-settle.md`.
 
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import { parseEther, type Address, type Hex } from "viem";

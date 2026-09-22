@@ -155,7 +155,7 @@ describe("fundResidualViaGateway", () => {
   it("wraps a poll timeout in GatewayFundResidualPartialFailureError, not a bare GatewayDepositTimeoutError", async () => {
     // The deposit has already landed by the time a timeout (or any other post-deposit failure)
     // happens -- calling fundResidualViaGateway again would deposit a second time, so the caller
-    // needs a clear, resumable error rather than the underlying timeout alone (plans/13-orchestration-pipeline.md).
+    // needs a clear, resumable error rather than the underlying timeout alone.
     const { appKit, deposit, getBalances } = stubAppKit();
     getBalances.mockResolvedValue(balanceResult("0.000000"));
 

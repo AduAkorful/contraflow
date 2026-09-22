@@ -1,5 +1,5 @@
-/// The Phase 1 demo fixture (spec §7 / §9.1, restated `plans/contraflow-spec.md:412`): three
-/// ads-industry roles forming a closed 3-cycle so the reviewer can settle immediately.
+/// The canonical demo fixture: three ads-industry roles forming a closed 3-cycle so the reviewer
+/// can settle immediately.
 ///
 ///   Northwind DSP  --owes-->  Meridian Exchange   (cleared impressions)
 ///   Meridian Exchange --owes-->  Atlas Publisher   (supply payout)

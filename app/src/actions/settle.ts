@@ -1,4 +1,4 @@
-/// Business logic behind the Radar + Settle screens (spec §9.1 screens 3-4): read the currently
+/// Business logic behind the Radar + Settle screens: read the currently
 /// nettable invoices, ask the solver for the best cycle, and submit `settle()`. Split into two
 /// functions so Radar can show the proposal before Settle commits to it.
 
@@ -35,14 +35,13 @@ export interface SettleResult {
   txHash: Hex;
   blockNumber: bigint;
   /// Native USDC (18 decimals) actually paid for this tx — feeds the Receipt screen's "gas
-  /// paid" tile (spec §9.2). Never conflate with the 6-decimal ERC-20 USDC `wNet` is in.
+  /// paid" tile. Never conflate with the 6-decimal ERC-20 USDC `wNet` is in.
   gasPaidWei: bigint;
 }
 
 /// Settle screen: re-derives the proposal (never trusts a stale one the caller might be holding
 /// from an earlier Radar render — on-chain state may have moved) and submits it, regardless of
-/// which kind of `OperatorSigner` is given (see `plans/11-orchestration.md`; replaces the
-/// two-function shape from `plans/10-dcw-register-settle.md`). `settle()` itself stays
+/// which kind of `OperatorSigner` is given. `settle()` itself stays
 /// permissionless — the signer here is a UI convenience, not an access-control requirement the
 /// contract enforces.
 export async function settleBestCycle(params: {

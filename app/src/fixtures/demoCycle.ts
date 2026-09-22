@@ -1,10 +1,9 @@
 /// Builds a closed ring of invoices among N demo parties (party[i] owes party[i+1], wrapping) —
-/// the general form of the spec's 3-node ads fixture (`fixtures/ads.ts`), extended to a
-/// configurable party count (plans/17-app-demo-n-party.md) and unequal amounts per edge
-/// (plans/18-app-demo-unequal-amounts.md). Kept separate from `ads.ts` rather than generalizing it
-/// in place: `ads.ts`'s fixed 3-role shape (`FixtureRole`, `FixtureRoleAddresses`) is the spec's
-/// own documented fixture (§7) and other code (`registerFixtureInvoices`) depends on that exact
-/// shape — this module doesn't touch it.
+/// the general form of the 3-node ads fixture (`fixtures/ads.ts`), extended to a configurable
+/// party count and unequal amounts per edge. Kept separate from `ads.ts` rather than
+/// generalizing it in place: `ads.ts`'s fixed 3-role shape (`FixtureRole`,
+/// `FixtureRoleAddresses`) is the canonical documented fixture and other code
+/// (`registerFixtureInvoices`) depends on that exact shape — this module doesn't touch it.
 ///
 /// Every edge uses a fresh party pair by construction (each demo party appears as debtor exactly
 /// once and creditor exactly once in a simple ring), so — same reasoning as
@@ -13,8 +12,8 @@
 ///
 /// Amounts are unequal on purpose, not a cosmetic randomization: `ContraflowSettler.settle`
 /// applies one `wNet` uniformly to every invoice in the cycle, and the solver computes
-/// `wNet = min(amountRemaining)` over the cycle's edges (`packages/solver/src/settleCall.ts`,
-/// spec §3.3) — not an average or a requirement that every invoice matches. Equal amounts (the
+/// `wNet = min(amountRemaining)` over the cycle's edges (`packages/solver/src/settleCall.ts`) —
+/// not an average or a requirement that every invoice matches. Equal amounts (the
 /// original design) made every invoice in the demo fully extinguish, which is a real but
 /// degenerate case; unequal amounts show the actually-general case, where only the
 /// smallest-remaining invoice zeroes out and the rest keep a genuine nonzero remainder — visible

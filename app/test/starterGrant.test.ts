@@ -87,7 +87,7 @@ describe("requestStarterGrant", () => {
     expect(recordStarterGrant).not.toHaveBeenCalled();
   });
 
-  it("still attempts the transfer under a low operator balance — alerts, doesn't block (plan 14: no auto top-up)", async () => {
+  it("still attempts the transfer under a low operator balance — alerts, doesn't block (no auto top-up)", async () => {
     hasReceivedStarterGrant.mockResolvedValueOnce(false);
     getBalance.mockResolvedValueOnce(1n); // far under the floor
     sendTransaction.mockResolvedValueOnce("0xgranttx");

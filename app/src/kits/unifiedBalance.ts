@@ -1,7 +1,7 @@
 /// Thin, typed wrappers over Circle App Kit's Unified Balance kit (Gateway `deposit`/`spend`),
 /// scoped to Contraflow's one residual scenario: fund a leftover invoice on Arc from a balance
-/// held on another chain (spec §4.3 FR-3.3). Same bounded-context rule as `swap.ts` — never
-/// imported by `ContraflowSettler` or any Solidity code. See `plans/07-unified-balance.md`.
+/// held on another chain. Same bounded-context rule as `swap.ts` — never imported by
+/// `ContraflowSettler` or any Solidity code.
 
 import type { AppKit } from "@circle-fin/app-kit";
 import { UnifiedBalanceChain } from "@circle-fin/app-kit";
@@ -30,7 +30,7 @@ export class UnsupportedUnifiedBalanceChainError extends Error {
 
 /// Resolves the real `@circle-fin/app-kit` `UnifiedBalanceChain` enum value for a Contraflow
 /// chain id — a distinct nominal type from `SwapChain`/`Blockchain` despite identical string
-/// values (see `plans/07-unified-balance.md`'s research notes).
+/// values.
 export function unifiedBalanceChainForChainId(chainId: number): UnifiedBalanceChain {
   if (chainId === ARC_MAINNET_CHAIN_ID) return UnifiedBalanceChain.Arc;
   if (chainId === ARC_TESTNET_CHAIN_ID) return UnifiedBalanceChain.Arc_Testnet;
@@ -164,9 +164,9 @@ export class GatewayDepositTimeoutError extends Error {
 }
 
 /// Thrown by `fundResidualViaGateway`/`resumeFundResidualViaGateway` for any failure that happens
-/// **after** a deposit has already landed on-chain (a poll-loop timeout, or a transient error from
-/// `getUsdcBalances`/`spendOntoArc` — both hit live, independently, during the 2026-09-20 Phase 2/3
-/// campaign; see `plans/13-orchestration-pipeline.md`). Calling `fundResidualViaGateway` again at
+/// **after** a deposit has already landed on-chain (a poll-loop timeout, or a transient error
+/// from `getUsdcBalances`/`spendOntoArc` — both real, independent failure modes seen against
+/// Circle's Gateway API). Calling `fundResidualViaGateway` again at
 /// this point would deposit a **second** time, compounding the ~1.1 USDC fee for nothing. Carries
 /// everything `resumeFundResidualViaGateway` needs to pick up from the poll step, skipping a
 /// redundant deposit — deliberately not auto-recoverable from the current balance alone (a stale
@@ -231,8 +231,8 @@ export interface FundResidualViaGatewayParams {
   maxPolls?: number;
 }
 
-/// The poll-then-spend half of `fundResidualViaGateway`, shared with `resumeFundResidualViaGateway`
-/// (`plans/13-orchestration-pipeline.md`). Takes `target` explicitly rather than deriving it from
+/// The poll-then-spend half of `fundResidualViaGateway`, shared with `resumeFundResidualViaGateway`.
+/// Takes `target` explicitly rather than deriving it from
 /// a fresh "current balance" read, so a resumed call waits for the exact same threshold the
 /// original deposit was meant to reach — not a value re-derived after the deposit has already
 /// partly or fully confirmed, which would double-count it.
@@ -259,18 +259,15 @@ async function pollForConfirmedBalanceThenSpend(params: {
   throw new GatewayDepositTimeoutError(sourceChain, target.toFixed(6), lastConfirmed.toFixed(6));
 }
 
-/// Automates the deposit -> wait for CCTP attestation -> spend sequence that was, before this
-/// step, a manual poll loop hand-written in a throwaway script three separate times this session
-/// (see `plans/11-orchestration.md`). Polls the *increase* in confirmed balance on `sourceChain`
-/// relative to before this call's own deposit, not an absolute threshold — correct regardless of
-/// whatever balance was already sitting there from earlier activity (the exact bug a hardcoded
-/// absolute threshold hit during manual live-proof polling, 2026-09-19).
+/// Automates the deposit -> wait for CCTP attestation -> spend sequence. Polls the *increase* in
+/// confirmed balance on `sourceChain` relative to before this call's own deposit, not an
+/// absolute threshold — correct regardless of whatever balance was already sitting there from
+/// earlier activity, unlike a hardcoded absolute threshold.
 ///
 /// Any failure once the deposit itself has landed (a poll timeout, or a transient error from the
-/// underlying service — both hit live, 2026-09-20) is wrapped in
-/// `GatewayFundResidualPartialFailureError` rather than left as a raw/timeout error: calling this
-/// function again at that point would deposit a second time, so the caller needs a clear signal to
-/// call `resumeFundResidualViaGateway` instead (see `plans/13-orchestration-pipeline.md`).
+/// underlying service) is wrapped in `GatewayFundResidualPartialFailureError` rather than left as
+/// a raw/timeout error: calling this function again at that point would deposit a second time,
+/// so the caller needs a clear signal to call `resumeFundResidualViaGateway` instead.
 export async function fundResidualViaGateway(params: FundResidualViaGatewayParams): Promise<SpendResult> {
   const {
     appKit,
@@ -297,8 +294,7 @@ export async function fundResidualViaGateway(params: FundResidualViaGatewayParam
 /// Resumes a `fundResidualViaGateway` call that failed with `GatewayFundResidualPartialFailureError`
 /// — the deposit already landed, so this picks up at the polling step directly, never depositing
 /// again. Pass the failed error's own fields back verbatim (`target`/`depositAmountUsdc` included)
-/// rather than reconstructing them, per the error class's own doc comment. See
-/// `plans/13-orchestration-pipeline.md`.
+/// rather than reconstructing them, per the error class's own doc comment.
 export async function resumeFundResidualViaGateway(params: {
   appKit: ContraflowAppKitAdapter;
   arcChainId: number;

@@ -1,8 +1,7 @@
 /// Reconciles a single address's invoice history against the Registry contract's on-chain log
 /// history, backfilling anything the write path in `app/app/app/demo/actions.ts` missed — a write
 /// that succeeded on-chain but crashed before the database write landed, or a `register()` call
-/// made directly against the contract (permissionless by spec) without ever going through this
-/// app. See plans/19-database-blockscout-reconciliation.md.
+/// made directly against the contract (permissionless) without ever going through this app.
 
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 import { fetchContractLogs, fetchTransactionFee, paramValue, type DecodedLog } from "./client";

@@ -1,6 +1,6 @@
-/// Signed session token — plans/20-session-wallet-connect.md design decision 3: a plain
-/// HMAC-SHA256-signed cookie payload, not a database row or a JWT library. Nothing about a session
-/// needs to be queried, listed, or revoked-by-admin yet, so either would be pure overhead.
+/// Signed session token — a plain HMAC-SHA256-signed cookie payload, not a database row or a
+/// JWT library. Nothing about a session needs to be queried, listed, or revoked by an admin, so
+/// either would be pure overhead.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
