@@ -1,0 +1,25 @@
+Copyright (c) 2026 AduAkorful. All rights reserved.
+
+This repository is made publicly available for viewing and audit purposes
+only. Except where a different license is explicitly stated for a specific
+subdirectory (see below), no license or other rights — including the right
+to use, copy, modify, merge, publish, distribute, sublicense, or sell copies
+of this software — are granted to any person obtaining a copy of this
+repository or any part of it.
+
+Viewing this source code does not constitute permission to deploy, run,
+reproduce, or create derivative works from it, in whole or in part, for any
+purpose, commercial or otherwise.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-----------------------------------------------------------------------------
+
+Exception: the `contracts/` directory is licensed separately under the
+Business Source License 1.1 — see contracts/LICENSE for its full terms,
+including the date and license it converts to.

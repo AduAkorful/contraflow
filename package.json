@@ -1,5 +1,6 @@
 {
   "name": "contraflow",
   "private": true,
+  "license": "UNLICENSED",
   "packageManager": "pnpm@10.33.2"
 }
