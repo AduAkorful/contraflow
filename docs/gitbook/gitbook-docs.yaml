@@ -1,0 +1,11 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: Contraflow
+  structure:
+    - type: space
+      key: contraflow-docs
+      title: Contraflow
+      path: /
+      default: true
+      content:
+        directory: ./
