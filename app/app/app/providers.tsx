@@ -39,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || PLACEHOLDER_APP_ID}
       config={{
         loginMethods: ["wallet", "email"],
+        appearance: { theme: "dark" },
         defaultChain: arcTestnet,
         supportedChains: [arcTestnet],
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
