@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -27,9 +28,7 @@ export function SiteNav() {
     <header className="relative z-20 mx-auto max-w-6xl px-6 py-6">
       <div className="flex items-center justify-between gap-4">
         <Link href="/" className="flex shrink-0 items-center gap-2 text-lg font-medium tracking-tight">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold text-black">
-            C
-          </span>
+          <Image src="/logo-mark.png" alt="" width={28} height={28} className="h-7 w-7 shrink-0" priority />
           Contraflow
         </Link>
 
