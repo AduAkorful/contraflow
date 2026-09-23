@@ -38,7 +38,7 @@ export function Hero() {
         </div>
 
         <p className="mt-16 text-xs uppercase tracking-wide text-muted">
-          $0 protocol fee · gas priced in USDC · open source
+          $0 protocol fee · gas priced in USDC · permissionless settlement
         </p>
       </div>
     </section>

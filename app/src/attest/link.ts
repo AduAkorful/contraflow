@@ -11,6 +11,7 @@
 
 import type { Address, Hex } from "viem";
 import type { InvoiceAttestation } from "./signAttestation";
+import type { CanonicalInvoiceDocument } from "./document";
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -31,6 +32,10 @@ export interface AttestLinkPayload {
   invoice: InvoiceAttestation;
   role: "debtor" | "creditor";
   signatureA: Hex;
+  /// The document `invoice.invoiceRef` is the hash of. Carried in the link so Party B can
+  /// independently recompute the hash and assert it equals `invoice.invoiceRef` before trusting
+  /// anything — the same discipline already applied to `signatureA`.
+  document: CanonicalInvoiceDocument;
 }
 
 interface SerializedInvoice {
@@ -57,6 +62,7 @@ export function encodeAttestLink(payload: AttestLinkPayload): string {
     } satisfies SerializedInvoice,
     role: payload.role,
     signatureA: payload.signatureA,
+    document: payload.document,
   };
   return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(serialized)));
 }
@@ -69,7 +75,12 @@ export class MalformedAttestLinkError extends Error {
 }
 
 export function decodeAttestLink(encoded: string): AttestLinkPayload {
-  let parsed: { invoice: SerializedInvoice; role: "debtor" | "creditor"; signatureA: Hex };
+  let parsed: {
+    invoice: SerializedInvoice;
+    role: "debtor" | "creditor";
+    signatureA: Hex;
+    document: CanonicalInvoiceDocument;
+  };
   try {
     const json = new TextDecoder().decode(base64UrlToBytes(encoded));
     parsed = JSON.parse(json);
@@ -78,6 +89,17 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
   }
 
   if (!parsed?.invoice || !parsed.role || !parsed.signatureA) throw new MalformedAttestLinkError();
+  const { document } = parsed;
+  if (
+    !document ||
+    typeof document.description !== "string" ||
+    typeof document.debtor !== "string" ||
+    typeof document.creditor !== "string" ||
+    typeof document.amountUsdc !== "string" ||
+    typeof document.maturity !== "string"
+  ) {
+    throw new MalformedAttestLinkError();
+  }
 
   const { invoice } = parsed;
   if (
@@ -105,6 +127,7 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
       },
       role: parsed.role,
       signatureA: parsed.signatureA,
+      document,
     };
   } catch {
     throw new MalformedAttestLinkError();

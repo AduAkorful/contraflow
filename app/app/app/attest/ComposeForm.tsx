@@ -7,16 +7,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import { ReviewAndSign } from "../../../components/attest/ReviewAndSign";
 import { invoiceAttestationTypedData, type InvoiceAttestation } from "../../../src/attest/signAttestation";
 import { encodeAttestLink } from "../../../src/attest/link";
+import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../src/attest/document";
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
-import { requestGrant, nextNonceFor } from "./actions";
+import { requestGrant, nextNonceFor, saveInvoiceDocument } from "./actions";
 
 type Phase = "compose" | "review" | "signing" | "done";
 type Role = "debtor" | "creditor";
-
-function randomInvoiceRef(): `0x${string}` {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
-}
 
 function dateToUnixSeconds(dateStr: string): bigint {
   return BigInt(Math.floor(new Date(`${dateStr}T00:00:00Z`).getTime() / 1000));
@@ -34,11 +30,13 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const [counterparty, setCounterparty] = useState("");
   const [amountUsd, setAmountUsd] = useState("");
   const [maturityDate, setMaturityDate] = useState("");
+  const [description, setDescription] = useState("");
   const [earlyNetConsent, setEarlyNetConsent] = useState(false);
   const [role, setRole] = useState<Role>("creditor"); // default: "they owe me"
 
   const [phase, setPhase] = useState<Phase>("compose");
   const [invoice, setInvoice] = useState<InvoiceAttestation | null>(null);
+  const [invoiceDocument, setInvoiceDocument] = useState<CanonicalInvoiceDocument | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [grantNote, setGrantNote] = useState<string | null>(null);
@@ -66,6 +64,10 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       setError("Pick a maturity date.");
       return;
     }
+    if (!description.trim()) {
+      setError("Describe what this invoice is for.");
+      return;
+    }
 
     await ensureGrant();
 
@@ -78,9 +80,24 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       return;
     }
 
+    const doc: CanonicalInvoiceDocument = {
+      description: description.trim(),
+      debtor,
+      creditor,
+      amountUsdc: amount.toFixed(2),
+      maturity: maturityDate,
+    };
+    const invoiceRef = hashInvoiceDocument(doc);
+
+    const saveResult = await saveInvoiceDocument(invoiceRef, doc);
+    if (!saveResult.ok) {
+      setError(saveResult.error);
+      return;
+    }
+
     const { registry, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
     const built: InvoiceAttestation = {
-      invoiceRef: randomInvoiceRef(),
+      invoiceRef,
       amount: BigInt(Math.round(amount * 1_000_000)),
       currency: usdc,
       maturity: dateToUnixSeconds(maturityDate),
@@ -92,17 +109,18 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       chainId: BigInt(ARC_TESTNET_CHAIN_ID),
     };
     setInvoice(built);
+    setInvoiceDocument(doc);
     setPhase("review");
   }
 
   async function handleSign() {
-    if (!invoice) return;
+    if (!invoice || !invoiceDocument) return;
     setError(null);
     setPhase("signing");
     try {
       const typedData = invoiceAttestationTypedData(invoice);
       const signatureA = await signTypedDataAsync(typedData);
-      const encoded = encodeAttestLink({ invoice, role, signatureA });
+      const encoded = encodeAttestLink({ invoice, role, signatureA, document: invoiceDocument });
       const url = `${window.location.origin}/app/attest/${encoded}`;
       setLink(url);
       setPhase("done");
@@ -140,7 +158,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
 
   if (phase === "review" && invoice) {
     return (
-      <ReviewAndSign invoice={invoice} viewerRole={role}>
+      <ReviewAndSign invoice={invoice} viewerRole={role} description={invoiceDocument?.description}>
         <div className="flex flex-col items-center gap-3">
           <button
             onClick={handleSign}
@@ -230,6 +248,20 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50"
         />
       </label>
+
+      <label className="text-xs uppercase tracking-wide text-muted">
+        What&apos;s this for?
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Invoice #, PO #, or a short description of what this is for"
+          rows={2}
+          className="mt-1 w-full resize-none rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50"
+        />
+      </label>
+      <p className="-mt-2 text-xs text-muted">
+        Hashed and signed as part of this invoice — your counterparty sees it before they sign too.
+      </p>
 
       <label className="flex items-center gap-2 text-sm text-muted">
         <input type="checkbox" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />

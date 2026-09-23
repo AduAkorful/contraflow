@@ -10,6 +10,7 @@ import { recoverTypedDataAddress } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { ReviewAndSign } from "../../../../components/attest/ReviewAndSign";
 import { decodeAttestLink, type AttestLinkPayload } from "../../../../src/attest/link";
+import { hashInvoiceDocument } from "../../../../src/attest/document";
 import { invoiceAttestationTypedData } from "../../../../src/attest/signAttestation";
 import { contraflowRegistryAbi } from "../../../../src/contracts/abi/index";
 import { checkLinkFreshness, requestGrant, preCheck, record } from "../actions";
@@ -48,6 +49,14 @@ export function LandingClient({ encoded }: { encoded: string }) {
         decoded = decodeAttestLink(encoded);
       } catch (err) {
         setError(err instanceof Error ? err.message : "This link is invalid or has been altered.");
+        setPhase("invalid");
+        return;
+      }
+
+      // invoiceRef is the document's own hash, not an arbitrary value — a mismatch here is
+      // exactly as disqualifying as a bad signature.
+      if (hashInvoiceDocument(decoded.document) !== decoded.invoice.invoiceRef) {
+        setError("This link is invalid or has been altered.");
         setPhase("invalid");
         return;
       }
@@ -187,7 +196,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
         signed, not a claim.
       </p>
       <div className="mt-8">
-        <ReviewAndSign invoice={payload.invoice} viewerRole={partyBRole}>
+        <ReviewAndSign invoice={payload.invoice} viewerRole={partyBRole} description={payload.document.description}>
           {!isConnected || !sessionAddress ? (
             <div className="flex flex-col items-center gap-3">
               <p className="text-xs text-muted">Connect and sign in to continue.</p>

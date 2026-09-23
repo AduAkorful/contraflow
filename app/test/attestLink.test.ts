@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { encodeAttestLink, decodeAttestLink, MalformedAttestLinkError } from "../src/attest/link";
 import type { InvoiceAttestation } from "../src/attest/signAttestation";
+import type { CanonicalInvoiceDocument } from "../src/attest/document";
 
 const INVOICE: InvoiceAttestation = {
   invoiceRef: "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -15,11 +16,19 @@ const INVOICE: InvoiceAttestation = {
   chainId: 5042002n,
 };
 
+const DOCUMENT: CanonicalInvoiceDocument = {
+  description: "Invoice #4521 — Q3 consulting services",
+  debtor: INVOICE.debtor,
+  creditor: INVOICE.creditor,
+  amountUsdc: "1050.00",
+  maturity: "2026-10-21",
+};
+
 describe("encodeAttestLink / decodeAttestLink", () => {
-  it("round-trips an invoice, preserving bigint fields exactly", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
+  it("round-trips an invoice and document, preserving bigint fields exactly", () => {
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
     const decoded = decodeAttestLink(encoded);
-    expect(decoded).toEqual({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
+    expect(decoded).toEqual({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
     expect(typeof decoded.invoice.amount).toBe("bigint");
     expect(typeof decoded.invoice.maturity).toBe("bigint");
     expect(typeof decoded.invoice.nonce).toBe("bigint");
@@ -27,7 +36,7 @@ describe("encodeAttestLink / decodeAttestLink", () => {
   });
 
   it("produces a URL-safe string (no +, /, or = characters)", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "creditor", signatureA: "0xdeadbeef" });
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "creditor", signatureA: "0xdeadbeef", document: DOCUMENT });
     expect(encoded).not.toMatch(/[+/=]/);
   });
 
@@ -36,7 +45,7 @@ describe("encodeAttestLink / decodeAttestLink", () => {
   });
 
   it("throws MalformedAttestLinkError for a truncated/tampered link", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
     expect(() => decodeAttestLink(encoded.slice(0, -10))).toThrow(MalformedAttestLinkError);
   });
 
@@ -44,6 +53,26 @@ describe("encodeAttestLink / decodeAttestLink", () => {
     // Simulate a payload where JSON parses fine but a bigint field is garbage.
     const badJson = JSON.stringify({
       invoice: { ...INVOICE, amount: "not-a-number", maturity: "1", nonce: "1", chainId: "1" },
+      role: "debtor",
+      signatureA: "0xabc123",
+      document: DOCUMENT,
+    });
+    const bytes = new TextEncoder().encode(badJson);
+    let binary = "";
+    for (const b of bytes) binary += String.fromCharCode(b);
+    const encoded = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    expect(() => decodeAttestLink(encoded)).toThrow(MalformedAttestLinkError);
+  });
+
+  it("throws MalformedAttestLinkError when document is missing", () => {
+    const badJson = JSON.stringify({
+      invoice: {
+        ...INVOICE,
+        amount: INVOICE.amount.toString(),
+        maturity: INVOICE.maturity.toString(),
+        nonce: INVOICE.nonce.toString(),
+        chainId: INVOICE.chainId.toString(),
+      },
       role: "debtor",
       signatureA: "0xabc123",
     });

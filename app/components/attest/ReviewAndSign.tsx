@@ -28,10 +28,12 @@ function shortAddr(addr: string): string {
 export function ReviewAndSign({
   invoice,
   viewerRole,
+  description,
   children,
 }: {
   invoice: InvoiceAttestation;
   viewerRole: "debtor" | "creditor";
+  description?: string;
   children?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -44,6 +46,7 @@ export function ReviewAndSign({
       <p className="mt-3 font-serif-display text-2xl">
         {verb} <span className="text-gold">${formatUsdc(invoice.amount)}</span>
       </p>
+      {description && <p className="mt-2 text-sm text-muted">{description}</p>}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>
