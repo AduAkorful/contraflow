@@ -2,8 +2,6 @@
 
 Contraflow on Arc — cancel circular A/P so invoices die and no USDC moves.
 
-**Agent checkpoint / handoff:** [AGENTS.md](AGENTS.md) — start at **Handoff snapshot**.
-
 Phase 1 is an Arc Microgrant PoC: two contracts, a fixture solver, a Next.js radar, live on Arc mainnet (`5042`).
 
 ## License
