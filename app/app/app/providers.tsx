@@ -14,6 +14,8 @@ import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider, createConfig } from "@privy-io/wagmi";
 import { http } from "wagmi";
 import { arcTestnet } from "../../src/chain/client";
+import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { gatewaySourceChains, unifiedBalanceEnabled, viemChainFor } from "../../src/kits/gatewayChains";
 
 const wagmiConfig = createConfig({
   chains: [arcTestnet],
@@ -22,6 +24,14 @@ const wagmiConfig = createConfig({
 });
 
 const queryClient = new QueryClient();
+
+/// Privy's embedded wallet can only switch to chains listed here, and "Bring USDC from another
+/// chain" deposits from the user's wallet on a source chain. wagmi's own config stays Arc-only, so
+/// every other flow is unchanged.
+const privyChains = [
+  arcTestnet,
+  ...(unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID) ? gatewaySourceChains(ARC_TESTNET_CHAIN_ID).map(viemChainFor) : []),
+];
 
 /// `PrivyProvider` throws synchronously (crashing this whole segment) unless `appId` is a
 /// 25-character string — checked directly in the compiled SDK
@@ -41,7 +51,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         loginMethods: ["wallet", "email"],
         appearance: { theme: "dark" },
         defaultChain: arcTestnet,
-        supportedChains: [arcTestnet],
+        supportedChains: privyChains,
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
       }}
     >

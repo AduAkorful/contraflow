@@ -6,6 +6,8 @@
 ///
 /// Layout: header block -> dashed separator -> itemized rows -> totals.
 
+import { EurcQuote } from "../quote/EurcQuote";
+
 export interface ReceiptInvoiceRow {
   label: string;
   invoiceId: string;
@@ -23,6 +25,11 @@ export interface ReceiptData {
   multiplierLabel: string;
   gasPaidUsdc: string;
   invoices: ReceiptInvoiceRow[];
+}
+
+/// Still owed after this settlement. The quote itself reads the live amount from the Registry.
+function hasRemaining(afterUsdc: string): boolean {
+  return Number(afterUsdc) > 0;
 }
 
 function shortHash(hash: string): string {
@@ -64,12 +71,15 @@ export function Receipt({ data }: { data: ReceiptData }) {
         <p className="text-xs font-medium uppercase tracking-wide text-muted">Invoices cancelled</p>
         <div className="mt-3 divide-y divide-white/10">
           {data.invoices.map((row) => (
-            <div key={row.invoiceId} className="flex items-center justify-between gap-4 py-3 text-sm">
-              <span className="text-foreground/90">{row.label}</span>
-              <span className="flex items-baseline gap-2 tabular-nums">
-                <span className="text-muted line-through">${row.beforeUsdc}</span>
-                <span className="text-gold">${row.afterUsdc}</span>
-              </span>
+            <div key={row.invoiceId} className="py-3 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-foreground/90">{row.label}</span>
+                <span className="flex items-baseline gap-2 tabular-nums">
+                  <span className="text-muted line-through">${row.beforeUsdc}</span>
+                  <span className="text-gold">${row.afterUsdc}</span>
+                </span>
+              </div>
+              {hasRemaining(row.afterUsdc) && <EurcQuote invoiceId={row.invoiceId} className="mt-2 text-right" />}
             </div>
           ))}
         </div>

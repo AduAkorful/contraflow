@@ -18,6 +18,8 @@ import type { ContraflowAppKitAdapter } from "./appkit";
 /// method signature is) — derived structurally via `ReturnType` rather than guessing a name.
 type EstimateDepositResult = Awaited<ReturnType<AppKit["unifiedBalance"]["estimateDeposit"]>>;
 import { ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { confirmedOn, fromBaseUnits } from "./gatewayBalance";
+import { networkTypeForChainId } from "./gatewayChains";
 
 const TOKEN = "USDC";
 
@@ -37,11 +39,8 @@ export function unifiedBalanceChainForChainId(chainId: number): UnifiedBalanceCh
   throw new UnsupportedUnifiedBalanceChainError(chainId);
 }
 
-/// `getBalances`'s `networkType` defaults to `'mainnet'` when omitted — silently querying the
-/// wrong network on testnet. Derived from the same Arc chain id so no call site can forget it.
-function networkTypeForChainId(chainId: number): "mainnet" | "testnet" {
-  return chainId === ARC_MAINNET_CHAIN_ID ? "mainnet" : "testnet";
-}
+// `getBalances`'s `networkType` defaults to `'mainnet'` when omitted, silently querying the wrong
+// network on testnet, so every call derives it from the Arc chain id via `networkTypeForChainId`.
 
 /// Builds the `{ adapter, chain, address? }` context App Kit expects for a `from`/`to` field,
 /// including `address` only when the adapter carries one — required for a Circle-wallet-backed
@@ -195,11 +194,7 @@ export class GatewayFundResidualPartialFailureError extends Error {
 }
 
 function confirmedBalanceForChain(result: GetBalancesResult, chain: UnifiedBalanceChain): number {
-  // `breakdown[].chain` is typed `Blockchain`, not `UnifiedBalanceChain` — the same cross-SDK
-  // enum mismatch already seen in request params (see `adapterContext`'s doc comment), this time
-  // in a response type. Runtime values are the same strings; compare as strings, not enum types.
-  const entry = result.breakdown[0]?.breakdown.find((b) => String(b.chain) === String(chain));
-  return Number(entry?.confirmedBalance ?? "0");
+  return Number(fromBaseUnits(confirmedOn(result, String(chain))));
 }
 
 /// USDC amounts here are human-readable decimal strings, not base units — this is arithmetic at
