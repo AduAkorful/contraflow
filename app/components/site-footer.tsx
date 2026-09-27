@@ -6,6 +6,7 @@ const MAIN_PAGE_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
   { label: "Integrations", href: "/integrations" },
+  { label: "Verify a certificate", href: "/app/verify" },
 ];
 
 const INNER_PAGE_LINKS = [
@@ -21,14 +22,14 @@ export function SiteFooter() {
         <div>
           <h3 className="font-serif-display text-3xl leading-tight">Netting, not credit.</h3>
           <p className="mt-4 max-w-md text-sm text-muted">
-            Contraflow finds closed cycles of bilaterally-attested invoices and cancels them in one
-            on-chain transaction, so no USDC moves except gas. Permissionless settlement, a
-            disclosed upgrade key, nothing hidden.
+            Contraflow finds loops of debt between counterparties and nets them out: USDC invoices in
+            one transaction on Arc, and obligations in any currency with one certificate everyone
+            signs.
           </p>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-muted">Main Page</p>
+          <p className="text-sm font-medium text-muted">Product</p>
           <ul className="mt-4 space-y-2 text-sm">
             {MAIN_PAGE_LINKS.map((link) => (
               <li key={link.href}>
@@ -41,7 +42,7 @@ export function SiteFooter() {
         </div>
 
         <div>
-          <p className="text-sm font-medium text-muted">Inner Page</p>
+          <p className="text-sm font-medium text-muted">Company</p>
           <ul className="mt-4 space-y-2 text-sm">
             {INNER_PAGE_LINKS.map((link) => (
               <li key={link.href}>
@@ -58,7 +59,7 @@ export function SiteFooter() {
         <p>© 2026 Contraflow. All rights reserved.</p>
         <div className="flex gap-6">
           <Link href="/privacy" className="hover:text-foreground">Privacy Policy</Link>
-          <Link href="/terms" className="hover:text-foreground">Terms of Conditions</Link>
+          <Link href="/terms" className="hover:text-foreground">Terms of Service</Link>
         </div>
       </div>
     </footer>

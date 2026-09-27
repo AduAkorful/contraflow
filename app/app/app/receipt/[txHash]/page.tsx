@@ -2,6 +2,7 @@ import { SiteNav } from "../../../../components/site-nav";
 import { SiteFooter } from "../../../../components/site-footer";
 import { Receipt } from "../../../../components/receipt/Receipt";
 import { getReceiptData } from "../../../../src/receipt/getReceiptData";
+import { CycleSignals } from "./CycleSignals";
 
 /// DB-first, Blockscout-fallback receipt page. Works for any settle() tx hash on this
 /// deployment, not just ones `/app/demo` itself produced:
@@ -17,7 +18,10 @@ export default async function ReceiptPage({ params }: { params: Promise<{ txHash
       <main className="relative z-10">
         <section className="mx-auto max-w-2xl px-6 py-16">
           {data ? (
-            <Receipt data={data} />
+            <>
+              <Receipt data={data} />
+              <CycleSignals txHash={txHash} />
+            </>
           ) : (
             <div className="rounded-card border border-white/10 bg-white/[0.02] p-8 text-center">
               <h1 className="font-serif-display text-2xl">No settlement found</h1>

@@ -1,19 +1,27 @@
 const FEATURES = [
   {
+    title: "Invoices on Arc",
+    body: "Both sides sign a USDC invoice with their own wallets before it's registered. When invoices form a loop, one transaction cancels the same amount off every one of them.",
+  },
+  {
+    title: "Obligations in any currency",
+    body: "Record what you owe and are owed in dollars, euros, cedis or any other currency. Amounts and invoice details never go onchain.",
+  },
+  {
+    title: "One certificate for the whole loop",
+    body: "Everyone in the loop reviews their own obligations and signs one netting certificate. Once it's applied on Arc, the same debt can never be netted twice.",
+  },
+  {
+    title: "A receipt for every settlement",
+    body: "See the block, the transaction and exactly what changed for every invoice involved, all checkable on the Arc explorer.",
+  },
+  {
+    title: "Check any certificate yourself",
+    body: "Download your certificate and verify it against the ledger on Arc, in your own browser. Nothing is uploaded.",
+  },
+  {
     title: "Always know where you stand",
-    body: "See which network you're on and which currency you're spending before you confirm anything.",
-  },
-  {
-    title: "Both sides sign",
-    body: "Debtor and creditor each sign the invoice with their own wallet — no invoice goes on-chain with only one signature.",
-  },
-  {
-    title: "See the cycle before you settle",
-    body: "Review the exact amount and invoices involved in a closed cycle before you commit to cancelling it.",
-  },
-  {
-    title: "Settle and get a receipt",
-    body: "One transaction cancels the cycle. You get a quote for anything left over, and a receipt showing exactly what changed on-chain.",
+    body: "See which network you're on and what you're signing before you confirm anything.",
   },
 ];
 
@@ -24,7 +32,7 @@ export function KeyFeatures() {
         <p className="text-xs font-medium uppercase tracking-wide text-gold">Key features</p>
         <h2 className="mt-3 font-serif-display text-4xl">What the app covers</h2>
         <p className="mt-4 text-muted">
-          From signing an invoice to a verifiable on-chain receipt.
+          From the first signature to a debt netted out and a record you can check.
         </p>
       </div>
 

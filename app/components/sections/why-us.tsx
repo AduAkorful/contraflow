@@ -1,19 +1,19 @@
 const FEATURES = [
   {
-    title: "Finds the cycle for you",
-    body: "Three or more parties who owe each other in a loop — Contraflow finds the cycle automatically.",
+    title: "Finds the loop for you",
+    body: "When the parties you trade with owe each other in a loop, Contraflow finds it and works out how much nets off.",
   },
   {
-    title: "Cancels the whole loop at once",
-    body: "Every invoice in the cycle clears in a single transaction, or none of them do. No partial cancels.",
+    title: "All or nothing",
+    body: "Every debt in the loop nets by the same amount in a single step, or none of them do. Nothing half-completes.",
   },
   {
     title: "$0 protocol fee",
-    body: "Netting your invoices costs nothing. You only ever pay Arc network gas.",
+    body: "Netting costs nothing on Contraflow today. You only pay Arc network gas.",
   },
   {
-    title: "Fully verifiable",
-    body: "Every transaction is public on the Arc explorer, and the source is open for anyone to audit.",
+    title: "Verifiable by anyone",
+    body: "Every settlement and certificate is recorded on Arc, and the contracts' source is published and verified.",
   },
 ];
 

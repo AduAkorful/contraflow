@@ -151,7 +151,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
         <p role="status" aria-live="polite" className="sr-only">
           {copied ? "Link copied to clipboard" : ""}
         </p>
-        <p className="mt-4 text-xs text-muted">Nothing is registered on-chain until they sign too.</p>
+        <p className="mt-4 text-xs text-muted">Nothing is registered on Arc until they sign too.</p>
       </div>
     );
   }

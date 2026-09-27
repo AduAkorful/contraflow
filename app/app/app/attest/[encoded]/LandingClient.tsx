@@ -172,7 +172,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
               pathLength={32}
             />
           </svg>
-          Invoice registered on-chain
+          Invoice registered on Arc
         </p>
         <a
           href={`https://explorer.testnet.arc.io/tx/${resultTxHash}`}
@@ -210,7 +210,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
                 className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
               >
                 {phase === "signing" && "Sign in your wallet..."}
-                {phase === "submitting" && "Submitting on-chain..."}
+                {phase === "submitting" && "Submitting to Arc..."}
                 {phase === "recording" && "Finishing up..."}
                 {phase === "ready" && "Sign & register"}
               </button>

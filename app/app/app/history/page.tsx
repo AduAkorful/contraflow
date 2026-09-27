@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SiteNav } from "../../../components/site-nav";
 import { SiteFooter } from "../../../components/site-footer";
-import { lookupAddressHistory, type HistoryInvoiceView } from "./actions";
+import { EurcQuote } from "../../../components/quote/EurcQuote";
+import { ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
+import { unifiedBalanceEnabled } from "../../../src/kits/gatewayChains";
+import { lookupAddressHistory, lookupAddressSignals, type AddressSignalsResult, type HistoryInvoiceView } from "./actions";
+import {
+  AddressSignalsPanel,
+  SignalsLoading,
+  SignalsUnavailable,
+} from "../../../components/inspector/SignalsPanels";
+
+const SIGNALS_TITLE = "Onchain signals";
 
 function shortAddr(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -11,23 +21,39 @@ function shortAddr(addr: string): string {
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 
+function stillOwed(inv: HistoryInvoiceView): boolean {
+  const owed = inv.status === "settled" ? inv.remainingUsdc : inv.amountUsdc;
+  return owed !== null && Number(owed) > 0;
+}
+
 export default function HistoryPage() {
   const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<HistoryInvoiceView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [signals, setSignals] = useState<AddressSignalsResult | "loading" | null>(null);
+  const latestLookup = useRef(0);
 
   async function search() {
+    const lookedUp = address.trim();
+    const lookupId = ++latestLookup.current;
     setLoading(true);
     setError(null);
     setInvoices(null);
-    const result = await lookupAddressHistory(address.trim());
+    setSignals(null);
+    const result = await lookupAddressHistory(lookedUp);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
     setInvoices(result.invoices);
+
+    setSignals("loading");
+    const signalsResult = await lookupAddressSignals(lookedUp);
+    // A newer search may have started while signals loaded; never show one address's signals
+    // under another's history.
+    if (lookupId === latestLookup.current) setSignals(signalsResult);
   }
 
   return (
@@ -82,6 +108,12 @@ export default function HistoryPage() {
             </div>
           )}
 
+          {signals === "loading" && <SignalsLoading title={SIGNALS_TITLE} />}
+          {signals && signals !== "loading" && !signals.ok && (
+            <SignalsUnavailable title={SIGNALS_TITLE} message={signals.error} />
+          )}
+          {signals && signals !== "loading" && signals.ok && <AddressSignalsPanel signals={signals.signals} />}
+
           {invoices && invoices.length === 0 && (
             <p className="mt-8 text-center text-sm text-muted">No invoices found for this address.</p>
           )}
@@ -101,6 +133,12 @@ export default function HistoryPage() {
                         <> · now ${inv.remainingUsdc} remaining</>
                       )}
                     </p>
+                    {stillOwed(inv) && <EurcQuote invoiceId={inv.invoiceRef} className="mt-1.5" />}
+                    {stillOwed(inv) && inv.role === "debtor" && unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID) && (
+                      <a href="/app/balance" className="mt-1 inline-block text-xs text-muted hover:underline">
+                        Bring USDC from another chain →
+                      </a>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <span

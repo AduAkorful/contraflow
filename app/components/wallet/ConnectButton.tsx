@@ -12,7 +12,16 @@ function shortAddr(addr: string): string {
 
 type Phase = "idle" | "signing" | "signed-in" | "error";
 
-export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNode } = {}) {
+export function ConnectButton({
+  signedInExtra,
+  onSignedIn,
+  onSignedOut,
+}: {
+  signedInExtra?: React.ReactNode;
+  /// Called once a session exists, whether it was already there or was just created.
+  onSignedIn?: (address: string) => void;
+  onSignedOut?: () => void;
+} = {}) {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { login, logout } = usePrivy();
@@ -26,6 +35,7 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
       if (r.address) {
         setSessionAddress(r.address);
         setPhase("signed-in");
+        onSignedIn?.(r.address);
       }
     });
   }, []);
@@ -56,6 +66,7 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
       }
       setSessionAddress(result.address);
       setPhase("signed-in");
+      onSignedIn?.(result.address);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
       setPhase("error");
@@ -67,6 +78,7 @@ export function ConnectButton({ signedInExtra }: { signedInExtra?: React.ReactNo
     await logout();
     setSessionAddress(null);
     setPhase("idle");
+    onSignedOut?.();
   }
 
   if (phase === "signed-in" && sessionAddress) {

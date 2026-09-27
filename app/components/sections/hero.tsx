@@ -18,8 +18,8 @@ export function Hero() {
         </h1>
 
         <p className="mt-6 max-w-xl text-balance text-base text-muted sm:text-lg">
-          Contraflow finds closed cycles among bilaterally-attested invoices and cancels the whole
-          cycle in one on-chain call — no USDC moves except gas.
+          Contraflow finds loops of debt between your counterparties and nets them out: USDC invoices in
+          one transaction on Arc, and obligations in any currency with one certificate everyone signs.
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">

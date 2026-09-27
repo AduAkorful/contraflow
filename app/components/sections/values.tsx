@@ -1,19 +1,19 @@
 const VALUES = [
   {
     title: "Fail-safe by design",
-    body: "A missing signature, a broken cycle, or the wrong network means the transaction simply reverts — never a silent partial state.",
+    body: "A missing signature, a broken loop or the wrong network means nothing is recorded. There's never a silent partial state.",
   },
   {
     title: "Permissionless settlement",
-    body: "Anyone can trigger settlement for a valid cycle. Contraflow never gates who's allowed to cancel debt that's genuinely cancellable.",
+    body: "Anyone can trigger settlement for a valid loop. Contraflow never gates who's allowed to cancel debt that genuinely cancels.",
   },
   {
-    title: "Fully on-chain",
-    body: "Every figure you see — cancelled volume, gas paid, a receipt — comes from a real on-chain event, never a placeholder.",
+    title: "Real figures only",
+    body: "Every figure you see, from the protocol stats to a receipt, comes from a real onchain event, never a placeholder.",
   },
   {
-    title: "Open and auditable",
-    body: "Our contracts and source code are public. Verify anything we say here yourself.",
+    title: "Amounts stay offchain",
+    body: "Obligations are only ever shown to their two parties, and their amounts never go onchain. Onchain, only the participating addresses and a blinded record of each netting are public.",
   },
 ];
 

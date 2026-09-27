@@ -17,7 +17,7 @@ const interTight = Inter_Tight({
 export const metadata: Metadata = {
   title: "Contraflow — Cancel circular debt on Arc",
   description:
-    "Contraflow finds closed cycles of invoices and cancels them in one transaction, so no USDC moves except gas.",
+    "Contraflow finds loops of debt between counterparties and nets them out: USDC invoices in one transaction on Arc, and obligations in any currency with one certificate everyone signs.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

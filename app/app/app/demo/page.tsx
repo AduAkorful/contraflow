@@ -180,7 +180,7 @@ export default function DemoPage() {
                   ))}
                 </div>
                 <p className="text-center text-xs text-muted">
-                  Arc's settle() supports 3–5-party cycles — {MIN_DEMO_PARTIES} to {MAX_DEMO_PARTIES} is the real on-chain range, not a UI limit.
+                  Invoice loops settle with {MIN_DEMO_PARTIES} to {MAX_DEMO_PARTIES} parties.
                 </p>
               </div>
             )}
@@ -196,7 +196,7 @@ export default function DemoPage() {
                   Run the demo
                 </button>
               )}
-              {phase === "running" && <p className="text-sm text-muted">Registering invoices on-chain...</p>}
+              {phase === "running" && <p className="text-sm text-muted">Registering invoices on Arc...</p>}
               {phase === "readyToSettle" && (
                 <>
                   <p className="text-center text-sm text-muted">
@@ -211,7 +211,7 @@ export default function DemoPage() {
                   </button>
                 </>
               )}
-              {phase === "settling" && <p className="text-sm text-muted">Settling on-chain...</p>}
+              {phase === "settling" && <p className="text-sm text-muted">Settling on Arc...</p>}
               {phase === "done" && (
                 <button
                   onClick={runFixture}

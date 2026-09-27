@@ -1,0 +1,217 @@
+"use client";
+
+/// The counterparty's side of a short proposal link. The link is only a handle: the terms load
+/// after sign-in, and only for one of the two parties. This page then re-verifies what the
+/// server returned itself (document hash first, then the proposer's signature) before showing
+/// any of it as trustworthy. A mismatch is a full stop, not a warning.
+
+import { useState } from "react";
+import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
+import { isAddressEqual, type Address } from "viem";
+import { ConnectButton } from "../../../../components/wallet/ConnectButton";
+import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
+import { shortAddr } from "../../../../components/netting/format";
+import { appLedgerDomain } from "../../../../src/netting/domain";
+import { hashObligationDocument, obligationMatchesDocument } from "../../../../src/netting/document";
+import { obligationId, obligationTypedData } from "../../../../src/netting/obligation";
+import { parseObligationJson } from "../../../../src/netting/serialize";
+import { checkSignature, type ChainReader } from "../../../../src/netting/signature";
+import type { NettingObligation } from "../../../../src/netting/types";
+import type { ProposalView } from "../../../../src/obligations/service";
+import { acceptProposal, getProposal, withdrawProposal } from "../../obligations/actions";
+
+type Phase =
+  | "signin"
+  | "loading"
+  | "not-found"
+  | "invalid"
+  | "closed"
+  | "waiting"
+  | "ready"
+  | "signing"
+  | "saving"
+  | "done";
+
+const INVALID = "This proposal is invalid or has been altered. Don't sign it.";
+
+export function ProposalLanding({ token }: { token: string }) {
+  const { address, isConnected } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
+  const publicClient = usePublicClient();
+
+  const [phase, setPhase] = useState<Phase>("signin");
+  const [proposal, setProposal] = useState<ProposalView | null>(null);
+  const [obligation, setObligation] = useState<NettingObligation | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setPhase("loading");
+    setError(null);
+    const result = await getProposal(token);
+    if (!result.ok) {
+      setMessage(result.error);
+      setPhase("not-found");
+      return;
+    }
+    const view = result.proposal;
+
+    let parsed: NettingObligation;
+    try {
+      parsed = parseObligationJson(view.obligation);
+    } catch {
+      return fail();
+    }
+    const domain = appLedgerDomain();
+    const sameDomain =
+      view.domain.chainId === domain.chainId.toString() && isAddressEqual(view.domain.verifyingContract, domain.verifyingContract);
+    // The document hash first: the terms shown must be exactly the ones signed.
+    if (!sameDomain || hashObligationDocument(view.document) !== parsed.documentHash.toLowerCase()) return fail();
+    if (!obligationMatchesDocument(parsed, view.document)) return fail();
+
+    const proposer = view.proposerRole === "debtor" ? parsed.debtor : parsed.creditor;
+    const signature = await checkSignature(
+      proposer,
+      obligationId(parsed, domain),
+      view.proposerSignature,
+      publicClient as unknown as ChainReader | undefined,
+    );
+    if (signature.status !== "pass") return fail();
+
+    setProposal(view);
+    setObligation(parsed);
+    if (view.state !== "open") {
+      setMessage(
+        view.state === "accepted"
+          ? "This obligation has been signed by both parties."
+          : view.state === "withdrawn"
+            ? "This proposal was withdrawn."
+            : "This proposal has expired. Ask your counterparty for a new one.",
+      );
+      setPhase("closed");
+      return;
+    }
+    setPhase(view.viewerRole === "proposer" ? "waiting" : "ready");
+  }
+
+  function fail() {
+    setMessage(INVALID);
+    setPhase("invalid");
+  }
+
+  async function handleSign() {
+    if (!proposal || !obligation) return;
+    setError(null);
+    setPhase("signing");
+    try {
+      const signature = await signTypedDataAsync(obligationTypedData(obligation, appLedgerDomain()));
+      setPhase("saving");
+      const result = await acceptProposal(token, signature);
+      if (!result.ok) {
+        setError(result.error);
+        setPhase("ready");
+        return;
+      }
+      setPhase("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Signing failed.");
+      setPhase("ready");
+    }
+  }
+
+  async function handleWithdraw() {
+    setError(null);
+    const result = await withdrawProposal(token);
+    if (!result.ok) return setError(result.error);
+    setMessage(proposal?.viewerRole === "proposer" ? "You withdrew this proposal." : "You declined this proposal.");
+    setPhase("closed");
+  }
+
+  if (phase === "signin") {
+    return (
+      <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
+        <h1 className="font-serif-display text-3xl leading-[1.05]">An obligation is waiting for you</h1>
+        <p className="mt-4 text-sm text-muted">
+          Sign in with the wallet this was sent to. Its terms are only shown to the two parties named on it.
+        </p>
+        <div className="mt-6">
+          <ConnectButton onSignedIn={() => void load()} onSignedOut={() => setPhase("signin")} />
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "loading") return <p className="text-center text-sm text-muted">Checking the proposal...</p>;
+
+  if (phase === "not-found" || phase === "invalid") {
+    return (
+      <div className="animate-error-shake rounded-card border border-red-500/30 bg-red-500/10 p-6 text-center">
+        <p className="text-sm text-red-300">
+          {phase === "not-found" && message === "Not found."
+            ? "No proposal here for this wallet. Check you're signed in with the address it was sent to."
+            : message}
+        </p>
+        {/* No onSignedIn here: it fires on mount for an existing session, which would reload into
+            this same screen forever. Signing out returns to the sign-in screen, which reloads. */}
+        <div className="mt-4">
+          <ConnectButton onSignedOut={() => setPhase("signin")} />
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "done" || phase === "closed") {
+    return (
+      <div className="animate-card-entrance rounded-card border border-gold/30 bg-gold/[0.06] p-6 text-center">
+        <p className="text-sm">{phase === "done" ? "Signed by both parties and recorded." : message}</p>
+        <a href="/app/obligations" className="mt-3 inline-block text-xs text-gold hover:underline">
+          View your obligations →
+        </a>
+      </div>
+    );
+  }
+
+  if (!proposal || !obligation) return null;
+
+  const viewerRole =
+    proposal.viewerRole === "proposer" ? proposal.proposerRole : proposal.proposerRole === "debtor" ? "creditor" : "debtor";
+  const expectedSigner = viewerRole === "debtor" ? obligation.debtor : obligation.creditor;
+  const walletMatches = isConnected && address !== undefined && isAddressEqual(address as Address, expectedSigner);
+
+  return (
+    <>
+      <h1 className="font-serif-display text-3xl leading-[1.05]">
+        {phase === "waiting" ? "Waiting for your counterparty" : "Review this obligation"}
+      </h1>
+      <p className="mt-4 text-sm text-muted">
+        {phase === "waiting"
+          ? "Send them this page's link. Once they sign, it's recorded for both of you."
+          : "Signed by your counterparty and checked in your browser against their signature."}
+      </p>
+      <div className="mt-8">
+        <ObligationTerms document={proposal.document} obligation={obligation} viewerRole={viewerRole}>
+          <div className="flex flex-col items-center gap-3">
+            {phase !== "waiting" &&
+              (walletMatches ? (
+                <button
+                  onClick={handleSign}
+                  disabled={phase !== "ready"}
+                  className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+                >
+                  {phase === "signing" ? "Sign in your wallet..." : phase === "saving" ? "Recording..." : "Sign obligation"}
+                </button>
+              ) : (
+                <p className="text-center text-xs text-muted">
+                  Connect {shortAddr(expectedSigner)} in your wallet to sign.
+                </p>
+              ))}
+            <button onClick={handleWithdraw} className="text-xs text-muted hover:underline">
+              {phase === "waiting" ? "Withdraw this proposal" : "Decline"}
+            </button>
+            {error && <p className="text-center text-xs text-red-300">{error}</p>}
+          </div>
+        </ObligationTerms>
+      </div>
+    </>
+  );
+}

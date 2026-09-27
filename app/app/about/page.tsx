@@ -2,9 +2,18 @@ import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 
 const SCOPE = [
-  { title: "Mission", body: "Give counterparties a way to cancel circular debt without a central clearer, using only what's already true on-chain: two signatures and a permissionless settlement transaction." },
-  { title: "What we are today", body: "An early, working version on Arc: sign an invoice, find a closed cycle, cancel it in one transaction." },
-  { title: "What we're not (yet)", body: "A full clearinghouse, a licensed netting service, an ERP integration, or an automated FX engine. See our FAQ and Terms for specifics." },
+  {
+    title: "Mission",
+    body: "Let counterparties who owe each other in a loop net it out directly, without a central clearer and without moving money they'd only get straight back.",
+  },
+  {
+    title: "Invoices on Arc",
+    body: "USDC invoices signed by both sides and registered on Arc. A loop of them cancels in one transaction that anyone can submit.",
+  },
+  {
+    title: "Offchain obligations",
+    body: "Debts in any currency, signed by both sides and kept offchain. A loop nets out with one certificate everyone signs, recorded on Arc so it can't be netted twice.",
+  },
 ];
 
 export default function AboutPage() {
@@ -17,23 +26,24 @@ export default function AboutPage() {
             Multilateral netting, built on Arc
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-muted">
-            Contraflow finds closed cycles of invoices and cancels them in one transaction, so no
-            USDC moves except gas.
+            Contraflow finds loops of debt between counterparties and nets them out, so money that
+            would only go round in a circle never has to move.
           </p>
         </section>
 
         <section className="mx-auto max-w-4xl px-6 py-16">
           <h2 className="font-serif-display text-3xl">The problem</h2>
           <p className="mt-4 text-muted">
-            Circular debt is common wherever counterparties trade with each other in a loop —
-            programmatic advertising settlement chains are our first example, but the same shape
-            shows up in supply-chain payables and freight. Each party pays and gets paid in cash,
-            when the debts could cancel out directly.
+            Circular debt is common wherever counterparties trade with each other in a loop.
+            Programmatic advertising settlement chains are one example, and the same shape shows up
+            in supply-chain payables and freight. Each party pays and gets paid in full, when the
+            debts could net out directly.
           </p>
           <p className="mt-4 text-muted">
-            Contraflow represents each invoice as a bilaterally-signed on-chain attestation, looks
-            for closed cycles among them, and lets anyone submit a single transaction that cancels
-            the whole cycle at once — no custody, no netting agent taking a cut.
+            Contraflow records each debt with both parties' signatures, finds the loops among them,
+            and nets each loop out in one step: a single transaction for USDC invoices on Arc, or
+            one certificate signed by everyone for obligations in any currency. Contraflow never
+            holds your funds and takes no cut.
           </p>
         </section>
 

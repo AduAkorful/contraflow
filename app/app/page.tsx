@@ -9,6 +9,7 @@ import { HowItWorks } from "../components/sections/how-it-works";
 import { Integrations } from "../components/sections/integrations";
 import { Pricing } from "../components/sections/pricing";
 import { Faq } from "../components/sections/faq";
+import { ProtocolStatsSection } from "../components/sections/protocol-stats";
 
 export default function HomePage() {
   return (
@@ -16,6 +17,7 @@ export default function HomePage() {
       <SiteNav />
       <main className="relative z-10">
         <Hero />
+        <ProtocolStatsSection />
         <WhyUs />
         <KeyFeatures />
         <Values />

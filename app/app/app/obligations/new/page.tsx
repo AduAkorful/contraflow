@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { SiteNav } from "../../../components/site-nav";
-import { SiteFooter } from "../../../components/site-footer";
-import { getSession } from "../../../src/session/getSession";
-import { ComposeForm } from "./ComposeForm";
+import { SiteNav } from "../../../../components/site-nav";
+import { SiteFooter } from "../../../../components/site-footer";
+import { getSession } from "../../../../src/session/getSession";
+import { ComposeObligation } from "./ComposeObligation";
 
-export default async function AttestComposePage() {
+export default async function NewObligationPage() {
   const session = await getSession();
 
   return (
@@ -12,15 +12,15 @@ export default async function AttestComposePage() {
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-xl px-6 py-16">
-          <h1 className="font-serif-display text-3xl leading-[1.05]">Propose an invoice</h1>
+          <h1 className="font-serif-display text-3xl leading-[1.05]">Record an offchain obligation</h1>
           <p className="mt-4 text-sm text-muted">
-            Sign a USDC invoice with your wallet and send your counterparty the link. Nothing is
-            registered on Arc until they sign too.
+            A debt in any currency that&apos;s paid outside Contraflow. You and your counterparty both sign it, so
+            it can later be netted against other obligations in a loop. Nothing is recorded until they sign too.
           </p>
 
           {session ? (
             <div className="mt-8">
-              <ComposeForm signerAddress={session.address} />
+              <ComposeObligation signerAddress={session.address} />
             </div>
           ) : (
             <div className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">

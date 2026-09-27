@@ -1,57 +1,103 @@
+import Link from "next/link";
 import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 
-const JOURNEYS = [
+const INVOICES = [
   {
     number: "1",
-    title: "Know where you stand",
-    body: "Which network you're on, and which currency you're spending, shown before any transaction.",
+    title: "Sign",
+    body: "The debtor and creditor each sign the invoice with their own wallet. It's registered on Arc once both signatures are in.",
   },
   {
     number: "2",
-    title: "Sign",
-    body: "Both the debtor and the creditor sign the invoice with their own wallet before it's recorded on-chain.",
+    title: "Find a loop",
+    body: "See exactly which invoices form a closed loop and how much would cancel, before you commit to anything.",
   },
   {
     number: "3",
-    title: "Find a cycle",
-    body: "See exactly which invoices form a closed cycle and how much would cancel — before you commit to anything.",
+    title: "Cancel it",
+    body: "One transaction cancels the same amount off every invoice in the loop, with a link to it on the Arc explorer.",
   },
   {
     number: "4",
-    title: "Cancel it",
-    body: "Submit the transaction and see the result — success, or a clear reason why not — with a link to it on the Arc explorer.",
+    title: "Get a receipt",
+    body: "See the block, the transaction and exactly what changed for every invoice involved.",
+  },
+];
+
+const OBLIGATIONS = [
+  {
+    number: "1",
+    title: "Record it in any currency",
+    body: "Record what you owe or are owed in the currency you actually invoice in, with a description that only you and your counterparty are shown.",
+  },
+  {
+    number: "2",
+    title: "Both sides sign",
+    body: "Send a short link. Only your counterparty can open it, after signing in with the wallet it names, and their browser checks your signature before they sign.",
+  },
+  {
+    number: "3",
+    title: "One certificate per loop",
+    body: "When obligations form a loop, everyone in it reviews their own obligations and signs one netting certificate.",
+  },
+  {
+    number: "4",
+    title: "Never netted twice",
+    body: "Applying the certificate records a blinded state for each obligation on Arc. The same debt can't be netted again from an old state.",
   },
   {
     number: "5",
-    title: "Get a quote",
-    body: "See a live exchange rate for anything left over, clearly marked as a quote — it never becomes a real trade without your say.",
+    title: "Keep your certificate",
+    body: "Download your copy of the certificate. It holds your own obligations in full, and no one else's amounts.",
   },
   {
     number: "6",
-    title: "Get a receipt",
-    body: "See the block, the transaction, and exactly what changed for every invoice involved — proof the cycle really cleared on-chain.",
+    title: "Verify any certificate",
+    body: "Check a certificate against the ledger on Arc, in your browser, without uploading it.",
+    href: "/app/verify",
   },
 ];
 
 const TRUST = [
   {
     title: "Fails safely",
-    body: "A missing signature, a broken cycle, or the wrong network — the transaction simply doesn't go through. Nothing half-completes.",
+    body: "A missing signature, a broken loop or the wrong network means nothing goes through. Nothing half-completes.",
   },
   {
     title: "Anyone can settle",
-    body: "Cancelling a valid cycle isn't gated behind us — anyone can trigger it once it's ready.",
+    body: "Cancelling a valid loop isn't gated behind us. Anyone can trigger it once it's ready.",
   },
   {
     title: "Upgradeable, and we say so",
-    body: "The team can upgrade these contracts using a single administrative key. We disclose that plainly rather than claim the contracts can never change — see our Terms.",
+    body: "The team can upgrade Contraflow's three contracts, the invoice registry, the settler and the netting ledger, with a single administrative key. See our Terms.",
   },
   {
     title: "Real numbers only",
-    body: "Every figure the app shows — cancelled volume, gas paid, a receipt — comes from an actual transaction, never a sample or a mock.",
+    body: "Every figure the app shows, from the protocol stats to a receipt, comes from an actual transaction, never a sample or a mock.",
   },
 ];
+
+type Step = { number: string; title: string; body: string; href?: string };
+
+function Steps({ steps }: { steps: Step[] }) {
+  return (
+    <div className={`mt-12 grid gap-6 sm:grid-cols-2 ${steps.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+      {steps.map((j) => (
+        <div key={j.number} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
+          <span className="font-serif-display text-2xl text-gold">{j.number}</span>
+          <h3 className="mt-2 font-medium">{j.title}</h3>
+          <p className="mt-2 text-sm text-muted">{j.body}</p>
+          {j.href ? (
+            <Link href={j.href} className="mt-3 inline-block text-sm text-gold hover:underline">
+              Verify a certificate →
+            </Link>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function FeaturesPage() {
   return (
@@ -60,33 +106,38 @@ export default function FeaturesPage() {
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
           <h1 className="font-serif-display text-5xl leading-[1.05]">
-            From a signature to a receipt
+            Net what you owe and are owed
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-muted">
-            Six steps, everything the app covers.
+            Two ways to net out a loop of debt: USDC invoices on Arc, and obligations in any currency.
           </p>
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-16">
           <p className="text-center text-xs font-medium uppercase tracking-wide text-gold">
-            Core journeys
+            Invoices on Arc
           </p>
           <h2 className="mt-3 text-center font-serif-display text-3xl">
-            What the app covers
+            From a signature to a receipt
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-muted">
-            Not a fixed page count — every capability below shows up somewhere in the app.
+            USDC invoices, registered on Arc and cancelled in place, with no USDC moving except gas.
           </p>
+          <Steps steps={INVOICES} />
+        </section>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {JOURNEYS.map((j) => (
-              <div key={j.number} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-                <span className="font-serif-display text-2xl text-gold">{j.number}</span>
-                <h3 className="mt-2 font-medium">{j.title}</h3>
-                <p className="mt-2 text-sm text-muted">{j.body}</p>
-              </div>
-            ))}
-          </div>
+        <section className="mx-auto max-w-6xl px-6 py-16">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-gold">
+            Offchain obligations
+          </p>
+          <h2 className="mt-3 text-center font-serif-display text-3xl">
+            Any currency, one certificate
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-center text-muted">
+            Debts that stay in your own currency and off the chain, netted with a certificate everyone in the loop
+            signs.
+          </p>
+          <Steps steps={OBLIGATIONS} />
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-16">
@@ -96,9 +147,6 @@ export default function FeaturesPage() {
           <h2 className="mt-3 text-center font-serif-display text-3xl">
             How Contraflow is built
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-muted">
-            We'd rather disclose a real limitation than make a claim we can't back up.
-          </p>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
             {TRUST.map((t) => (

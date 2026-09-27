@@ -3,9 +3,9 @@ const INTEGRATIONS = [
   "Swap Kit",
   "Unified Balance",
   "Developer-Controlled Wallets",
-  "User-Controlled Wallets",
+  "Wallet or email sign-in",
   "Arc Explorer",
-  "Wallet signatures",
+  "Netting ledger on Arc",
   "Native USDC gas",
 ];
 
@@ -16,7 +16,7 @@ export function Integrations() {
         <p className="text-xs font-medium uppercase tracking-wide text-gold">Integrations</p>
         <h2 className="mt-3 font-serif-display text-4xl">Built on Circle and Arc</h2>
         <p className="mt-4 text-muted">
-          Real infrastructure, not a simulated backend.
+          Contraflow runs on Arc and Circle&apos;s infrastructure.
         </p>
       </div>
 

@@ -10,9 +10,9 @@ const CONTACT_CARDS = [
   },
   {
     title: "Verify it yourself",
-    body: "Every claim on this site is checkable — contract addresses, transaction hashes, and the source are all public.",
-    link: "https://github.com/AduAkorful/contraflow",
-    cta: "See the source",
+    body: "Every settlement and certificate is on the Arc explorer, and any certificate can be checked against the ledger in your browser.",
+    link: "/app/verify",
+    cta: "Verify a certificate",
   },
 ];
 
@@ -24,8 +24,7 @@ export default function ContactPage() {
         <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
           <h1 className="font-serif-display text-5xl leading-[1.05]">Connect With Us</h1>
           <p className="mx-auto mt-6 max-w-xl text-muted">
-            Contraflow is an open-repo project. The public GitHub repo is the real channel — no
-            support desk, no sales line.
+            Questions, bug reports and partnership enquiries all go through our GitHub repository.
           </p>
         </section>
 

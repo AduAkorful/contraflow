@@ -3,9 +3,12 @@ import { SiteFooter } from "../../components/site-footer";
 import { Pricing } from "../../components/sections/pricing";
 
 const COST_NOTES = [
-  { title: "Protocol fee", body: "$0. Contraflow doesn't take a cut when you net a cycle." },
-  { title: "What you pay", body: "Arc network gas, priced in USDC — that's it." },
-  { title: "No subscriptions", body: "No tiers, no monthly plan, no per-cycle toll." },
+  { title: "Protocol fee", body: "$0 today. Contraflow doesn't take a cut when you net a loop." },
+  {
+    title: "What you pay",
+    body: "Arc network gas, priced in USDC, for registering invoices, settling a loop or applying a certificate. Recording an obligation costs nothing.",
+  },
+  { title: "No subscriptions", body: "No tiers, no monthly plan, no per-loop toll." },
 ];
 
 export default function PricingPage() {

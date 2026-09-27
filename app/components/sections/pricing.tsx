@@ -1,4 +1,6 @@
 const GAS_COSTS = [
+  { call: "Record an offchain obligation", cost: "No gas" },
+  { call: "Apply a netting certificate (3 obligations)", cost: "~$0.0042" },
   { call: "Attest an invoice", cost: "~$0.0072" },
   { call: "Settle a 3-invoice cycle", cost: "~$0.0043" },
   { call: "Settle a 4-invoice cycle", cost: "~$0.0052" },
@@ -12,7 +14,8 @@ export function Pricing() {
         <p className="text-xs font-medium uppercase tracking-wide text-gold">Pricing</p>
         <h2 className="mt-3 font-serif-display text-4xl">$0 protocol fee</h2>
         <p className="mt-4 text-muted">
-          Netting your invoices costs nothing. You only ever pay Arc network gas, priced in USDC.
+          Netting costs nothing on Contraflow today. You only pay Arc network gas, priced in USDC, and
+          recording an obligation costs nothing at all.
         </p>
       </div>
 
