@@ -104,7 +104,7 @@ describe("findCycles", () => {
     }
   });
 
-  it("finds a non-distinct-party closed walk revisiting the same two addresses (mirrors SET-16, proven live on testnet)", () => {
+  it("by default, also returns closed walks that revisit a party (which the contracts now reject)", () => {
     const invoices = [
       edge("0x1", A, B),
       edge("0x2", B, A),
@@ -112,9 +112,8 @@ describe("findCycles", () => {
       edge("0x4", B, A),
     ];
     const cycles = findCycles(buildGraph(invoices));
-    // Must find at least one valid 4-length closed walk using 4 distinct invoice ids, even
-    // though it only touches 2 distinct addresses -- an elementary-cycle-only search would
-    // wrongly find zero here.
+    // A->B->A->B->A: four distinct invoice ids over only two addresses. settle() reverts
+    // DuplicateParty on this; callers proposing a real call pass requireDistinctParties.
     const fourLength = cycles.filter((c) => c.edges.length === 4);
     expect(fourLength.length).toBeGreaterThan(0);
     for (const c of fourLength) {
@@ -160,5 +159,56 @@ describe("findCycles", () => {
 
   it("returns an empty array for an empty graph", () => {
     expect(findCycles(buildGraph([]))).toEqual([]);
+  });
+});
+
+function parties(c: { edges: InvoiceEdge[] }): Address[] {
+  return c.edges.map((e) => e.debtor);
+}
+
+describe("findCycles with requireDistinctParties", () => {
+  it("excludes a walk that revisits a party", () => {
+    const invoices = [edge("0x1", A, B), edge("0x2", B, A), edge("0x3", A, B), edge("0x4", B, A)];
+    const cycles = findCycles(buildGraph(invoices), { requireDistinctParties: true });
+    expect(cycles).toEqual([]);
+  });
+
+  it("finds a simple two-party loop when the minimum length allows it", () => {
+    const invoices = [edge("0x1", A, B), edge("0x2", B, A), edge("0x3", A, B), edge("0x4", B, A)];
+    const cycles = findCycles(buildGraph(invoices), { requireDistinctParties: true, minCycleLength: 2 });
+    expect(cycles.length).toBe(4); // every pairing of an A->B with a B->A
+    for (const c of cycles) {
+      expect(c.edges).toHaveLength(2);
+      expect(new Set(parties(c)).size).toBe(2);
+    }
+  });
+
+  it("only ever returns loops whose parties are all distinct", () => {
+    // A figure-eight through A: A->B->A and A->C->D->A, plus the 5-walk joining them.
+    const invoices = [edge("0x1", A, B), edge("0x2", B, A), edge("0x3", A, C), edge("0x4", C, D), edge("0x5", D, A)];
+    const loose = findCycles(buildGraph(invoices), { minCycleLength: 2 });
+    const strict = findCycles(buildGraph(invoices), { minCycleLength: 2, requireDistinctParties: true });
+    expect(loose.some((c) => c.edges.length === 5)).toBe(true);
+    expect(strict.map((c) => c.edges.map((e) => e.id).join()).sort()).toEqual(["0x1,0x2", "0x3,0x4,0x5"]);
+    for (const c of strict) expect(new Set(parties(c)).size).toBe(c.edges.length);
+  });
+
+  it("doesn't lose a simple loop behind many revisiting walks under a small maxCycles", () => {
+    // Many parallel A<->B invoices generate lots of revisiting 4- and 5-walks; the only 3-party
+    // loop is A->B->C->A.
+    const invoices: InvoiceEdge[] = [];
+    for (let i = 0; i < 6; i++) {
+      invoices.push(edge(`0xa${i}`, A, B), edge(`0xb${i}`, B, A));
+    }
+    invoices.push(edge("0xc1", B, C), edge("0xc2", C, A));
+    const opts = { minCycleLength: 3, maxCycles: 5 };
+    const loose = findCycles(buildGraph(invoices), opts);
+    expect(loose.some((c) => new Set(parties(c)).size === 3 && c.edges.length === 3)).toBe(false);
+    const strict = findCycles(buildGraph(invoices), { ...opts, requireDistinctParties: true });
+    expect(strict.length).toBeGreaterThan(0);
+    for (const c of strict) {
+      expect(c.edges).toHaveLength(3);
+      expect(new Set(parties(c))).toEqual(new Set([A, B, C]));
+    }
   });
 });

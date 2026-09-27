@@ -14,6 +14,10 @@ export interface FindCyclesOptions {
   minCycleLength?: number;
   maxCycleLength?: number;
   maxCycles?: number;
+  /** Only return loops in which every party appears once, as both `ContraflowSettler.settle()`
+   * and `ContraflowNettingLedger.applyCertificate()` require (`DuplicateParty`). Pruned during
+   * the search, so `maxCycles` isn't spent on walks that could never be applied. */
+  requireDistinctParties?: boolean;
 }
 
 const DEFAULT_MAX_VERTICES = 32;
@@ -21,8 +25,8 @@ const DEFAULT_MIN_CYCLE_LENGTH = 3;
 const DEFAULT_MAX_CYCLE_LENGTH = 5;
 const DEFAULT_MAX_CYCLES = 100;
 
-/** Tarjan's SCC algorithm. Returns each strongly-connected component's vertex set. Any cycle —
- * in ContraflowSettler's actual, looser sense: see the module doc below — can only exist
+/** Tarjan's SCC algorithm. Returns each strongly-connected component's vertex set. Any closed walk —
+ * including the repeated-party walks enumerated below by default — can only exist
  * entirely within a single SCC, so this is the pruning pass before cycle enumeration, per spec
  * §3.3, regardless of how "cycle" ends up defined for enumeration purposes. */
 function tarjanSCC(vertices: Address[], adjacency: Map<Address, Address[]>): Address[][] {
@@ -68,16 +72,13 @@ function tarjanSCC(vertices: Address[], adjacency: Map<Address, Address[]>): Add
 }
 
 /**
- * IMPORTANT: "cycle" here means exactly what `ContraflowSettler.settle()` itself checks —
- * `invoiceIds[i].creditor == invoiceIds[i+1].debtor` around the array, wrapping at the end,
- * with every invoice id distinct (`DuplicateInvoiceId` on the contract side) — and nothing
- * more. It is **not** the graph-theory "elementary cycle" (no repeated vertex). Those differ:
- * A→B, B→A, A→B, B→A is four *distinct invoices* between the same two addresses, and the live
- * testnet campaign (plans/03-live-testnet-e2e-tests.md, SET-16) proved the deployed contract
- * accepts it as a valid settle() cycle today. An elementary-cycle-only search would silently
- * fail to propose a settle call the contract would happily accept — the solver must match the
- * contract's actual (looser) definition, not a textbook-stricter one. So this enumerates closed
- * walks of *distinct edges* (vertices may repeat), bounded to [minLen, maxLen].
+ * By default this enumerates closed walks of *distinct edges* (vertices may repeat), bounded to
+ * [minLen, maxLen]: `edges[i].creditor == edges[i+1].debtor` around the array, with every
+ * invoice id distinct. That is looser than what the contracts accept today: both
+ * `ContraflowSettler.settle()` and the netting ledger also revert `DuplicateParty` when a party
+ * appears twice (A→B, B→A, A→B, B→A is four distinct invoices between the same two addresses,
+ * and is rejected). Callers proposing an onchain call must pass `requireDistinctParties`, which
+ * restricts the search to elementary cycles.
  */
 function enumerateClosedWalksInComponent(
   component: Set<Address>,
@@ -85,6 +86,7 @@ function enumerateClosedWalksInComponent(
   minLen: number,
   maxLen: number,
   maxCycles: number,
+  requireDistinctParties: boolean,
   seenCanonical: Set<string>,
   out: Cycle[],
 ): void {
@@ -97,6 +99,7 @@ function enumerateClosedWalksInComponent(
 
     const path: InvoiceEdge[] = [first];
     const usedIds = new Set<InvoiceId>([first.id]);
+    const visited = new Set<Address>([first.debtor, first.creditor]);
 
     dfs(first.creditor);
 
@@ -106,17 +109,24 @@ function enumerateClosedWalksInComponent(
       if (current === first.debtor && path.length >= minLen && path.length <= maxLen) {
         recordIfNew(path);
       }
+      // Walking on from the start would revisit it.
+      if (requireDistinctParties && current === first.debtor) return;
       if (path.length >= maxLen) return;
 
       for (const edge of edgesByDebtor.get(current) ?? []) {
         if (out.length >= maxCycles) return;
         if (!component.has(edge.creditor)) continue;
         if (usedIds.has(edge.id)) continue;
+        const revisits = edge.creditor !== first.debtor && visited.has(edge.creditor);
+        if (requireDistinctParties && revisits) continue;
 
+        const added = !visited.has(edge.creditor);
         usedIds.add(edge.id);
+        if (added) visited.add(edge.creditor);
         path.push(edge);
         dfs(edge.creditor);
         path.pop();
+        if (added) visited.delete(edge.creditor);
         usedIds.delete(edge.id);
       }
     }
@@ -143,6 +153,7 @@ export function findCycles(graph: Graph, opts: FindCyclesOptions = {}): Cycle[] 
   const minLen = opts.minCycleLength ?? DEFAULT_MIN_CYCLE_LENGTH;
   const maxLen = opts.maxCycleLength ?? DEFAULT_MAX_CYCLE_LENGTH;
   const maxCycles = opts.maxCycles ?? DEFAULT_MAX_CYCLES;
+  const requireDistinctParties = opts.requireDistinctParties ?? false;
 
   if (graph.vertices.length > maxVertices) {
     throw new GraphTooLargeError(graph.vertices.length, maxVertices);
@@ -164,7 +175,16 @@ export function findCycles(graph: Graph, opts: FindCyclesOptions = {}): Cycle[] 
   for (const component of components) {
     if (component.length < 2) continue; // a single-vertex SCC can't host any cycle (no self-invoices)
     if (results.length >= maxCycles) break;
-    enumerateClosedWalksInComponent(new Set(component), edgesByDebtor, minLen, maxLen, maxCycles, seenCanonical, results);
+    enumerateClosedWalksInComponent(
+      new Set(component),
+      edgesByDebtor,
+      minLen,
+      maxLen,
+      maxCycles,
+      requireDistinctParties,
+      seenCanonical,
+      results,
+    );
   }
 
   return results;

@@ -17,8 +17,8 @@ export interface Graph {
   edges: InvoiceEdge[];
 }
 
-/** A simple (elementary) directed cycle: edges[i].creditor === edges[i+1].debtor for every i,
- * wrapping from the last edge back to the first. */
+/** A closed walk: edges[i].creditor === edges[i+1].debtor for every i, wrapping from the last
+ * edge back to the first. Elementary (no repeated party) only under `requireDistinctParties`. */
 export interface Cycle {
   edges: InvoiceEdge[];
 }
