@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.37;
+pragma solidity 0.8.36;
 
 /// @notice Onchain status of a registered invoice.
 enum InvoiceStatus {
@@ -107,7 +107,7 @@ interface IContraflowRegistry {
     /// @notice One-time setup for a freshly deployed proxy. Reverts if called a second time.
     /// @param usdcToken_ Canonical Arc ERC-20 USDC address; every invoice's `currency` must match it.
     /// @param settler_ The only address ever permitted to call `netInvoice`.
-    /// @param owner_ Initial owner, authorized to call `_authorizeUpgrade` via `Ownable2Step`.
+    /// @param owner_ Initial owner, authorized to call `_authorizeUpgrade` (plain `Ownable`).
     function initialize(address usdcToken_, address settler_, address owner_) external;
 
     /// @notice Registers a bilaterally-signed invoice.

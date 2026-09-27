@@ -1,0 +1,6 @@
+{
+  "chainId": 5042002,
+  "nettingLedgerImplementation": "0x7D880D02C1EC0EcBe273246fBb0F8b2BAC3721fb",
+  "nettingLedgerProxy": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
+  "owner": "0x74B4134C8d527a8D8AE8cb9503ab2043bCfC0ffd"
+}
