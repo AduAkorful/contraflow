@@ -1,6 +1,6 @@
 /// Deploys real, compiled `ContraflowRegistry`/`ContraflowSettler` (implementation + ERC1967Proxy
-/// pairs) to a local anvil instance, mirroring `contracts/script/Deploy.s.sol`'s atomic
-/// construct-and-initialize pattern in TypeScript, purely for this test suite. Deliberately
+/// pairs), and separately `ContraflowNettingLedger`, to a local anvil instance, mirroring the
+/// deploy scripts' atomic construct-and-initialize pattern in TypeScript, purely for this test suite. Deliberately
 /// separate from the real `Deploy.s.sol` (which refuses to run against anything but Arc
 /// testnet's chain id and writes `contracts/deployments/testnet.json`) so a test run can never
 /// touch that file or the real deployment record.
@@ -122,3 +122,51 @@ function requireContractAddress(receipt: { contractAddress: Address | null | und
 
 // Re-exported so callers don't need a second import just for ABI access in assertions.
 export { contraflowRegistryAbi, contraflowSettlerAbi };
+
+const nettingLedgerArtifact = readArtifact("contracts/out/ContraflowNettingLedger.sol/ContraflowNettingLedger.json");
+const erc1271WalletArtifact = readArtifact("contracts/out/MockERC1271Wallet.sol/MockERC1271Wallet.json");
+
+/// Deploys a real `ContraflowNettingLedger` behind an `ERC1967Proxy`, constructed and initialized
+/// in one transaction as `contracts/script/DeployNettingLedger.s.sol` does.
+export async function deployNettingLedgerLocally(params: {
+  rpcUrl: string;
+  deployerPrivateKey: Hex;
+  ownerAddress: Address;
+}): Promise<Address> {
+  const { walletClient, publicClient } = clientsFor(params.rpcUrl, params.deployerPrivateKey);
+  const implHash = await walletClient.deployContract({
+    abi: nettingLedgerArtifact.abi,
+    bytecode: nettingLedgerArtifact.bytecode.object,
+    args: [],
+  });
+  const impl = requireContractAddress(await publicClient.waitForTransactionReceipt({ hash: implHash }));
+  const proxyHash = await walletClient.deployContract({
+    abi: proxyArtifact.abi,
+    bytecode: proxyArtifact.bytecode.object,
+    args: [
+      impl,
+      encodeFunctionData({ abi: nettingLedgerArtifact.abi, functionName: "initialize", args: [params.ownerAddress] }),
+    ],
+  });
+  return requireContractAddress(await publicClient.waitForTransactionReceipt({ hash: proxyHash }));
+}
+
+/// The contracts test suite's configurable ERC-1271 smart account.
+export async function deployMockErc1271WalletLocally(params: { rpcUrl: string; deployerPrivateKey: Hex }) {
+  const { walletClient, publicClient } = clientsFor(params.rpcUrl, params.deployerPrivateKey);
+  const hash = await walletClient.deployContract({
+    abi: erc1271WalletArtifact.abi,
+    bytecode: erc1271WalletArtifact.bytecode.object,
+    args: [],
+  });
+  const address = requireContractAddress(await publicClient.waitForTransactionReceipt({ hash }));
+  return { address, abi: erc1271WalletArtifact.abi };
+}
+
+function clientsFor(rpcUrl: string, privateKey: Hex) {
+  const account = privateKeyToAccount(privateKey);
+  return {
+    publicClient: createPublicClient({ chain: arcTestnet, transport: http(rpcUrl) }),
+    walletClient: createWalletClient({ account, chain: arcTestnet, transport: http(rpcUrl) }),
+  };
+}

@@ -1,5 +1,15 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { fetchContractLogs, fetchTransactionFee, fetchTransactionLogs, paramValue, MAX_RECONCILE_PAGES } from "../src/blockscout/client";
+import {
+  fetchAddressTokenTransfers,
+  fetchAddressTransactions,
+  fetchContractLogs,
+  fetchIsContract,
+  fetchTransactionFee,
+  fetchTransactionLogs,
+  paramValue,
+  MAX_ACTIVITY_PAGES,
+  MAX_RECONCILE_PAGES,
+} from "../src/blockscout/client";
 
 function jsonResponse(body: unknown, ok = true): Response {
   return {
@@ -112,5 +122,81 @@ describe("fetchTransactionFee / fetchTransactionLogs", () => {
     const logs = await fetchTransactionLogs("0x1");
     expect(logs).toHaveLength(1);
     expect(logs[0]!.methodCall).toBe("Settled()");
+  });
+});
+
+describe("address activity fetchers", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("stops at MAX_ACTIVITY_PAGES and flags the list as truncated", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      jsonResponse({
+        items: [{ hash: "0x1", timestamp: "2026-09-20T00:00:00Z", from: { hash: "0xa" }, to: { hash: "0xb" } }],
+        next_page_params: { block_number: 1, index: 0 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const list = await fetchAddressTransactions("0xParty");
+
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_ACTIVITY_PAGES);
+    expect(list.truncated).toBe(true);
+    expect(list.items).toHaveLength(MAX_ACTIVITY_PAGES);
+  });
+
+  it("is not truncated when the explorer runs out of pages, and maps contract-creation txs to a null recipient", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        items: [{ hash: "0x1", timestamp: "2026-09-20T00:00:00Z", from: { hash: "0xa" }, to: null }],
+        next_page_params: null,
+      }),
+    ) as unknown as typeof fetch;
+
+    const list = await fetchAddressTransactions("0xParty");
+
+    expect(list).toEqual({
+      items: [{ hash: "0x1", timestamp: "2026-09-20T00:00:00Z", from: "0xa", to: null }],
+      truncated: false,
+    });
+  });
+
+  it("maps token transfers to the token's address", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        items: [
+          {
+            transaction_hash: "0x1",
+            timestamp: "2026-09-20T00:00:00Z",
+            from: { hash: "0xa" },
+            to: { hash: "0xb" },
+            token: { address_hash: "0x3600000000000000000000000000000000000000" },
+          },
+        ],
+        next_page_params: null,
+      }),
+    ) as unknown as typeof fetch;
+
+    const list = await fetchAddressTokenTransfers("0xParty");
+
+    expect(list.items[0]).toEqual({
+      transactionHash: "0x1",
+      timestamp: "2026-09-20T00:00:00Z",
+      from: "0xa",
+      to: "0xb",
+      token: "0x3600000000000000000000000000000000000000",
+    });
+  });
+
+  it("throws on a failed page rather than returning a partial list as complete", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({}, false)) as unknown as typeof fetch;
+    await expect(fetchAddressTransactions("0xParty")).rejects.toThrow("Blockscout fetch failed");
+  });
+
+  it("reads an unseen address as not a contract", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ is_contract: null })) as unknown as typeof fetch;
+    expect(await fetchIsContract("0xParty")).toBe(false);
   });
 });
