@@ -1,4 +1,4 @@
-/// Re-exports the two contract ABIs as `const`-typed arrays (viem needs `as const` for its type
+/// Re-exports the contract ABIs as `const`-typed arrays (viem needs `as const` for its type
 /// inference on `readContract`/`writeContract`/`encodeFunctionData`). Copied from
 /// `contracts/out/*/*.json` (gitignored Foundry build output) — regenerate with
 /// `pnpm --filter @contraflow/app sync-abi` after any change to the Solidity interfaces, never
@@ -6,6 +6,8 @@
 
 import contraflowRegistryAbiJson from "./ContraflowRegistry.json" with { type: "json" };
 import contraflowSettlerAbiJson from "./ContraflowSettler.json" with { type: "json" };
+import contraflowNettingLedgerAbiJson from "./ContraflowNettingLedger.json" with { type: "json" };
 
 export const contraflowRegistryAbi = contraflowRegistryAbiJson;
 export const contraflowSettlerAbi = contraflowSettlerAbiJson;
+export const contraflowNettingLedgerAbi = contraflowNettingLedgerAbiJson;

@@ -5,6 +5,17 @@
 
 const BLOCKSCOUT_BASE = "https://explorer.testnet.arc.io";
 
+/// Explorer per chain. Mainnet is added with the mainnet deploy, from a URL verified live then.
+const BLOCKSCOUT_BASE_BY_CHAIN_ID: Record<number, string> = {
+  5042002: BLOCKSCOUT_BASE,
+};
+
+export function blockscoutBaseFor(chainId: number): string {
+  const base = BLOCKSCOUT_BASE_BY_CHAIN_ID[chainId];
+  if (!base) throw new Error(`No Blockscout explorer configured for chain ${chainId}`);
+  return base;
+}
+
 /// Bounds a single reconciliation call's log-fetch cost — at 50 items/page this is up to 1000
 /// decoded logs, comfortably more than this project's actual Registry log volume today. Flagged,
 /// not assumed permanent: revisit if the Registry contract sees real sustained traffic.
@@ -27,6 +38,8 @@ export interface DecodedLog {
 interface RawLogItem {
   transaction_hash: string;
   block_number: number;
+  index: number;
+  block_timestamp: string;
   decoded: { method_call: string; parameters: DecodedLogParameter[] } | null;
 }
 
@@ -102,4 +115,172 @@ export async function fetchTransactionLogs(txHash: string): Promise<DecodedLog[]
       methodCall: item.decoded!.method_call,
       parameters: item.decoded!.parameters,
     }));
+}
+
+export async function fetchTransactionTimestamp(txHash: string): Promise<string> {
+  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/transactions/${txHash}`);
+  if (!res.ok) throw new Error(`Blockscout transaction fetch failed: ${res.status} ${res.statusText}`);
+  const data = (await res.json()) as { timestamp: string };
+  return data.timestamp;
+}
+
+/// Per-list bound for an address's activity: 50 items/page, so up to 200 transactions and 200 token
+/// transfers per address. When hit, callers get `truncated: true` and must present anything derived
+/// from the oldest item as a lower bound, not an exact value.
+export const MAX_ACTIVITY_PAGES = 4;
+
+export interface BoundedList<T> {
+  items: T[];
+  truncated: boolean;
+}
+
+async function fetchBoundedPages<Raw, T>(path: string, map: (raw: Raw) => T): Promise<BoundedList<T>> {
+  const items: T[] = [];
+  let cursor: Record<string, string | number> | null = null;
+
+  for (let page = 0; page < MAX_ACTIVITY_PAGES; page++) {
+    const url = new URL(`${BLOCKSCOUT_BASE}${path}`);
+    if (cursor) {
+      for (const [key, value] of Object.entries(cursor)) url.searchParams.set(key, String(value));
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Blockscout fetch failed for ${path}: ${res.status} ${res.statusText}`);
+    const data = (await res.json()) as { items: Raw[]; next_page_params: Record<string, string | number> | null };
+    items.push(...data.items.map(map));
+    if (!data.next_page_params) return { items, truncated: false };
+    cursor = data.next_page_params;
+  }
+  return { items, truncated: true };
+}
+
+export interface AddressTransaction {
+  hash: string;
+  timestamp: string;
+  from: string;
+  to: string | null;
+}
+
+/// Newest-first. Includes incoming transactions, not just ones the address sent.
+export function fetchAddressTransactions(address: string): Promise<BoundedList<AddressTransaction>> {
+  return fetchBoundedPages<{ hash: string; timestamp: string; from: { hash: string }; to: { hash: string } | null }, AddressTransaction>(
+    `/api/v2/addresses/${address}/transactions`,
+    (raw) => ({ hash: raw.hash, timestamp: raw.timestamp, from: raw.from.hash, to: raw.to?.hash ?? null }),
+  );
+}
+
+export interface AddressTokenTransfer {
+  transactionHash: string;
+  timestamp: string;
+  from: string;
+  to: string;
+  token: string;
+}
+
+/// Newest-first. On Arc a plain native-USDC value transfer is also indexed here as a USDC token
+/// transfer, and a Circle bridge-in appears as a mint from the zero address — so this list, not
+/// the transactions list, is where incoming funding shows up.
+export function fetchAddressTokenTransfers(address: string): Promise<BoundedList<AddressTokenTransfer>> {
+  return fetchBoundedPages<
+    { transaction_hash: string; timestamp: string; from: { hash: string }; to: { hash: string }; token: { address_hash: string } },
+    AddressTokenTransfer
+  >(`/api/v2/addresses/${address}/token-transfers`, (raw) => ({
+    transactionHash: raw.transaction_hash,
+    timestamp: raw.timestamp,
+    from: raw.from.hash,
+    to: raw.to.hash,
+    token: raw.token.address_hash,
+  }));
+}
+
+/// `/api/v2/addresses/{a}` answers 200 even for an address the explorer has never seen, with
+/// `is_contract` unset — which correctly reads as "not a contract".
+export async function fetchIsContract(address: string): Promise<boolean> {
+  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/addresses/${address}`);
+  if (!res.ok) throw new Error(`Blockscout address fetch failed: ${res.status} ${res.statusText}`);
+  const data = (await res.json()) as { is_contract?: boolean | null };
+  return data.is_contract === true;
+}
+
+/// A log's position in the chain, ordered by block then log index.
+export interface LogPosition {
+  blockNumber: number;
+  logIndex: number;
+}
+
+export function isAfter(a: LogPosition, b: LogPosition): boolean {
+  return a.blockNumber > b.blockNumber || (a.blockNumber === b.blockNumber && a.logIndex > b.logIndex);
+}
+
+export interface PositionedLog extends DecodedLog, LogPosition {
+  blockTimestamp: string;
+}
+
+export interface LogsSince {
+  /// Newest-first. Only logs strictly after `since`.
+  logs: PositionedLog[];
+  /// Undecoded logs after `since`, skipped rather than guessed at.
+  undecoded: number;
+  /// Position of the newest log after `since`, decoded or not. Null when there's nothing new.
+  newest: LogPosition | null;
+  /// True when the page cap ran out before reaching `since` (or, with no `since`, before the
+  /// contract's first log), so older logs are missing.
+  truncated: boolean;
+}
+
+/// Every log `contractAddress` emitted after `since` (or all of them when `since` is null), paging
+/// newest-first and stopping at the first log at or before `since`.
+export async function fetchContractLogsSince(
+  chainId: number,
+  contractAddress: string,
+  since: LogPosition | null,
+  maxPages: number,
+): Promise<LogsSince> {
+  const base = blockscoutBaseFor(chainId);
+  const logs: PositionedLog[] = [];
+  let undecoded = 0;
+  let newest: LogPosition | null = null;
+  let cursor: Record<string, string | number> | null = null;
+
+  for (let page = 0; page < maxPages; page++) {
+    const url = new URL(`${base}/api/v2/addresses/${contractAddress}/logs`);
+    if (cursor) {
+      for (const [key, value] of Object.entries(cursor)) url.searchParams.set(key, String(value));
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Blockscout logs fetch failed: ${res.status} ${res.statusText}`);
+    const data = (await res.json()) as RawLogsPage;
+
+    for (const item of data.items) {
+      const position = { blockNumber: item.block_number, logIndex: item.index };
+      if (since && !isAfter(position, since)) return { logs, undecoded, newest, truncated: false };
+      newest ??= position;
+      if (!item.decoded) {
+        undecoded++;
+        continue;
+      }
+      logs.push({
+        ...position,
+        transactionHash: item.transaction_hash,
+        blockTimestamp: item.block_timestamp,
+        methodCall: item.decoded.method_call,
+        parameters: item.decoded.parameters,
+      });
+    }
+
+    if (!data.next_page_params) return { logs, undecoded, newest, truncated: false };
+    cursor = data.next_page_params;
+  }
+  return { logs, undecoded, newest, truncated: true };
+}
+
+export interface TransactionSummary {
+  from: string;
+  feeWei: string;
+}
+
+export async function fetchTransactionSummary(chainId: number, txHash: string): Promise<TransactionSummary> {
+  const res = await fetch(`${blockscoutBaseFor(chainId)}/api/v2/transactions/${txHash}`);
+  if (!res.ok) throw new Error(`Blockscout transaction fetch failed: ${res.status} ${res.statusText}`);
+  const data = (await res.json()) as { from: { hash: string }; fee: { value: string } };
+  return { from: data.from.hash, feeWei: data.fee.value };
 }

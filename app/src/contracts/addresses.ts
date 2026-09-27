@@ -11,6 +11,10 @@ export interface ChainAddresses {
   /// they never need to scan from block 0, which this project's public Arc testnet RPC rejects
   /// ("pruned history unavailable").
   registryDeployBlock: bigint;
+  /// `ContraflowNettingLedger` proxy for offchain obligations. Deployed independently of the
+  /// Registry and Settler, so it has its own deployment record
+  /// (`contracts/deployments/testnet-netting-ledger.json`).
+  nettingLedger: `0x${string}`;
 }
 
 export const ARC_TESTNET_CHAIN_ID = 5042002;
@@ -25,6 +29,7 @@ const ARC_TESTNET_ADDRESSES: ChainAddresses = {
   settler: "0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015",
   usdc: "0x3600000000000000000000000000000000000000",
   registryDeployBlock: 63390626n,
+  nettingLedger: "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
 };
 
 const ADDRESSES_BY_CHAIN_ID: Record<number, ChainAddresses> = {

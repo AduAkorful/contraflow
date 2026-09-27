@@ -3,7 +3,8 @@
 /// Server-only: constructs an `OperatorSigner` from `CONTRAFLOW_OPERATOR_PK`, which must never
 /// reach client-bundled code.
 
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { createArcPublicClient, createArcWalletClient } from "./client";
 import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 import type { OperatorSigner } from "../operator/signer";
@@ -23,4 +24,16 @@ export function operatorSigner(): OperatorSigner {
 
 export function arcPublicClient() {
   return createArcPublicClient(ARC_TESTNET_CHAIN_ID, process.env.ARC_TESTNET_RPC);
+}
+
+/// The operator key's address, or null when the key is unset or malformed. Signing flows report a
+/// bad key themselves; read-only callers just need to know whether they can identify it.
+export function operatorAddress(): Address | null {
+  const pk = process.env.CONTRAFLOW_OPERATOR_PK;
+  if (!pk) return null;
+  try {
+    return privateKeyToAccount(pk as Hex).address;
+  } catch {
+    return null;
+  }
 }

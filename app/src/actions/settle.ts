@@ -26,7 +26,8 @@ export async function proposeSettlement(params: {
   invoiceIds: readonly Hex[];
 }): Promise<SettleCall | null> {
   const edges = await fetchNettableInvoiceEdges(params.publicClient, params.registry, params.invoiceIds);
-  return proposeSettleCall(edges);
+  // settle() reverts DuplicateParty on a loop that revisits a party.
+  return proposeSettleCall(edges, { requireDistinctParties: true });
 }
 
 export interface SettleResult {

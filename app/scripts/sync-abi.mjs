@@ -12,6 +12,10 @@ const repoRoot = dirname(appDir);
 const contracts = [
   { name: "ContraflowRegistry", artifact: "contracts/out/ContraflowRegistry.sol/ContraflowRegistry.json" },
   { name: "ContraflowSettler", artifact: "contracts/out/ContraflowSettler.sol/ContraflowSettler.json" },
+  {
+    name: "ContraflowNettingLedger",
+    artifact: "contracts/out/ContraflowNettingLedger.sol/ContraflowNettingLedger.json",
+  },
 ];
 
 for (const { name, artifact } of contracts) {
