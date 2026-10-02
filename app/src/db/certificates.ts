@@ -88,14 +88,19 @@ function dbErrorCode(error: unknown): { code?: string; constraint?: string } {
 }
 
 export const neonCertificateStore: CertificateStore = {
-  async listNettableObligations({ chainId, ledger, limit }): Promise<ObligationRow[]> {
+  async listNettableObligationsForParties({ chainId, ledger, parties, currency, afterObligationId, now, limit }): Promise<ObligationRow[]> {
     return withDbRetry(async () => {
       const rows = (await sql()`
         SELECT o.* FROM netting_obligations o
         WHERE o.chain_id = ${chainId} AND o.ledger = ${ledger.toLowerCase()} AND o.status = 'active'
           AND o.remaining <> '0'
+          AND (o.maturity <= ${now.toString()} OR o.early_net_consent)
+          AND (o.debtor = ANY(${parties.map((party) => party.toLowerCase())}::text[])
+            OR o.creditor = ANY(${parties.map((party) => party.toLowerCase())}::text[]))
+          AND (${currency ?? null}::text IS NULL OR o.currency = ${currency ?? null})
+          AND (${afterObligationId ?? null}::text IS NULL OR o.obligation_id > ${afterObligationId ?? null})
           AND NOT EXISTS (SELECT 1 FROM netting_certificate_entries e WHERE e.obligation_id = o.obligation_id AND e.locked)
-        ORDER BY o.created_at ASC LIMIT ${limit}
+        ORDER BY o.obligation_id ASC LIMIT ${limit}
       `) as Record<string, unknown>[];
       return rows.map(toObligationRow);
     });

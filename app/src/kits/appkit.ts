@@ -4,7 +4,7 @@
 import { AppKit, SwapChain } from "@circle-fin/app-kit";
 import { createAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
 import { createCircleWalletsAdapter, type CircleWalletsAdapter } from "@circle-fin/adapter-circle-wallets";
-import { createPublicClient, createWalletClient, http, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
 
 import { ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 
@@ -13,6 +13,55 @@ export class UnsupportedSwapChainError extends Error {
     super(`Swap Kit has no SwapChain enum mapping for chain id ${chainId}`);
     this.name = "UnsupportedSwapChainError";
   }
+}
+
+export class RpcChainMismatchError extends Error {
+  constructor(expectedChainId: number, actualChainId: bigint) {
+    super(`Configured RPC for chain ${expectedChainId} reports chain ${actualChainId}`);
+    this.name = "RpcChainMismatchError";
+  }
+}
+
+function chainValidatedFetch(url: string, expectedChainId: number): typeof fetch {
+  let validation: Promise<void> | undefined;
+  return async (_input, init) => {
+    validation ??= (async () => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
+        signal: init?.signal,
+      });
+      if (!response.ok) throw new Error(`RPC chain check failed with HTTP ${response.status}`);
+      const body: unknown = await response.json();
+      const result = body && typeof body === "object" ? (body as { result?: unknown }).result : undefined;
+      if (typeof result !== "string" || !/^0x[0-9a-f]+$/i.test(result)) {
+        throw new Error("RPC chain check returned an invalid eth_chainId result");
+      }
+      const actualChainId = BigInt(result);
+      if (actualChainId !== BigInt(expectedChainId)) {
+        throw new RpcChainMismatchError(expectedChainId, actualChainId);
+      }
+    })();
+    try {
+      await validation;
+    } catch (error) {
+      // A transient HTTP/parse failure is retryable; a deterministic wrong chain will fail closed
+      // again on the next attempt without ever forwarding that operation.
+      validation = undefined;
+      throw error;
+    }
+    return fetch(url, init);
+  };
+}
+
+export function chainCheckedHttpTransport(url: string, expectedChainId: number): ReturnType<typeof http> {
+  return http(url, { fetchFn: chainValidatedFetch(url, expectedChainId) });
+}
+
+function rpcForChain(chain: Chain, overrides: Readonly<Record<number, string>>) {
+  const url = overrides[chain.id];
+  return url ? chainCheckedHttpTransport(url, chain.id) : http();
 }
 
 /// Resolves the real `@circle-fin/app-kit` `SwapChain` enum value for a Contraflow chain id.
@@ -46,21 +95,23 @@ export interface ContraflowAppKitAdapter {
 /// can't reuse `ContraflowSwapKit`'s single-fixed-chain shape. `createContraflowSwapKit` below
 /// builds on this rather than duplicating it.
 ///
-/// `rpcUrl`, when given, is used for both the public and wallet clients the adapter builds per
-/// chain — the SDK's own documented mechanism (`getPublicClient`/`getWalletClient` callbacks) for
-/// pointing this signer at a specific RPC instead of its default, useful since the raw-key
-/// Unified Balance path can otherwise hit transient failures against a free public RPC. Omitted,
-/// behavior is unchanged.
-export function createOperatorAdapter(privateKey: Hex, rpcUrl?: string): ContraflowAppKitAdapter {
-  if (!rpcUrl) {
+/// RPC overrides are keyed by EIP-155 chain ID because Unified Balance can create clients for
+/// both a source chain and Arc in one operation. An override is checked with `eth_chainId` before
+/// its first application request; chains without an override keep the SDK/chain default RPC.
+export function createOperatorAdapter(
+  privateKey: Hex,
+  options?: { rpcUrlsByChainId?: Readonly<Record<number, string>> },
+): ContraflowAppKitAdapter {
+  const rpcUrlsByChainId = options?.rpcUrlsByChainId;
+  if (!rpcUrlsByChainId || Object.keys(rpcUrlsByChainId).length === 0) {
     return { kit: new AppKit(), adapter: createAdapterFromPrivateKey({ privateKey }) };
   }
   return {
     kit: new AppKit(),
     adapter: createAdapterFromPrivateKey({
       privateKey,
-      getPublicClient: ({ chain }) => createPublicClient({ chain, transport: http(rpcUrl) }),
-      getWalletClient: ({ chain, account }) => createWalletClient({ chain, account, transport: http(rpcUrl) }),
+      getPublicClient: ({ chain }) => createPublicClient({ chain, transport: rpcForChain(chain, rpcUrlsByChainId) }),
+      getWalletClient: ({ chain, account }) => createWalletClient({ chain, account, transport: rpcForChain(chain, rpcUrlsByChainId) }),
     }),
   };
 }

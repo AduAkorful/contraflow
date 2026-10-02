@@ -101,7 +101,7 @@ after any contract change.
    the ledger. Check the logged addresses, owner and gas.
 2. **Broadcast.** Re-run with `--broadcast`. Each proxy is deployed and initialised in one transaction
    (`ERC1967Proxy(impl, initCalldata)`), so there's no window where an uninitialised proxy could be claimed.
-3. **Verify** on Sourcify (`forge verify-contract <address> <Contract> --verifier sourcify --chain-id <id>`) and on
+3. **Verify** on Sourcify (`forge verify-contract <address> <Contract> --verifier sourcify --chain <id>`) and on
    Arc's Blockscout. Blockscout compiles up to solc 0.8.36, which is why the source is pinned there; anything
    built with a newer solc fails with "Unable to verify", which looks transient but isn't. The testnet contracts
    deployed on 2026-09-22 were built with 0.8.37, so only Sourcify verifies them.

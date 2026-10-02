@@ -13,7 +13,7 @@ import type { LedgerDomain } from "../netting/types";
 import type { ChainReader } from "../netting/signature";
 import type { CertificateService } from "../obligations/certificates";
 import type * as obligationService from "../obligations/service";
-import { ApiError, requirePartyScope, type ApiCaller, type TenantStore } from "./auth";
+import { ApiError, requirePartyScope, type ApiCaller, type IdempotencyContext, type TenantStore } from "./auth";
 import { permissionTypedData, validatePermission, type TenantPermission } from "./permissions";
 
 export interface ApiDeps {
@@ -34,6 +34,7 @@ export interface ApiRequest {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
+  idempotency?: IdempotencyContext;
 }
 
 export interface ApiResponse {
@@ -107,7 +108,7 @@ export async function createPermission(caller: ApiCaller, req: ApiRequest, deps:
     expiresAt: permission.expiresAt,
     nonce: permission.nonce,
     signature: field(req.body, "signature") as Hex,
-  });
+  }, req.idempotency);
   if (!saved) throw new ApiError(409, "duplicate_nonce", "This party already granted a permission with this nonce.");
   return {
     status: 201,

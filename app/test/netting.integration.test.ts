@@ -160,7 +160,7 @@ describe("netting module against the compiled ledger", () => {
   it("reports an unapplied certificate as not applied", async () => {
     const { view } = await signedCertificate({ domain, amounts: [100n, 200n] });
     const result = await verifyCertificateView(view, { now: await nowOnChain(), stage: "applied", client: publicClient() });
-    expect(result.checks.find((c) => c.name === "onchain:applied")?.status).toBe("fail");
+    expect(result.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("fail");
     expect(result.ok).toBe(false);
   });
 

@@ -3,7 +3,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const incr = vi.fn();
 const expire = vi.fn();
 vi.mock("@upstash/redis", () => ({
-  Redis: vi.fn().mockImplementation(() => ({ incr, expire })),
+  Redis: vi.fn(function RedisMock() {
+    return { incr, expire };
+  }),
 }));
 
 process.env.UPSTASH_REDIS_REST_URL = "https://example.upstash.io";

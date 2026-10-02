@@ -112,6 +112,74 @@ describe("finding and proposing a loop", () => {
     expect(await service.findAndProposeLoop(other.address)).toMatchObject({ ok: true, outcome: { found: false, reason: "no-loop" } });
   });
 
+  it("finds a caller loop even when the database has over 2,000 unrelated obligations", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n, 100n]);
+    const template = rows[0]!;
+    for (let i = 0; i < 2_001; i++) {
+      const n = BigInt(i + 10_000);
+      const fake = {
+        ...template,
+        obligationId: `0x${n.toString(16).padStart(64, "0")}`,
+        debtor: getAddress(`0x${(n * 2n).toString(16).padStart(40, "0")}`),
+        creditor: getAddress(`0x${(n * 2n + 1n).toString(16).padStart(40, "0")}`),
+        amount: "1",
+        remaining: "1",
+      };
+      store.obligations.set(fake.obligationId, fake);
+    }
+
+    const result = await service.findAndProposeLoop(parties[0]!.address);
+
+    expect(result.ok && result.outcome).toMatchObject({ found: true, wNet: "100" });
+  });
+
+  it("reports an incomplete search when the caller-local query exceeds its row budget", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n, 100n]);
+    const template = rows[0]!;
+    for (let i = 0; i < 2_001; i++) {
+      const n = BigInt(i + 20_000);
+      const fake = {
+        ...template,
+        obligationId: `0x${n.toString(16).padStart(64, "0")}`,
+        debtor: parties[0]!.address,
+        creditor: getAddress(`0x${(n + 1n).toString(16).padStart(40, "0")}`),
+        amount: "1",
+        remaining: "1",
+      };
+      store.obligations.set(fake.obligationId, fake);
+    }
+
+    expect(await service.findAndProposeLoop(parties[0]!.address)).toMatchObject({
+      ok: true,
+      outcome: { found: false, reason: "search-incomplete" },
+    });
+    expect(store.certificates.size).toBe(0);
+  });
+
+  it("reports an incomplete search when the currency fanout exceeds its query budget", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n, 100n]);
+    const template = rows[0]!;
+    for (let i = 0; i < 130; i++) {
+      const n = BigInt(i + 30_000);
+      const fake = {
+        ...template,
+        obligationId: `0x${n.toString(16).padStart(64, "0")}`,
+        debtor: parties[0]!.address,
+        creditor: getAddress(`0x${(n + 1n).toString(16).padStart(40, "0")}`),
+        currency: `TOKEN-${i}`,
+        amount: "1",
+        remaining: "1",
+      };
+      store.obligations.set(fake.obligationId, fake);
+    }
+
+    expect(await service.findAndProposeLoop(parties[0]!.address)).toMatchObject({
+      ok: true,
+      outcome: { found: false, reason: "search-incomplete" },
+    });
+    expect(store.certificates.size).toBe(0);
+  });
+
   it("never offers a locked obligation again", async () => {
     const { parties } = await seededLoop([100n, 100n, 100n]);
     await propose(parties[0]!.address);

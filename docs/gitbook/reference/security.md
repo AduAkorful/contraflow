@@ -36,10 +36,10 @@ graph TD
 
 | Actor | Can | Can't |
 |---|---|---|
-| Anyone | Call `register`, `settle`, `applyCertificate` with valid inputs; use the public pages | Register an invoice or advance an obligation without the parties' signatures |
+| Anyone | Call `register`, `settle`, `applyCertificate` with valid inputs under the current implementation; use the public pages | Register an invoice or advance an obligation without the parties' signatures under the current implementation |
 | A counterparty | Sign, decline or ignore what it's sent | Change the terms the other party signed without the change being detected |
 | An API tenant | Act for parties that signed it a permission, within its scopes | Sign for any party; see anything outside its permissions |
-| Contraflow | See everything stored in its database, including obligations; propose certificates; upgrade the contracts | Sign for any party; net a debt without every party's signature; net the same obligation twice |
+| Contraflow | See everything stored in its database, including obligations; propose certificates; upgrade the contracts | Sign for any party; net a debt without every party's signature or net the same obligation twice under the current implementation |
 
 ## Onchain controls
 

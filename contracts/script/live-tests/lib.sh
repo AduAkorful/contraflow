@@ -6,13 +6,27 @@
 # Source this, don't execute it directly: `source lib.sh`.
 set -u
 
+# This campaign harness targets the deployment used in the 2026-09-18 live run. The app now
+# points at a different testnet deployment, so this historical harness must never run by
+# accident or be treated as a current release gate. To run an intentionally refreshed campaign,
+# set this acknowledgement and explicitly override every deployment address below.
+if [ "${CONFIRM_HISTORICAL_TESTNET_HARNESS:-}" != "1" ]; then
+  echo "Refusing to run historical testnet harness. Review plans/03-live-testnet-e2e-tests.md and set CONFIRM_HISTORICAL_TESTNET_HARNESS=1 only for an intentional campaign." >&2
+  return 1 2>/dev/null || exit 1
+fi
+
 : "${ARC_TESTNET_RPC:?source contracts/.env first}"
 : "${DEPLOYER_PK:?source contracts/.env first}"
 
-REGISTRY=0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312
-SETTLER=0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03
-USDC=0x3600000000000000000000000000000000000000
-CHAINID=5042002
+REGISTRY="${REGISTRY:-0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312}"
+SETTLER="${SETTLER:-0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03}"
+USDC="${USDC:-0x3600000000000000000000000000000000000000}"
+CHAINID="${CHAINID:-5042002}"
+
+if [ "${REGISTRY,,}" = "0x8a04cd9856c5a9f240c293b9fa65a7d171d8c312" ] || [ "${SETTLER,,}" = "0x3b084b5b2046e7651bb701d1cf729be7cb9faf03" ]; then
+  echo "Refusing stale 2026-09-18 deployment addresses. Set REGISTRY and SETTLER from the current deployment record." >&2
+  return 1 2>/dev/null || exit 1
+fi
 
 RESULTS_LOG="${RESULTS_LOG:-/home/aduakorful/dev/contraflow/contracts/script/live-tests/results.log}"
 

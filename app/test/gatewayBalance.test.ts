@@ -49,6 +49,7 @@ describe("gateway source chains", () => {
     expect(gatewaySourceChains(ARC_MAINNET_CHAIN_ID).every((c) => !c.isTestnet)).toBe(true);
     expect(networkTypeForChainId(ARC_TESTNET_CHAIN_ID)).toBe("testnet");
     expect(networkTypeForChainId(ARC_MAINNET_CHAIN_ID)).toBe("mainnet");
+    expect(() => networkTypeForChainId(999999)).toThrow(/Unsupported Arc chain id 999999/);
   });
 
   it("resolves Arc itself from the SDK", () => {

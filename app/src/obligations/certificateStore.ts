@@ -2,6 +2,7 @@
 /// Neon; the tests implement it in memory with the same semantics. Addresses and hex are
 /// lowercase in and out.
 
+import type { Address } from "viem";
 import type { ObligationRow } from "../db/obligations";
 
 export type CertificateStatus = "collecting" | "ready" | "applied" | "expired" | "abandoned";
@@ -82,9 +83,18 @@ export interface AppliedEntryUpdate {
 }
 
 export interface CertificateStore {
-  /// Active obligations on this ledger with something left to net and no open certificate.
-  /// Returns at most `limit` rows.
-  listNettableObligations(params: { chainId: string; ledger: string; limit: number }): Promise<ObligationRow[]>;
+  /// Active, unlocked and currently nettable obligations incident to these parties, optionally
+  /// limited to one currency and paged by obligation ID. Callers must not load a global prefix
+  /// and filter it in application code.
+  listNettableObligationsForParties(params: {
+    chainId: string;
+    ledger: string;
+    parties: readonly Address[];
+    currency?: string;
+    afterObligationId?: string;
+    now: bigint;
+    limit: number;
+  }): Promise<ObligationRow[]>;
   getObligationById(obligationId: string): Promise<ObligationRow | null>;
   /// Only from `active`, and only while the stored state is still `expected`.
   markObligationOutOfSync(obligationId: string, expected: { remaining: string; blinding: string }): Promise<void>;

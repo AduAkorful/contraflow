@@ -45,10 +45,16 @@ export interface NewPermission extends Omit<StoredPermission, "revoked"> {
   signature: Hex;
 }
 
+export interface IdempotencyContext {
+  key: string;
+  requestHash: string;
+  leaseToken: string;
+}
+
 export interface TenantStore {
   findKey(hash: string): Promise<StoredKey | null>;
   /// False when a permission with the same tenant, chain, party and nonce already exists.
-  savePermission(permission: NewPermission): Promise<boolean>;
+  savePermission(permission: NewPermission, idempotency?: IdempotencyContext): Promise<boolean>;
   permissionsFor(tenantId: Hex, chainId: number, party: Address): Promise<StoredPermission[]>;
   /// False when there's no such unrevoked permission for this tenant.
   revokePermission(tenantId: Hex, permissionId: string): Promise<boolean>;

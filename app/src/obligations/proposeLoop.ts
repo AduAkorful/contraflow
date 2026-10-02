@@ -8,6 +8,7 @@ import { isAddressEqual, type Address, type Hex } from "viem";
 import { screenAddresses } from "../compliance";
 import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
 import type { ObligationRow } from "../db/obligations";
+import { MAX_LOOP_LENGTH } from "../netting/domain";
 import { buildCertificate, priorCommitmentOf, type LoopObligation } from "../netting/certificate";
 import { obligationId, obligationKey } from "../netting/obligation";
 import { serializeCertificateView } from "../netting/serialize";
@@ -21,6 +22,11 @@ import type { Result } from "./service";
 
 export const CERTIFICATE_LIFETIME_SECONDS = 7n * 24n * 60n * 60n;
 const MAX_CANDIDATES = 2000;
+const CANDIDATE_PAGE_SIZE = 100;
+const MAX_SEARCH_QUERIES = 128;
+const MAX_QUERY_PARTIES = 64;
+/// Every vertex on a cycle of at most five edges is within two undirected hops of its caller.
+const SEARCH_NEIGHBOURHOOD_DEPTH = Math.floor(MAX_LOOP_LENGTH / 2);
 const MAX_SEARCH_ATTEMPTS = 3;
 
 export type SearchOutcome =
@@ -66,6 +72,84 @@ export async function readStateOf(
   })) as Hex;
 }
 
+type CandidateLoad =
+  | { complete: true; rows: ObligationRow[] }
+  | { complete: false; cap: "rows" | "queries" | "parties" };
+
+/// Page active, currently nettable rows outward from the caller, keeping each currency's graph
+/// separate. The row budget counts database results, including an obligation found from both of
+/// its endpoints, so it also bounds repeated work rather than only retained unique rows.
+async function loadCallerNeighbourhood(
+  store: CertificateServiceDeps["store"],
+  session: Address,
+  chainId: string,
+  ledger: string,
+  now: bigint,
+): Promise<CandidateLoad> {
+  let frontier = new Map<string | undefined, Set<Address>>([[undefined, new Set([session.toLowerCase() as Address])]]);
+  const visited = new Map<string, Set<string>>();
+  const rowsById = new Map<string, ObligationRow>();
+  let scanned = 0;
+  let queries = 0;
+
+  for (let depth = 0; depth <= SEARCH_NEIGHBOURHOOD_DEPTH && frontier.size > 0; depth++) {
+    const following = new Map<string, Set<Address>>();
+    for (const [currency, parties] of frontier) {
+      if (parties.size === 0) continue;
+      if (parties.size > MAX_QUERY_PARTIES) return { complete: false, cap: "parties" };
+      let afterObligationId: string | undefined;
+      while (true) {
+        const remaining = MAX_CANDIDATES - scanned;
+        if (remaining <= 0) return { complete: false, cap: "rows" };
+        if (queries >= MAX_SEARCH_QUERIES) return { complete: false, cap: "queries" };
+        const limit = Math.min(CANDIDATE_PAGE_SIZE, remaining);
+        queries++;
+        const page = await store.listNettableObligationsForParties({
+          chainId,
+          ledger,
+          parties: [...parties],
+          ...(currency === undefined ? {} : { currency }),
+          ...(afterObligationId === undefined ? {} : { afterObligationId }),
+          now,
+          limit,
+        });
+        scanned += page.length;
+        if (scanned >= MAX_CANDIDATES && page.length === limit) return { complete: false, cap: "rows" };
+
+        for (const row of page) {
+          rowsById.set(row.obligationId.toLowerCase(), row);
+          if (depth >= SEARCH_NEIGHBOURHOOD_DEPTH) continue;
+          let currencyVisited = visited.get(row.currency);
+          if (!currencyVisited) {
+            currencyVisited = new Set([session.toLowerCase()]);
+            visited.set(row.currency, currencyVisited);
+          }
+          let nextParties = following.get(row.currency);
+          if (!nextParties) {
+            nextParties = new Set();
+            following.set(row.currency, nextParties);
+          }
+          for (const address of [row.debtor, row.creditor]) {
+            const normalized = address.toLowerCase();
+            if (!currencyVisited.has(normalized)) {
+              currencyVisited.add(normalized);
+              nextParties.add(address as Address);
+            }
+          }
+        }
+
+        if (page.length < limit) break;
+        afterObligationId = page[page.length - 1]!.obligationId;
+      }
+    }
+    frontier = following;
+  }
+  const rows = [...rowsById.values()].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.obligationId.localeCompare(b.obligationId),
+  );
+  return { complete: true, rows };
+}
+
 /// A stored obligation as a loop member, or `null` if the row no longer matches the terms and
 /// signatures it was recorded with.
 async function verifiedLoopObligation(
@@ -100,11 +184,12 @@ export async function findAndProposeLoop(
   if (await deps.rateLimited("find", session)) return { ok: false, error: "Too many requests. Try again shortly." };
   const now = deps.now();
 
-  const rows = await store.listNettableObligations({ chainId, ledger, limit: MAX_CANDIDATES });
-  if (rows.length >= MAX_CANDIDATES) {
-    console.error(`findAndProposeLoop: ${rows.length} candidate obligations, at the ${MAX_CANDIDATES} cap; not searching`);
+  const loaded = await loadCallerNeighbourhood(store, session, chainId, ledger, now);
+  if (!loaded.complete) {
+    console.error(`findAndProposeLoop: caller-local ${loaded.cap} work cap reached; not searching a partial graph`);
     return none("search-incomplete");
   }
+  const rows = loaded.rows;
   const byId = new Map(rows.map((r) => [r.obligationId.toLowerCase(), r]));
   const excluded = new Set<string>();
   let sawOutOfSync = false;

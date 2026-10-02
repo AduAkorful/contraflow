@@ -82,7 +82,9 @@ const SOURCE_CHAINS: readonly GatewayChain[] = [
 ].map((def) => fromSdk(def as unknown as SdkEvmChain));
 
 export function networkTypeForChainId(arcChainId: number): "mainnet" | "testnet" {
-  return arcChainId === ARC_MAINNET_CHAIN_ID ? "mainnet" : "testnet";
+  if (arcChainId === ARC_MAINNET_CHAIN_ID) return "mainnet";
+  if (arcChainId === ARC_TESTNET_CHAIN_ID) return "testnet";
+  throw new Error(`Unsupported Arc chain id ${arcChainId}`);
 }
 
 /// Source chains on the same network as the app's Arc chain: testnets alongside Arc Testnet,

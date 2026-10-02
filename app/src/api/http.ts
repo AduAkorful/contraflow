@@ -11,6 +11,7 @@ import { runWebhookPipelineQuietly } from "./webhookRunner";
 
 type Handler = (caller: ApiCaller, req: ApiRequest, deps: ApiDeps) => Promise<ApiResponse>;
 type RouteContext = { params: Promise<Record<string, string>> };
+type RouteOptions = { recoverStaleIdempotency?: boolean };
 
 const TENANT_LIMIT = { max: 600, windowSeconds: 60 };
 const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
@@ -29,7 +30,7 @@ function errorReply(error: ApiError): Response {
   return reply(error.status, { error: { code: error.code, message: error.message } });
 }
 
-async function run(handler: Handler, request: Request, context: RouteContext): Promise<Response> {
+async function run(handler: Handler, request: Request, context: RouteContext, options: RouteOptions): Promise<Response> {
   const caller = await authenticate(request.headers.get("authorization"), apiDeps().store);
   // Whatever this request changes goes out to webhooks once the response is sent. Only for
   // authenticated calls, so junk traffic can't drive the pipeline.
@@ -66,36 +67,42 @@ async function run(handler: Handler, request: Request, context: RouteContext): P
   }
 
   const requestHash = createHash("sha256").update(`${request.method} ${new URL(request.url).pathname}\n${raw}`).digest("hex");
-  const claim = await idempotency.claim(caller.tenantId, key, requestHash);
+  const claim = await idempotency.claim(caller.tenantId, key, requestHash, options.recoverStaleIdempotency === true);
   if (claim.kind === "conflict") throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was used for a different request.");
-  if (claim.kind === "in_progress") throw new ApiError(409, "idempotency_in_progress", "A request with this Idempotency-Key is still running.");
+  if (claim.kind === "in_progress") throw new ApiError(409, "idempotency_in_progress", "A request with this Idempotency-Key is pending and hasn't been reconciled. Keep the same key and contact support before creating a new request.");
   if (claim.kind === "replay") return reply(claim.status, claim.body);
+  req.idempotency = { key, requestHash, leaseToken: claim.leaseToken };
 
   try {
     const res = await handler(caller, req, apiDeps());
     const safe = jsonSafe(res.body);
-    await idempotency.complete(caller.tenantId, key, res.status, safe);
+    await idempotency.complete(caller.tenantId, key, res.status, safe, claim.leaseToken);
     return reply(res.status, safe);
   } catch (error) {
-    // A 4xx is a real answer and is replayed like any other; anything else frees the key to retry.
+    // A deterministic 4xx is replayed like any other. Unexpected/server failures keep the
+    // reservation because the request may have committed a durable mutation before failing.
     if (error instanceof ApiError && error.status < 500) {
       const safe = { error: { code: error.code, message: error.message } };
-      await idempotency.complete(caller.tenantId, key, error.status, safe);
-    } else {
-      await idempotency.release(caller.tenantId, key);
+      await idempotency.complete(caller.tenantId, key, error.status, safe, claim.leaseToken);
     }
+    // Unexpected/server failures keep the reservation. The request may have committed a durable
+    // mutation before the error surfaced, so releasing here could make a retry execute it twice.
     throw error;
   }
 }
 
-export function route(handler: Handler) {
+export function route(handler: Handler, options: RouteOptions = {}) {
   return async (request: Request, context: RouteContext): Promise<Response> => {
     try {
-      return await run(handler, request, context);
+      return await run(handler, request, context, options);
     } catch (error) {
+      if (error instanceof ApiError && error.status < 500) return errorReply(error);
+      if (request.method === "POST" && request.headers.has("idempotency-key")) {
+        return errorReply(new ApiError(500, "internal_error", "The request result is uncertain. Keep this Idempotency-Key and contact support before retrying with a new key."));
+      }
       if (error instanceof ApiError) return errorReply(error);
       console.error("API request failed", error);
-      return errorReply(new ApiError(500, "internal_error", "Something went wrong. Retry with the same Idempotency-Key."));
+      return errorReply(new ApiError(500, "internal_error", "Something went wrong."));
     }
   };
 }

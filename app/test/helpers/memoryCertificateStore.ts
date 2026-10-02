@@ -50,10 +50,16 @@ export function createMemoryCertificateStore(): MemoryCertificateStore {
       failWrite = true;
     },
 
-    async listNettableObligations({ chainId, ledger, limit }) {
+    async listNettableObligationsForParties({ chainId, ledger, parties, currency, afterObligationId, now, limit }) {
+      const partySet = new Set(parties.map((party) => party.toLowerCase()));
       return [...obligations.values()]
         .filter((o) => o.chainId === chainId && o.ledger === ledger.toLowerCase())
         .filter((o) => o.status === "active" && o.remaining !== "0" && !isLocked(o.obligationId))
+        .filter((o) => BigInt(o.maturity) <= now || o.earlyNetConsent)
+        .filter((o) => currency === undefined || o.currency === currency)
+        .filter((o) => afterObligationId === undefined || o.obligationId.toLowerCase() > afterObligationId.toLowerCase())
+        .filter((o) => partySet.has(o.debtor.toLowerCase()) || partySet.has(o.creditor.toLowerCase()))
+        .sort((a, b) => a.obligationId.localeCompare(b.obligationId))
         .slice(0, limit)
         .map(clone);
     },
