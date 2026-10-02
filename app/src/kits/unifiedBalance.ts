@@ -18,7 +18,7 @@ import type { ContraflowAppKitAdapter } from "./appkit";
 /// method signature is) — derived structurally via `ReturnType` rather than guessing a name.
 type EstimateDepositResult = Awaited<ReturnType<AppKit["unifiedBalance"]["estimateDeposit"]>>;
 import { ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
-import { confirmedOn, fromBaseUnits } from "./gatewayBalance";
+import { confirmedOn, fromBaseUnits, toBaseUnits } from "./gatewayBalance";
 import { networkTypeForChainId } from "./gatewayChains";
 
 const TOKEN = "USDC";
@@ -114,6 +114,8 @@ export interface SpendOntoArcParams {
   sourceChain: UnifiedBalanceChain;
   /// Human-readable decimal string. Not base units.
   amountUsdc: string;
+  /// Retry data from a resumable SDK mint failure. This bypasses burn-intent signing and transfer.
+  retryMint?: GatewayMintRetry;
 }
 
 function destinationChain(params: SpendOntoArcParams): UnifiedBalanceChain {
@@ -140,11 +142,13 @@ export function estimateSpendOntoArc(params: SpendOntoArcParams): Promise<Estima
 }
 
 export function spendOntoArc(params: SpendOntoArcParams): Promise<SpendResult> {
+  const config = params.retryMint ? { config: { retry: params.retryMint } } : {};
   return params.appKit.kit.unifiedBalance.spend({
     from: spendSource(params),
     to: adapterContext(params.appKit, destinationChain(params)),
     token: TOKEN,
     amount: params.amountUsdc,
+    ...config,
   });
 }
 
@@ -180,29 +184,67 @@ export class GatewayFundResidualPartialFailureError extends Error {
     /// The exact confirmed-balance threshold the original call was waiting for — pass this back
     /// into `resumeFundResidualViaGateway` verbatim, not recomputed, since recomputing it from a
     /// fresh "current balance" read would double-count the deposit that already happened.
-    public readonly target: number,
+    /// Human-readable USDC target, serialized as a decimal string for safe resume storage.
+    public readonly target: string,
+    public readonly recovery: "await_balance" | "retry_mint" | "manual_review",
+    public readonly retryMint: GatewayMintRetry | null,
     public readonly cause: unknown,
+    public readonly depositTxHash: string | null = null,
   ) {
     const causeMessage = cause instanceof Error ? cause.message : String(cause);
     super(
-      `fundResidualViaGateway: deposit of ${depositAmountUsdc} USDC on ${sourceChain} already ` +
-        `landed, but funding could not complete: ${causeMessage}. Call ` +
-        `resumeFundResidualViaGateway with this error's fields to retry without re-depositing.`,
+      `fundResidualViaGateway on ${sourceChain} could not complete safely: ${causeMessage}. ` +
+        (recovery === "manual_review"
+          ? "Do not start another spend; inspect the original transfer before taking action."
+          : "Call resumeFundResidualViaGateway with this error's fields; it will not submit another deposit."),
     );
     this.name = "GatewayFundResidualPartialFailureError";
   }
 }
 
-function confirmedBalanceForChain(result: GetBalancesResult, chain: UnifiedBalanceChain): number {
-  return Number(fromBaseUnits(confirmedOn(result, String(chain))));
+export interface GatewayMintRetry {
+  attestation: string;
+  signature: string;
 }
 
-/// USDC amounts here are human-readable decimal strings, not base units — this is arithmetic at
-/// the App-Kit-call boundary (the SDK itself converts to base units internally), not token math,
-/// so plain `Number` + `toFixed(6)` (USDC's own decimal count) is the right precision, not a case
-/// for the `10 ** decimals()` scaling this repo's own rules require for actual on-chain amounts.
+class GatewaySpendOutcomeError extends Error {
+  readonly retryMint: GatewayMintRetry | null;
+  constructor(readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "GatewaySpendOutcomeError";
+    this.retryMint = gatewayMintRetryFrom(cause);
+  }
+}
+
+function gatewayMintRetryFrom(error: unknown): GatewayMintRetry | null {
+  if (!error || typeof error !== "object") return null;
+  const cause = (error as { cause?: unknown }).cause;
+  if (!cause || typeof cause !== "object") return null;
+  const trace = (cause as { trace?: unknown }).trace;
+  if (!trace || typeof trace !== "object") return null;
+  const { attestation, signature } = trace as Record<string, unknown>;
+  if (typeof attestation !== "string" || !/^0x[0-9a-f]+$/i.test(attestation)) return null;
+  if (typeof signature !== "string" || !/^0x[0-9a-f]+$/i.test(signature)) return null;
+  return { attestation, signature };
+}
+
+function gatewayTxHashFrom(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const cause = (error as { cause?: unknown }).cause;
+  if (!cause || typeof cause !== "object") return null;
+  const trace = (cause as { trace?: unknown }).trace;
+  if (!trace || typeof trace !== "object") return null;
+  const hash = (trace as Record<string, unknown>).txHash ?? (trace as Record<string, unknown>).transactionHash;
+  return typeof hash === "string" && /^0x[0-9a-f]{64}$/i.test(hash) ? hash : null;
+}
+
+function confirmedBalanceForChain(result: GetBalancesResult, chain: UnifiedBalanceChain): bigint {
+  return confirmedOn(result, String(chain));
+}
+
+/// Human-readable SDK amounts are converted to integer USDC base units before arithmetic.
 function addUsdcAmounts(a: string, b: string): string {
-  return (Number(a) + Number(b)).toFixed(6);
+  return fromBaseUnits(toBaseUnits(a) + toBaseUnits(b));
 }
 
 /// Fixed cross-chain fee overhead observed live on Ethereum Sepolia -> Arc testnet, 2026-09-19
@@ -236,22 +278,27 @@ async function pollForConfirmedBalanceThenSpend(params: {
   arcChainId: number;
   sourceChain: UnifiedBalanceChain;
   amountUsdc: string;
-  target: number;
+  target: string;
   pollIntervalMs: number;
   maxPolls: number;
 }): Promise<SpendResult> {
   const { appKit, arcChainId, sourceChain, amountUsdc, target, pollIntervalMs, maxPolls } = params;
 
-  let lastConfirmed = 0;
+  const targetBaseUnits = toBaseUnits(target);
+  let lastConfirmed = 0n;
   for (let i = 0; i < maxPolls; i++) {
     lastConfirmed = confirmedBalanceForChain(await getUsdcBalances({ appKit, arcChainId }), sourceChain);
-    if (lastConfirmed >= target) {
-      return spendOntoArc({ appKit, arcChainId, sourceChain, amountUsdc });
+    if (lastConfirmed >= targetBaseUnits) {
+      try {
+        return await spendOntoArc({ appKit, arcChainId, sourceChain, amountUsdc });
+      } catch (cause) {
+        throw new GatewaySpendOutcomeError(cause);
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
-  throw new GatewayDepositTimeoutError(sourceChain, target.toFixed(6), lastConfirmed.toFixed(6));
+  throw new GatewayDepositTimeoutError(sourceChain, target, fromBaseUnits(lastConfirmed));
 }
 
 /// Automates the deposit -> wait for CCTP attestation -> spend sequence. Polls the *increase* in
@@ -275,14 +322,27 @@ export async function fundResidualViaGateway(params: FundResidualViaGatewayParam
   } = params;
 
   const before = confirmedBalanceForChain(await getUsdcBalances({ appKit, arcChainId }), sourceChain);
-  const target = before + Number(depositAmountUsdc);
+  const target = fromBaseUnits(before + toBaseUnits(depositAmountUsdc));
 
-  await depositToGateway({ appKit, sourceChain, amountUsdc: depositAmountUsdc });
+  let depositTxHash: string | null = null;
+  try {
+    const depositResult = await depositToGateway({ appKit, sourceChain, amountUsdc: depositAmountUsdc });
+    depositTxHash = depositResult.txHash;
+  } catch (cause) {
+    // The SDK can fail after the wallet has broadcast. Preserve the original before/target and
+    // wait for that deposit; never make a second deposit to recover an ambiguous first call.
+    throw new GatewayFundResidualPartialFailureError(
+      sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, "await_balance", null, cause, gatewayTxHashFrom(cause),
+    );
+  }
 
   try {
     return await pollForConfirmedBalanceThenSpend({ appKit, arcChainId, sourceChain, amountUsdc, target, pollIntervalMs, maxPolls });
   } catch (cause) {
-    throw new GatewayFundResidualPartialFailureError(sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, cause);
+    const spendFailure = cause instanceof GatewaySpendOutcomeError ? cause : null;
+    const retryMint = spendFailure?.retryMint ?? null;
+    const recovery = spendFailure ? (retryMint ? "retry_mint" : "manual_review") : "await_balance";
+    throw new GatewayFundResidualPartialFailureError(sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, recovery, retryMint, cause, depositTxHash);
   }
 }
 
@@ -296,15 +356,36 @@ export async function resumeFundResidualViaGateway(params: {
   sourceChain: UnifiedBalanceChain;
   amountUsdc: string;
   depositAmountUsdc: string;
-  target: number;
+  target: string;
+  recovery?: "await_balance" | "retry_mint" | "manual_review";
+  retryMint?: GatewayMintRetry | null;
+  depositTxHash?: string | null;
   pollIntervalMs?: number;
   maxPolls?: number;
 }): Promise<SpendResult> {
   const { appKit, arcChainId, sourceChain, amountUsdc, depositAmountUsdc, target, pollIntervalMs = 30_000, maxPolls = 40 } = params;
+  const { depositTxHash = null } = params;
+
+  if (params.retryMint) {
+    try {
+      return await spendOntoArc({ appKit, arcChainId, sourceChain, amountUsdc, retryMint: params.retryMint });
+    } catch (cause) {
+      const retryMint = gatewayMintRetryFrom(cause) ?? params.retryMint;
+      throw new GatewayFundResidualPartialFailureError(
+        sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, "retry_mint", retryMint, cause, depositTxHash,
+      );
+    }
+  }
+  if (params.recovery !== "await_balance" && !params.retryMint) {
+    throw new Error("Gateway spend outcome is ambiguous. Do not submit another spend; inspect the original transfer first.");
+  }
 
   try {
     return await pollForConfirmedBalanceThenSpend({ appKit, arcChainId, sourceChain, amountUsdc, target, pollIntervalMs, maxPolls });
   } catch (cause) {
-    throw new GatewayFundResidualPartialFailureError(sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, cause);
+    const spendFailure = cause instanceof GatewaySpendOutcomeError ? cause : null;
+    const retryMint = spendFailure?.retryMint ?? null;
+    const recovery = spendFailure ? (retryMint ? "retry_mint" : "manual_review") : "await_balance";
+    throw new GatewayFundResidualPartialFailureError(sourceChain, arcChainId, amountUsdc, depositAmountUsdc, target, recovery, retryMint, cause, depositTxHash);
   }
 }

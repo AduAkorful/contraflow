@@ -25,7 +25,7 @@ const MAX_SEARCH_ATTEMPTS = 3;
 
 export type SearchOutcome =
   | { found: true; token: string; currency: string; wNet: string; parties: number }
-  | { found: false; reason: "no-candidates" | "no-loop" | "too-many-parties" | "out-of-sync"; message: string };
+  | { found: false; reason: "no-candidates" | "no-loop" | "too-many-parties" | "search-incomplete" | "out-of-sync"; message: string };
 
 export function obligationFromRow(row: ObligationRow): NettingObligation {
   return {
@@ -103,7 +103,7 @@ export async function findAndProposeLoop(
   const rows = await store.listNettableObligations({ chainId, ledger, limit: MAX_CANDIDATES });
   if (rows.length >= MAX_CANDIDATES) {
     console.error(`findAndProposeLoop: ${rows.length} candidate obligations, at the ${MAX_CANDIDATES} cap; not searching`);
-    return none("too-many-parties");
+    return none("search-incomplete");
   }
   const byId = new Map(rows.map((r) => [r.obligationId.toLowerCase(), r]));
   const excluded = new Set<string>();
@@ -121,6 +121,10 @@ export async function findAndProposeLoop(
     if (search.kind === "too-many-parties") {
       console.error(`findAndProposeLoop: ${search.parties} parties near ${session} in ${search.currency}; not searching`);
       return none("too-many-parties");
+    }
+    if (search.kind === "search-incomplete") {
+      console.error(`findAndProposeLoop: cycle cap ${search.maxCycles} reached for ${search.currency}; not proposing from a partial search`);
+      return none("search-incomplete");
     }
 
     // Reconcile against the ledger, and re-check each row against its own signatures.
@@ -198,6 +202,7 @@ function none(reason: Extract<SearchOutcome, { found: false }>["reason"]): Resul
     "no-candidates": "None of your obligations can be netted right now.",
     "no-loop": "No loop of obligations runs through you right now.",
     "too-many-parties": "Too many parties are connected to you to search safely. Nothing was proposed.",
+    "search-incomplete": "The obligation search reached its safety limit. No partial result was proposed; narrow the search and try again.",
     "out-of-sync": "Some obligations disagree with the ledger, so they were left out. No other loop runs through you right now.",
   }[reason];
   return { ok: true, outcome: { found: false, reason, message } };

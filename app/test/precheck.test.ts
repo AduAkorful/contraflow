@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import type { InvoiceAttestation } from "../src/attest/signAttestation";
 import { invoiceAttestationTypedData } from "../src/attest/signAttestation";
+import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../src/contracts/addresses";
 
 const resolveNextNonce = vi.fn();
 vi.mock("../src/attest/nextNonce", () => ({ resolveNextNonce }));
@@ -27,7 +28,7 @@ const BASE_INVOICE: InvoiceAttestation = {
   debtor: debtorAccount.address,
   creditor: creditorAccount.address,
   nonce: 1n,
-  registry: "0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312",
+  registry: addressesForChain(ARC_TESTNET_CHAIN_ID).registry,
   chainId: 5042002n,
 };
 
@@ -98,6 +99,40 @@ describe("preCheckAttestation", () => {
     const { debtorSignature, creditorSignature } = await realSignatures(BASE_INVOICE);
     const result = await preCheckAttestation({ invoice: BASE_INVOICE, debtorSignature, creditorSignature, rateLimitKey: "0xsession" });
     expect(result.ok).toBe(false);
+    expect(resolveNextNonce).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "zero amount", changes: { amount: 0n }, reason: /positive uint256/i },
+    { name: "foreign Registry", changes: { registry: "0x0000000000000000000000000000000000000001" as `0x${string}` }, reason: /different Registry/i },
+    { name: "foreign asset", changes: { currency: "0x0000000000000000000000000000000000000001" as `0x${string}` }, reason: /configured USDC/i },
+    { name: "foreign chain", changes: { chainId: 5042n }, reason: /different chain/i },
+    { name: "self invoice", changes: { creditor: debtorAccount.address }, reason: /different addresses/i },
+  ])("rejects $name before nonce lookup and screening", async ({ changes, reason }) => {
+    const invoice = { ...BASE_INVOICE, ...changes } as InvoiceAttestation;
+    const { debtorSignature, creditorSignature } = await realSignatures(invoice);
+    const result = await preCheckAttestation({
+      invoice,
+      debtorSignature,
+      creditorSignature,
+      rateLimitKey: "0xsession",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(reason);
+    expect(resolveNextNonce).not.toHaveBeenCalled();
+    expect(screenAddresses).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when its rate limiter is unavailable", async () => {
+    checkRateLimit.mockRejectedValueOnce(new Error("upstash down"));
+    const { debtorSignature, creditorSignature } = await realSignatures(BASE_INVOICE);
+    await expect(preCheckAttestation({
+      invoice: BASE_INVOICE,
+      debtorSignature,
+      creditorSignature,
+      rateLimitKey: "0xsession",
+    })).resolves.toEqual({ ok: false, reason: "Pre-check is temporarily unavailable." });
     expect(resolveNextNonce).not.toHaveBeenCalled();
   });
 });

@@ -9,11 +9,19 @@ import { registerInvoice, ComplianceRejectedError } from "../../../src/actions/r
 import { proposeSettlement, settleBestCycle, NoSettleableCycleError } from "../../../src/actions/settle";
 import { computeDashboardTiles } from "../../../src/receipt/dashboardTiles";
 import { getInvoice } from "../../../src/chain/readInvoices";
-import { signAttestation } from "../../../src/attest/signAttestation";
+import { invoiceAttestationId, signAttestation } from "../../../src/attest/signAttestation";
 import { buildDemoCycleInvoices } from "../../../src/fixtures/demoCycle";
 import { deriveDemoParties, MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "../../../src/fixtures/demoIdentities";
 import { operatorSigner, arcPublicClient as publicClient } from "../../../src/chain/operatorEnv";
 import { upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement } from "../../../src/db/invoices";
+import { requestIp } from "../../../src/ratelimit/requestIp";
+import {
+  claimDemoSpend,
+  completeDemoSpend,
+  DEMO_REGISTER_TRANSACTION_LIMITS,
+  DEMO_SETTLE_TRANSACTION_LIMITS,
+  inspectDemoSpend,
+} from "../../../src/demo/spendBudget";
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 
@@ -63,8 +71,20 @@ export async function registerCycleInvoiceStep(
     if (partyCount < MIN_DEMO_PARTIES || partyCount > MAX_DEMO_PARTIES) {
       throw new Error(`partyCount must be ${MIN_DEMO_PARTIES}-${MAX_DEMO_PARTIES}`);
     }
+    if (!runSalt || runSalt.length > 128) throw new Error("Invalid demo run id");
+    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= partyCount) {
+      throw new Error("Invalid demo invoice step");
+    }
+
+    const operationId = `register:${partyCount}:${stepIndex}:${runSalt}`;
+    const previous = await inspectDemoSpend(operationId);
+    if (previous.kind === "complete") return previous.result as RegisterStepResult;
+    if (previous.kind === "pending") return { ok: false, error: "This demo step is already being processed. Start a new demo if it does not finish." };
+    if (previous.kind === "unavailable") return { ok: false, error: "Demo spending controls are unavailable. Try again later." };
+
     const client = publicClient();
     const signer = operatorSigner();
+    if (signer.kind !== "raw-key") throw new Error("Demo spending requires the capped raw-key signer");
     const { registry, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
 
     const parties = deriveDemoParties(runSalt, partyCount);
@@ -84,6 +104,16 @@ export async function registerCycleInvoiceStep(
       invoice.creditor.privateKey,
     );
 
+    const claim = await claimDemoSpend({
+      operationId,
+      callerIp: await requestIp(),
+      limits: DEMO_REGISTER_TRANSACTION_LIMITS,
+    });
+    if (claim.kind === "complete") return claim.result as RegisterStepResult;
+    if (claim.kind !== "reserved") {
+      return { ok: false, error: demoSpendError(claim.kind) };
+    }
+
     const { invoiceId, txHash } = await registerInvoice({
       publicClient: client,
       signer,
@@ -91,6 +121,7 @@ export async function registerCycleInvoiceStep(
       invoice: invoice.attestation,
       debtorSignature,
       creditorSignature,
+      transactionLimits: DEMO_REGISTER_TRANSACTION_LIMITS,
     });
 
     // Write-through to the database — deliberately isolated from this action's own
@@ -116,10 +147,18 @@ export async function registerCycleInvoiceStep(
       console.error("upsertRegisteredInvoice failed (reconciliation will backfill):", dbErr);
     }
 
-    return {
+    const result: RegisterStepResult = {
       ok: true,
       invoice: { label: invoice.label, amountUsdc: invoice.amountUsdc, invoiceId, txHash, explorerUrl: explorerTxUrl(txHash) },
     };
+    try {
+      await completeDemoSpend(claim.operationKey, result);
+    } catch (cacheErr) {
+      // The permanent pending claim still prevents duplicate spending. Preserve confirmed chain
+      // success even if its replay result could not be cached.
+      console.error("Demo registration result could not be cached:", cacheErr);
+    }
+    return result;
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -182,7 +221,7 @@ export interface SettleResultView {
   grossCancelledUsdc: string;
   cashMovedUsdc: string;
   multiplierLabel: string;
-  gasPaidUsdc: string;
+  gasPaidUsdc: string | null;
   invoices: ReceiptInvoiceRow[];
 }
 
@@ -197,11 +236,57 @@ function formatNativeUsdc(wei: bigint): string {
 
 /// `labels` maps invoiceId -> display label ("Northwind DSP → Meridian Exchange"), gathered
 /// client-side from the register steps — the settle path itself only ever deals in invoice ids.
-export async function settleProposedCycle(invoiceIds: string[], labels: Record<string, string>): Promise<SettleActionResult> {
+export async function settleProposedCycle(runSalt: string, invoiceIds: string[], labels: Record<string, string>): Promise<SettleActionResult> {
   try {
+    if (!runSalt || runSalt.length > 128) throw new Error("Invalid demo run id");
+    if (invoiceIds.length < MIN_DEMO_PARTIES || invoiceIds.length > MAX_DEMO_PARTIES) {
+      throw new Error(`A demo cycle must contain ${MIN_DEMO_PARTIES}-${MAX_DEMO_PARTIES} invoices`);
+    }
+    if (invoiceIds.some((id) => !/^0x[0-9a-fA-F]{64}$/.test(id))) throw new Error("Invalid demo invoice id");
+
+    const { registry, settler, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+    const parties = deriveDemoParties(runSalt, invoiceIds.length);
+    const fixtureInvoices = buildDemoCycleInvoices({
+      parties,
+      runSalt,
+      currency: usdc,
+      registry,
+      chainId: BigInt(ARC_TESTNET_CHAIN_ID),
+    });
+    const expectedIds = fixtureInvoices.map(({ attestation }) => invoiceAttestationId(attestation).toLowerCase());
+    const requestedIds = invoiceIds.map((id) => id.toLowerCase());
+    if (new Set(expectedIds).size !== invoiceIds.length ||
+        new Set(requestedIds).size !== invoiceIds.length ||
+        expectedIds.some((id) => !requestedIds.includes(id))) {
+      throw new Error("These invoices do not belong to this demo run");
+    }
+
+    const operationId = `settle:${runSalt}:${[...requestedIds].sort().join(":")}`;
+    const previous = await inspectDemoSpend(operationId);
+    if (previous.kind === "complete") return previous.result as SettleActionResult;
+    if (previous.kind === "pending") return { ok: false, error: "This demo settlement is already being processed. Check the chain before starting another demo." };
+    if (previous.kind === "unavailable") return { ok: false, error: "Demo spending controls are unavailable. Try again later." };
+
     const client = publicClient();
+    // Avoid reserving a paid settlement slot for a caller-supplied list that currently has no
+    // settleable cycle. settleBestCycle re-derives the call immediately before broadcasting.
+    const proposal = await proposeSettlement({
+      publicClient: client,
+      registry,
+      invoiceIds: invoiceIds as `0x${string}`[],
+    });
+    if (!proposal) return { ok: false, error: "No settleable cycle among these invoices yet." };
+
+    const claim = await claimDemoSpend({
+      operationId,
+      callerIp: await requestIp(),
+      limits: DEMO_SETTLE_TRANSACTION_LIMITS,
+    });
+    if (claim.kind === "complete") return claim.result as SettleActionResult;
+    if (claim.kind !== "reserved") return { ok: false, error: demoSpendError(claim.kind) };
+
     const signer = operatorSigner();
-    const { registry, settler } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+    if (signer.kind !== "raw-key") throw new Error("Demo spending requires the capped raw-key signer");
 
     const result = await settleBestCycle({
       publicClient: client,
@@ -209,6 +294,7 @@ export async function settleProposedCycle(invoiceIds: string[], labels: Record<s
       registry,
       settler,
       invoiceIds: invoiceIds as `0x${string}`[],
+      transactionLimits: DEMO_SETTLE_TRANSACTION_LIMITS,
     });
 
     const tiles = computeDashboardTiles(result);
@@ -221,8 +307,9 @@ export async function settleProposedCycle(invoiceIds: string[], labels: Record<s
         const onchain = await getInvoice(client, registry, id);
         const after = onchain?.amountRemaining ?? 0n;
         const before = after + result.wNet;
+        const requestedLabel = labels && typeof labels === "object" ? labels[id] : undefined;
         return {
-          label: labels[id] ?? id,
+          label: typeof requestedLabel === "string" ? requestedLabel.slice(0, 160) : id,
           invoiceId: id,
           beforeUsdc: formatUsdc(before),
           afterUsdc: formatUsdc(after),
@@ -250,13 +337,13 @@ export async function settleProposedCycle(invoiceIds: string[], labels: Record<s
         blockNumber: result.blockNumber.toString(),
         wNetUsdc: formatUsdc(result.wNet),
         cycleLength: result.invoiceIds.length,
-        gasPaidWei: tiles.gasPaidWei.toString(),
+        gasPaidWei: tiles.gasPaidWei?.toString() ?? null,
       });
     } catch (dbErr) {
       console.error("settle write-through failed (reconciliation will backfill):", dbErr);
     }
 
-    return {
+    const actionResult: SettleActionResult = {
       ok: true,
       result: {
         txHash: result.txHash,
@@ -266,11 +353,24 @@ export async function settleProposedCycle(invoiceIds: string[], labels: Record<s
         grossCancelledUsdc: formatUsdc(tiles.grossCancelledUsdc),
         cashMovedUsdc: formatUsdc(tiles.cashMovedUsdc),
         multiplierLabel: tiles.multiplier === null ? "no cash moved" : `${tiles.multiplier.toFixed(1)}x`,
-        gasPaidUsdc: formatNativeUsdc(tiles.gasPaidWei),
+        gasPaidUsdc: tiles.gasPaidWei === null ? null : formatNativeUsdc(tiles.gasPaidWei),
         invoices: perInvoice,
       },
     };
+    try {
+      await completeDemoSpend(claim.operationKey, actionResult);
+    } catch (cacheErr) {
+      console.error("Demo settlement result could not be cached:", cacheErr);
+    }
+    return actionResult;
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
+}
+
+function demoSpendError(kind: "rate_limited" | "budget_exceeded" | "unavailable" | "pending"): string {
+  if (kind === "rate_limited") return "Too many demo transactions from this network. Try again shortly.";
+  if (kind === "budget_exceeded") return "Today's demo transaction budget has been reached. Please try again tomorrow.";
+  if (kind === "pending") return "This demo action is already being processed.";
+  return "Demo spending controls are unavailable. Try again later.";
 }

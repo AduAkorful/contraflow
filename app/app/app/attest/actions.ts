@@ -13,8 +13,9 @@ import { resolveNextNonce } from "../../../src/attest/nextNonce";
 import { preCheckAttestation } from "../../../src/attest/precheck";
 import { recordRegistration } from "../../../src/attest/record";
 import type { InvoiceAttestation } from "../../../src/attest/signAttestation";
-import type { CanonicalInvoiceDocument } from "../../../src/attest/document";
-import { upsertInvoiceDocument, getInvoiceDocumentByRef } from "../../../src/db/documents";
+import { hashInvoiceDocument, invoiceDocumentProblem, type CanonicalInvoiceDocument } from "../../../src/attest/document";
+import { insertInvoiceDocumentIfAbsent, getInvoiceDocumentByRef } from "../../../src/db/documents";
+import { guardPublicRead } from "../../../src/ratelimit/publicReadGuard";
 
 export type GrantResult =
   | { ok: true; alreadyGranted: boolean; txHash?: string }
@@ -52,6 +53,8 @@ export type FreshnessResult = { ok: true; fresh: boolean; expectedNonce: string 
 /// events either way).
 export async function checkLinkFreshness(debtor: string, creditor: string, claimedNonce: string): Promise<FreshnessResult> {
   if (!isAddress(debtor) || !isAddress(creditor)) return { ok: false, error: "Invalid address." };
+  const guard = await guardPublicRead("invoice-freshness");
+  if (!guard.allowed) return { ok: false, error: guard.error };
   const expected = await resolveNextNonce(debtor as Address, creditor as Address);
   return { ok: true, fresh: expected.toString() === claimedNonce, expectedNonce: expected.toString() };
 }
@@ -70,6 +73,12 @@ interface SerializableInvoice {
 }
 
 function toInvoiceAttestation(s: SerializableInvoice): InvoiceAttestation {
+  const uintString = /^\d{1,78}$/;
+  if (!s || typeof s !== "object" ||
+      !uintString.test(s.amount) || !uintString.test(s.maturity) ||
+      !uintString.test(s.nonce) || !uintString.test(s.chainId)) {
+    throw new Error("Invoice data is malformed.");
+  }
   return {
     invoiceRef: s.invoiceRef,
     amount: BigInt(s.amount),
@@ -90,8 +99,15 @@ export async function preCheck(invoice: SerializableInvoice, debtorSignature: He
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
 
+  let attestation: InvoiceAttestation;
+  try {
+    attestation = toInvoiceAttestation(invoice);
+  } catch {
+    return { ok: false, error: "Invoice data is malformed." };
+  }
+
   const result = await preCheckAttestation({
-    invoice: toInvoiceAttestation(invoice),
+    invoice: attestation,
     debtorSignature,
     creditorSignature,
     rateLimitKey: session.address,
@@ -119,13 +135,26 @@ export async function saveInvoiceDocument(invoiceRef: string, document: Canonica
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
 
+  const problem = invoiceDocumentProblem(document);
+  if (problem) return { ok: false, error: problem };
+
   const isParty =
     session.address.toLowerCase() === document.debtor.toLowerCase() ||
     session.address.toLowerCase() === document.creditor.toLowerCase();
   if (!isParty) return { ok: false, error: "You're not a party to this invoice." };
 
-  await upsertInvoiceDocument({
-    invoiceRef,
+  let derivedInvoiceRef: string;
+  try {
+    derivedInvoiceRef = hashInvoiceDocument(document);
+  } catch {
+    return { ok: false, error: "Invoice document is invalid." };
+  }
+  if (typeof invoiceRef !== "string" || invoiceRef.toLowerCase() !== derivedInvoiceRef.toLowerCase()) {
+    return { ok: false, error: "Invoice reference does not match the document." };
+  }
+
+  const result = await insertInvoiceDocumentIfAbsent({
+    invoiceRef: derivedInvoiceRef,
     description: document.description,
     debtor: document.debtor,
     creditor: document.creditor,
@@ -133,6 +162,7 @@ export async function saveInvoiceDocument(invoiceRef: string, document: Canonica
     maturity: document.maturity,
     createdBy: session.address,
   });
+  if (result === "conflict") return { ok: false, error: "This invoice reference already belongs to different terms." };
   return { ok: true };
 }
 

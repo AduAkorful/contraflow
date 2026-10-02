@@ -123,10 +123,14 @@ describe("validatePermission", () => {
     const wallet: Address = "0x00000000000000000000000000000000000000aa";
     const magic = toFunctionSelector("isValidSignature(bytes32,bytes)");
     const chain = (answer: Hex): ChainReader =>
-      ({ getCode: async () => "0x6001", readContract: async () => answer, getChainId: async () => TESTNET }) as unknown as ChainReader;
+      ({ getCode: async () => "0x6001", call: async () => ({ data: answer }), getChainId: async () => TESTNET }) as unknown as ChainReader;
     const p = { ...base, party: wallet };
-    expect(await validatePermission(asInput(p), "0x1234", { ...ctx, client: chain(magic) })).toMatchObject({ ok: true });
+    const magicWord = `${magic}${"0".repeat(56)}` as Hex;
+    const dirtyPadding = `${magic}${"0".repeat(54)}01` as Hex;
+    const accepted = await validatePermission(asInput(p), "0x1234", { ...ctx, client: chain(magicWord) });
+    expect(accepted).toMatchObject({ ok: true });
     expect(await validatePermission(asInput(p), "0x1234", { ...ctx, client: chain("0xffffffff") })).toMatchObject({ ok: false });
+    expect(await validatePermission(asInput(p), "0x1234", { ...ctx, client: chain(dirtyPadding) })).toMatchObject({ ok: false });
   });
 });
 

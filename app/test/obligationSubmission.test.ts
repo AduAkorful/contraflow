@@ -19,8 +19,11 @@ function chain(smartAccounts: Record<string, boolean> = {}): ChainReader {
   return {
     getChainId: async () => Number(domain.chainId),
     getCode: async ({ address }: { address: Address }) => (verdicts.has(address.toLowerCase()) ? "0x6001" : undefined),
-    readContract: async ({ address }: { address: Address }) =>
-      verdicts.get(address.toLowerCase()) ? toFunctionSelector("isValidSignature(bytes32,bytes)") : "0xffffffff",
+    call: async ({ to }: { to?: Address }) => ({
+      data: verdicts.get(to?.toLowerCase() ?? "")
+        ? `${toFunctionSelector("isValidSignature(bytes32,bytes)")}${"0".repeat(56)}` as Hex
+        : `0x${"ff".repeat(32)}` as Hex,
+    }),
   } as unknown as ChainReader;
 }
 

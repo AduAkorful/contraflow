@@ -12,12 +12,17 @@ import type { CertificateServiceDeps } from "../../src/obligations/certificates"
 export function fakeLedgerChain(domain: LedgerDomain) {
   const states = new Map<string, Hex>();
   const applied = new Set<string>();
+  const applicationEvents: { certificateId: Hex; contentHash: Hex }[] = [];
   const receipts = new Map<string, unknown>();
   let txCount = 0;
 
   const client = {
     getChainId: async () => Number(domain.chainId),
+    getBlockNumber: async () => 1n,
     getCode: async () => undefined,
+    getLogs: async ({ args }: { args: { certificateId?: Hex } }) => applicationEvents
+      .filter((event) => !args.certificateId || event.certificateId.toLowerCase() === args.certificateId.toLowerCase())
+      .map((event) => ({ args: event })),
     readContract: async ({ functionName, args }: { functionName: string; args: readonly unknown[] }) => {
       if (functionName === "stateOf") return states.get((args[0] as Hex).toLowerCase()) ?? ZERO_HASH;
       if (functionName === "isApplied") return applied.has((args[0] as Hex).toLowerCase());
@@ -42,6 +47,7 @@ export function fakeLedgerChain(domain: LedgerDomain) {
       states.set(obligationKey(e.obligationId, e.debtor, e.creditor).toLowerCase(), e.nextCommitment.toLowerCase() as Hex);
     }
     applied.add(certificate.certificateId.toLowerCase());
+    applicationEvents.push({ certificateId: certificate.certificateId, contentHash: certificate.contentHash });
     return receiptWithEvent(certificate.certificateId, certificate.contentHash, target);
   }
 

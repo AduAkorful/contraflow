@@ -185,24 +185,39 @@ export const neonCertificateStore: CertificateStore = {
 
   async addSignature({ certificateId, idx, signer, signature, required }) {
     const id = certificateId.toLowerCase();
-    await withDbRetry(async () => {
+    return withDbRetry(async () => {
       const db = sql();
-      await db.transaction([
+      const results = (await db.transaction([
         // Serializes concurrent signatures, so the last one always sees every other and flips
         // the status.
         db`SELECT certificate_id FROM netting_certificates WHERE certificate_id = ${id} FOR UPDATE`,
         db`
           INSERT INTO netting_certificate_signatures (certificate_id, idx, signer, signature)
           SELECT ${id}, ${idx}, ${signer.toLowerCase()}, ${signature.toLowerCase()}
-          WHERE EXISTS (SELECT 1 FROM netting_certificates WHERE certificate_id = ${id} AND status = 'collecting')
+          WHERE EXISTS (SELECT 1 FROM netting_certificates
+                        WHERE certificate_id = ${id} AND status = 'collecting'
+                          AND deadline::numeric >= floor(extract(epoch FROM now())))
           ON CONFLICT (certificate_id, idx) DO NOTHING
+          RETURNING idx
         `,
         db`
           UPDATE netting_certificates SET status = 'ready'
           WHERE certificate_id = ${id} AND status = 'collecting'
             AND (SELECT count(*) FROM netting_certificate_signatures WHERE certificate_id = ${id}) = ${required}
         `,
-      ]);
+        db`
+          SELECT c.status, c.deadline::numeric AS deadline,
+            EXISTS (SELECT 1 FROM netting_certificate_signatures s WHERE s.certificate_id = c.certificate_id AND s.idx = ${idx}) AS has_signature
+          FROM netting_certificates c WHERE c.certificate_id = ${id}
+        `,
+      ])) as Record<string, unknown>[][];
+      const inserted = (results[1]?.length ?? 0) > 0;
+      const final = results[3]?.[0] as Record<string, unknown> | undefined;
+      if (!final) return "missing";
+      if (Number(final.deadline) < Math.floor(Date.now() / 1000)) return "expired";
+      if (inserted) return "stored";
+      if (final.has_signature === true) return "already_present";
+      return "closed";
     });
   },
 

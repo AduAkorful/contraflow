@@ -64,10 +64,15 @@ vi.mock("../src/db/obligations", () => ({
     }
     const proposal = db.proposals.get(token);
     if (proposal?.status === "open") proposal.status = "accepted";
+    return "accepted";
   }),
   markProposalWithdrawn: vi.fn(async (token: string) => {
     const proposal = db.proposals.get(token);
-    if (proposal?.status === "open") proposal.status = "withdrawn";
+    if (proposal?.status === "open") {
+      proposal.status = "withdrawn";
+      return true;
+    }
+    return false;
   }),
   getObligationById: vi.fn(async (id: string) => db.obligations.get(id) ?? null),
   listObligationsForParty: vi.fn(async (a: string) =>

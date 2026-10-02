@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
@@ -16,6 +16,7 @@ import {
   type CanonicalObligationDocument,
 } from "../../../../src/netting/document";
 import { obligationTypedData } from "../../../../src/netting/obligation";
+import { prepareWalletContext } from "../../../../src/attest/walletContext";
 import { serializeObligation } from "../../../../src/netting/serialize";
 import type { NettingObligation } from "../../../../src/netting/types";
 import { createProposal } from "../actions";
@@ -27,8 +28,9 @@ const COMMON_CURRENCIES = ["USD", "EUR", "GBP", "GHS", "NGN", "KES", "ZAR", "JPY
 const OTHER = "OTHER";
 
 export function ComposeObligation({ signerAddress }: { signerAddress: string }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
   const { login } = usePrivy();
 
   const [role, setRole] = useState<Role>("creditor");
@@ -85,7 +87,10 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
     setError(null);
     setPhase("signing");
     try {
+      const chainId = Number(appLedgerDomain().chainId);
+      await prepareWalletContext(connector, signerAddress as Address, chainId, switchChainAsync);
       const signature = await signTypedDataAsync(obligationTypedData(draft.obligation, appLedgerDomain()));
+      await prepareWalletContext(connector, signerAddress as Address, chainId, switchChainAsync);
       const result = await createProposal({
         obligation: serializeObligation(draft.obligation),
         document: draft.document,

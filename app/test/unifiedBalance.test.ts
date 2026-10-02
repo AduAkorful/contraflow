@@ -126,7 +126,7 @@ describe("fundResidualViaGateway", () => {
     });
 
     expect(deposit).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: "1.700000" }), // default margin: 0.50 + 1.20
+      expect.objectContaining({ amount: "1.7" }), // default margin: 0.50 + 1.20
     );
     expect(spend).toHaveBeenCalledWith(expect.objectContaining({ amount: "0.50" }));
     expect(result).toEqual({ txHash: "0xspend" });
@@ -149,6 +149,23 @@ describe("fundResidualViaGateway", () => {
       pollIntervalMs: 1,
     });
 
+    expect(spend).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses exact base units above Number.MAX_SAFE_INTEGER and waits through the final micro-USDC", async () => {
+    const { appKit, getBalances, spend } = stubAppKit();
+    getBalances
+      .mockResolvedValueOnce(balanceResult("9007199254.740993"))
+      .mockResolvedValueOnce(balanceResult("9007199256.440993")) // one micro below target
+      .mockResolvedValueOnce(balanceResult("9007199256.440994"));
+    await fundResidualViaGateway({
+      appKit,
+      arcChainId: ARC_TESTNET_CHAIN_ID,
+      sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
+      amountUsdc: "0.5",
+      depositAmountUsdc: "1.700001",
+      pollIntervalMs: 1,
+    });
     expect(spend).toHaveBeenCalledTimes(1);
   });
 
@@ -180,13 +197,52 @@ describe("fundResidualViaGateway", () => {
       expect(failure.sourceChain).toBe(UnifiedBalanceChain.Ethereum_Sepolia);
       expect(failure.arcChainId).toBe(ARC_TESTNET_CHAIN_ID);
       expect(failure.amountUsdc).toBe("0.50");
-      expect(failure.depositAmountUsdc).toBe("1.700000");
-      expect(failure.target).toBeCloseTo(1.7);
+      expect(failure.depositAmountUsdc).toBe("1.7");
+      expect(failure.target).toBe("1.7");
+      expect(failure.recovery).toBe("await_balance");
     }
   });
 });
 
 describe("resumeFundResidualViaGateway", () => {
+  it("does not resubmit a deposit whose broadcast result was ambiguous", async () => {
+    const { appKit, deposit, getBalances, spend } = stubAppKit();
+    getBalances
+      .mockResolvedValueOnce(balanceResult("0"))
+      .mockResolvedValueOnce(balanceResult("1.7"));
+    deposit.mockRejectedValueOnce(new Error("RPC disconnected after broadcast"));
+
+    let failure: GatewayFundResidualPartialFailureError;
+    try {
+      await fundResidualViaGateway({
+        appKit,
+        arcChainId: ARC_TESTNET_CHAIN_ID,
+        sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
+        amountUsdc: "0.5",
+        depositAmountUsdc: "1.7",
+        pollIntervalMs: 1,
+      });
+      expect.unreachable();
+    } catch (error) {
+      failure = error as GatewayFundResidualPartialFailureError;
+    }
+    expect(failure!.recovery).toBe("await_balance");
+    getBalances.mockResolvedValue(balanceResult("1.7"));
+
+    await resumeFundResidualViaGateway({
+      appKit,
+      arcChainId: failure!.arcChainId,
+      sourceChain: failure!.sourceChain,
+      amountUsdc: failure!.amountUsdc,
+      depositAmountUsdc: failure!.depositAmountUsdc,
+      target: failure!.target,
+      recovery: failure!.recovery,
+      pollIntervalMs: 1,
+    });
+    expect(deposit).toHaveBeenCalledTimes(1);
+    expect(spend).toHaveBeenCalledTimes(1);
+  });
+
   it("never deposits again -- only polls and spends", async () => {
     const { appKit, deposit, getBalances, spend } = stubAppKit();
     getBalances
@@ -199,7 +255,8 @@ describe("resumeFundResidualViaGateway", () => {
       sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
       amountUsdc: "0.50",
       depositAmountUsdc: "1.700000",
-      target: 1.7,
+      target: "1.700000",
+      recovery: "await_balance",
       pollIntervalMs: 1,
     });
 
@@ -219,11 +276,90 @@ describe("resumeFundResidualViaGateway", () => {
         sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
         amountUsdc: "0.50",
         depositAmountUsdc: "1.700000",
-        target: 1.7,
+        target: "1.700000",
+        recovery: "await_balance",
         pollIntervalMs: 1,
         maxPolls: 3,
       }),
     ).rejects.toThrow(GatewayFundResidualPartialFailureError);
+  });
+
+  it("retries only the original mint using the SDK attestation and signature", async () => {
+    const { appKit, deposit, getBalances, spend } = stubAppKit();
+    const retryMint = { attestation: "0x1234", signature: "0xabcd" };
+    spend.mockResolvedValueOnce({ txHash: "0xretried" });
+
+    const result = await resumeFundResidualViaGateway({
+      appKit,
+      arcChainId: ARC_TESTNET_CHAIN_ID,
+      sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
+      amountUsdc: "0.50",
+      depositAmountUsdc: "1.7",
+      target: "1.7",
+      recovery: "retry_mint",
+      retryMint,
+    });
+
+    expect(deposit).not.toHaveBeenCalled();
+    expect(getBalances).not.toHaveBeenCalled();
+    expect(spend).toHaveBeenCalledWith(expect.objectContaining({ config: { retry: retryMint } }));
+    expect(result).toEqual({ txHash: "0xretried" });
+  });
+
+  it("refuses to submit a new spend when the original spend outcome is ambiguous", async () => {
+    const { appKit, spend } = stubAppKit();
+    await expect(resumeFundResidualViaGateway({
+      appKit,
+      arcChainId: ARC_TESTNET_CHAIN_ID,
+      sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
+      amountUsdc: "0.50",
+      depositAmountUsdc: "1.7",
+      target: "1.7",
+      recovery: "manual_review",
+    })).rejects.toThrow("Do not submit another spend");
+    expect(spend).not.toHaveBeenCalled();
+  });
+
+  it("captures resumable SDK mint data and retries without another transfer", async () => {
+    const { appKit, deposit, getBalances, spend } = stubAppKit();
+    const retryMint = { attestation: "0x1234", signature: "0xabcd" };
+    getBalances
+      .mockResolvedValueOnce(balanceResult("0"))
+      .mockResolvedValueOnce(balanceResult("1.700000"));
+    spend.mockRejectedValueOnce(Object.assign(new Error("mint failed"), { cause: { trace: retryMint } }));
+
+    let failure: GatewayFundResidualPartialFailureError;
+    try {
+      await fundResidualViaGateway({
+        appKit,
+        arcChainId: ARC_TESTNET_CHAIN_ID,
+        sourceChain: UnifiedBalanceChain.Ethereum_Sepolia,
+        amountUsdc: "0.50",
+        pollIntervalMs: 1,
+        maxPolls: 1,
+      });
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(GatewayFundResidualPartialFailureError);
+      failure = error as GatewayFundResidualPartialFailureError;
+    }
+
+    expect(spend).toHaveBeenCalledTimes(1);
+    expect(failure!.recovery).toBe("retry_mint");
+    expect(failure!.retryMint).toEqual(retryMint);
+    spend.mockResolvedValueOnce({ txHash: "0xretried" });
+    await resumeFundResidualViaGateway({
+      appKit,
+      arcChainId: failure!.arcChainId,
+      sourceChain: failure!.sourceChain,
+      amountUsdc: failure!.amountUsdc,
+      depositAmountUsdc: failure!.depositAmountUsdc,
+      target: failure!.target,
+      recovery: failure!.recovery,
+      retryMint: failure!.retryMint,
+    });
+    expect(deposit).toHaveBeenCalledTimes(1);
+    expect(spend).toHaveBeenLastCalledWith(expect.objectContaining({ config: { retry: retryMint } }));
   });
 });
 

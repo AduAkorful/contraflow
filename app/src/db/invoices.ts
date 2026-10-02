@@ -28,7 +28,7 @@ export interface SettlementRow {
   blockNumber: string;
   wNetUsdc: string;
   cycleLength: number;
-  gasPaidWei: string;
+  gasPaidWei: string | null;
 }
 
 function toInvoiceRow(r: Record<string, unknown>): InvoiceRow {
@@ -53,7 +53,7 @@ function toSettlementRow(r: Record<string, unknown>): SettlementRow {
     blockNumber: String(r.block_number),
     wNetUsdc: String(r.w_net_usdc),
     cycleLength: Number(r.cycle_length),
-    gasPaidWei: String(r.gas_paid_wei),
+    gasPaidWei: r.gas_paid_wei === null ? null : String(r.gas_paid_wei),
   };
 }
 

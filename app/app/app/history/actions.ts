@@ -8,6 +8,7 @@ import { isAddress } from "viem";
 import { getAddressSignals } from "../../../src/inspector/load";
 import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "../../../src/inspector/requestGuard";
 import type { AddressSignals } from "../../../src/inspector/signals";
+import { guardPublicRead } from "../../../src/ratelimit/publicReadGuard";
 
 export interface HistoryInvoiceView {
   invoiceRef: string;
@@ -29,6 +30,9 @@ export async function lookupAddressHistory(address: string): Promise<HistoryLook
   if (!isAddress(address)) {
     return { ok: false, error: "Not a valid address." };
   }
+
+  const guard = await guardPublicRead("history");
+  if (!guard.allowed) return { ok: false, error: guard.error };
 
   const { invoices, reconciled, error } = await reconcileAddress(address);
 

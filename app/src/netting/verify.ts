@@ -5,7 +5,7 @@
 /// It reports named checks, each `pass`, `fail` or `unverifiable`, and `ok` only when every one
 /// passes. It never throws on bad input: a malformed view is itself a failed check.
 
-import { isAddress, isAddressEqual, isHex, size, type Hex } from "viem";
+import { isAddress, isAddressEqual, isHex, parseAbiItem, size, type Hex } from "viem";
 import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
 import {
   certificateDigest,
@@ -49,6 +49,12 @@ export interface VerifyOptions {
   client?: ChainReader;
 }
 
+const APPLICATION_LOG_CHUNK = 2_000n;
+const APPLICATION_LOG_LOOKBACK = 10_000n;
+const CERTIFICATE_APPLIED_EVENT = parseAbiItem(
+  "event CertificateApplied(bytes32 indexed certificateId, bytes32 contentHash, address indexed submitter)",
+);
+
 export async function verifyCertificateView(view: CertificateView, options: VerifyOptions): Promise<VerificationResult> {
   const checks: VerificationCheck[] = [];
   const add = (name: string, status: CheckStatus, detail?: string) => checks.push({ name, status, detail });
@@ -77,6 +83,14 @@ async function runChecks(view: CertificateView, options: VerifyOptions, add: Add
 
   const { domain, certificate } = view;
   const entries = certificate.entries;
+
+  const idIsZero = isZeroHash(certificate.certificateId);
+  add("certificate:id", idIsZero ? "fail" : "pass", idIsZero ? "The certificate ID cannot be zero" : undefined);
+  if (stage !== "applied" && certificate.deadline <= options.now) {
+    add("certificate:deadline", "fail", "The certificate has expired");
+  } else {
+    add("certificate:deadline", "pass");
+  }
 
   if (client) {
     const chainId = BigInt(await client.getChainId());
@@ -191,6 +205,44 @@ async function checkOnchain(view: CertificateView, add: AddCheck, client: ChainR
   }
   const ledger = view.domain.verifyingContract;
   const { certificate } = view;
+
+  const applicationLogs: { args?: { certificateId?: Hex; contentHash?: Hex } }[] = [];
+  let completeHistory = false;
+  try {
+    const latest = await client.getBlockNumber();
+    const first = latest > APPLICATION_LOG_LOOKBACK ? latest - APPLICATION_LOG_LOOKBACK : 0n;
+    completeHistory = first === 0n;
+    for (let fromBlock = first; fromBlock <= latest; fromBlock += APPLICATION_LOG_CHUNK) {
+      const toBlock = fromBlock + APPLICATION_LOG_CHUNK - 1n < latest ? fromBlock + APPLICATION_LOG_CHUNK - 1n : latest;
+      const logs = await client.getLogs({
+        address: ledger,
+        event: CERTIFICATE_APPLIED_EVENT,
+        args: { certificateId: certificate.certificateId },
+        fromBlock,
+        toBlock,
+      });
+      applicationLogs.push(...logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]);
+      if (applicationLogs.some((log) =>
+        log.args?.certificateId?.toLowerCase() === certificate.certificateId.toLowerCase() &&
+        log.args?.contentHash?.toLowerCase() === certificate.contentHash.toLowerCase(),
+      )) break;
+    }
+  } catch {
+    add("onchain:application-event", "unverifiable", "The ledger's application history is unavailable");
+    return;
+  }
+  const exactApplication = applicationLogs.some((log) =>
+    log.args?.certificateId?.toLowerCase() === certificate.certificateId.toLowerCase() &&
+    log.args?.contentHash?.toLowerCase() === certificate.contentHash.toLowerCase(),
+  );
+  add(
+    "onchain:application-event",
+    exactApplication ? "pass" : completeHistory ? "fail" : "unverifiable",
+    exactApplication ? undefined : completeHistory
+      ? "No ledger event applies this certificate ID and content hash"
+      : "The bounded history window did not contain this certificate; older history is unavailable",
+  );
+  if (!exactApplication) return;
 
   const applied = (await client.readContract({
     address: ledger,

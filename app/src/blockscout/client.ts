@@ -29,13 +29,17 @@ export interface DecodedLogParameter {
 }
 
 export interface DecodedLog {
+  /// Contract that emitted this event. Required when event data is used as receipt evidence.
+  address?: string;
   transactionHash: string;
   blockNumber: number;
+  logIndex?: number;
   methodCall: string | null;
   parameters: DecodedLogParameter[];
 }
 
 interface RawLogItem {
+  address?: { hash?: string } | string;
   transaction_hash: string;
   block_number: number;
   index: number;
@@ -58,9 +62,12 @@ export { paramValue };
 /// pages. Blockscout's v2 logs endpoint doesn't support server-side filtering by topic value on
 /// this deployment (confirmed broken, see module doc comment above), so this returns the full
 /// (bounded) page set for the caller to filter.
-export async function fetchContractLogs(contractAddress: string): Promise<DecodedLog[]> {
+export interface BoundedContractLogs { logs: DecodedLog[]; truncated: boolean }
+
+export async function fetchContractLogsBounded(contractAddress: string): Promise<BoundedContractLogs> {
   const logs: DecodedLog[] = [];
   let cursor: Record<string, string | number> | null = null;
+  let truncated = false;
 
   for (let page = 0; page < MAX_RECONCILE_PAGES; page++) {
     const url = new URL(`${BLOCKSCOUT_BASE}/api/v2/addresses/${contractAddress}/logs`);
@@ -75,8 +82,10 @@ export async function fetchContractLogs(contractAddress: string): Promise<Decode
     for (const item of data.items) {
       if (!item.decoded) continue;
       logs.push({
+        address: typeof item.address === "string" ? item.address : item.address?.hash ?? "",
         transactionHash: item.transaction_hash,
         blockNumber: item.block_number,
+        logIndex: item.index,
         methodCall: item.decoded.method_call,
         parameters: item.decoded.parameters,
       });
@@ -84,9 +93,14 @@ export async function fetchContractLogs(contractAddress: string): Promise<Decode
 
     if (!data.next_page_params) break;
     cursor = data.next_page_params;
+    if (page === MAX_RECONCILE_PAGES - 1) truncated = true;
   }
 
-  return logs;
+  return { logs, truncated };
+}
+
+export async function fetchContractLogs(contractAddress: string): Promise<DecodedLog[]> {
+  return (await fetchContractLogsBounded(contractAddress)).logs;
 }
 
 export interface TransactionFeeInfo {
@@ -110,8 +124,10 @@ export async function fetchTransactionLogs(txHash: string): Promise<DecodedLog[]
   return data.items
     .filter((item) => item.decoded !== null)
     .map((item) => ({
+      address: typeof item.address === "string" ? item.address : item.address?.hash ?? "",
       transactionHash: item.transaction_hash,
       blockNumber: item.block_number,
+      logIndex: item.index,
       methodCall: item.decoded!.method_call,
       parameters: item.decoded!.parameters,
     }));
@@ -211,7 +227,7 @@ export function isAfter(a: LogPosition, b: LogPosition): boolean {
   return a.blockNumber > b.blockNumber || (a.blockNumber === b.blockNumber && a.logIndex > b.logIndex);
 }
 
-export interface PositionedLog extends DecodedLog, LogPosition {
+export interface PositionedLog extends Omit<DecodedLog, "logIndex">, LogPosition {
   blockTimestamp: string;
 }
 
@@ -260,6 +276,7 @@ export async function fetchContractLogsSince(
       }
       logs.push({
         ...position,
+        address: contractAddress,
         transactionHash: item.transaction_hash,
         blockTimestamp: item.block_timestamp,
         methodCall: item.decoded.method_call,

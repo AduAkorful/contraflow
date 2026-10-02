@@ -18,6 +18,9 @@ export interface FindCyclesOptions {
    * and `ContraflowNettingLedger.applyCertificate()` require (`DuplicateParty`). Pruned during
    * the search, so `maxCycles` isn't spent on walks that could never be applied. */
   requireDistinctParties?: boolean;
+  /** Only enumerate cycles rooted at this party. Every emitted cycle contains it, so unrelated
+   * inner cycles cannot consume a caller's maxCycles output budget. */
+  requiredParty?: Address;
 }
 
 const DEFAULT_MAX_VERTICES = 32;
@@ -87,12 +90,13 @@ function enumerateClosedWalksInComponent(
   maxLen: number,
   maxCycles: number,
   requireDistinctParties: boolean,
+  requiredParty: Address | undefined,
   seenCanonical: Set<string>,
   out: Cycle[],
 ): void {
   const startingEdges = [...component]
     .flatMap((v) => edgesByDebtor.get(v) ?? [])
-    .filter((e) => component.has(e.creditor));
+    .filter((e) => component.has(e.creditor) && (!requiredParty || e.debtor === requiredParty));
 
   for (const first of startingEdges) {
     if (out.length >= maxCycles) return;
@@ -154,6 +158,7 @@ export function findCycles(graph: Graph, opts: FindCyclesOptions = {}): Cycle[] 
   const maxLen = opts.maxCycleLength ?? DEFAULT_MAX_CYCLE_LENGTH;
   const maxCycles = opts.maxCycles ?? DEFAULT_MAX_CYCLES;
   const requireDistinctParties = opts.requireDistinctParties ?? false;
+  const requiredParty = opts.requiredParty;
 
   if (graph.vertices.length > maxVertices) {
     throw new GraphTooLargeError(graph.vertices.length, maxVertices);
@@ -182,6 +187,7 @@ export function findCycles(graph: Graph, opts: FindCyclesOptions = {}): Cycle[] 
       maxLen,
       maxCycles,
       requireDistinctParties,
+      requiredParty,
       seenCanonical,
       results,
     );

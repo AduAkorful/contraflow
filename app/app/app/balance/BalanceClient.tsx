@@ -4,11 +4,11 @@
 /// if the page closes mid-way: a deposit that landed shows as confirming, then as confirmed, ready
 /// to move. Reads retry quietly; deposits and moves only ever happen on a click.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 import { readGatewayBalances, walletUsdc } from "../../../src/kits/browserAdapter";
-import { fromBaseUnits, parseGatewayBalances, type GatewayBalanceView } from "../../../src/kits/gatewayBalance";
+import { fromBaseUnits, parseGatewayBalances, toBaseUnits, type GatewayBalanceView } from "../../../src/kits/gatewayBalance";
 import { gatewayArcChain, networkTypeForChainId } from "../../../src/kits/gatewayChains";
 import { roundDecimalString } from "../../../src/kits/quoteFormat";
 import { DepositPanel } from "./DepositPanel";
@@ -36,7 +36,7 @@ function shortAddr(addr: string): string {
 }
 
 export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arcChainId: number }) {
-  const arc = gatewayArcChain(arcChainId);
+  const arc = useMemo(() => gatewayArcChain(arcChainId), [arcChainId]);
   const wallet = useOwnerWallet(owner);
   const { connectWallet } = usePrivy();
 
@@ -60,7 +60,7 @@ export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arc
     void refresh();
   }, [refresh]);
 
-  const hasPending = typeof balances === "object" && Number(balances.totalPending) > 0;
+  const hasPending = typeof balances === "object" && toBaseUnits(balances.totalPending) > 0n;
   useEffect(() => {
     if (!hasPending) return;
     const timer = setInterval(() => void refresh(), PENDING_POLL_MS);
@@ -99,7 +99,7 @@ export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arc
                     <span className="text-foreground/90">{row.known?.name ?? row.chain.replaceAll("_", " ")}</span>
                     <span className="text-right tabular-nums" title={`${row.confirmed} USDC confirmed`}>
                       {roundDecimalString(row.confirmed, 2)} USDC
-                      {Number(row.pending) > 0 && (
+                      {toBaseUnits(row.pending) > 0n && (
                         <span className="block text-xs text-muted">+{row.pending} confirming</span>
                       )}
                     </span>

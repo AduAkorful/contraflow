@@ -7,7 +7,16 @@
 import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { operatorSigner, arcPublicClient } from "../chain/operatorEnv";
-import { hasReceivedStarterGrant, recordStarterGrant } from "../db/addresses";
+import {
+  completeStarterGrant,
+  getStarterGrantOperation,
+  hasReceivedStarterGrant,
+  markStarterGrantReverted,
+  markStarterGrantSubmitted,
+  markStarterGrantUnknown,
+  releaseUnsubmittedStarterGrant,
+  reserveStarterGrantOperation,
+} from "../db/addresses";
 import { checkRateLimit, incrementWindowCounter } from "../ratelimit/limiter";
 
 const GRANT_RATE_LIMIT_MAX = 3;
@@ -22,13 +31,34 @@ function grantAmountUsdc(): string {
 }
 
 export type StarterGrantResult =
-  | { ok: true; alreadyGranted: true }
+  | { ok: true; alreadyGranted: true; txHash?: string }
   | { ok: true; alreadyGranted: false; txHash: string }
   | { ok: false; reason: string };
 
 export async function requestStarterGrant(address: Address): Promise<StarterGrantResult> {
   if (await hasReceivedStarterGrant(address)) {
     return { ok: true, alreadyGranted: true };
+  }
+
+  const client = arcPublicClient();
+  const priorOperation = await getStarterGrantOperation(address);
+  if (priorOperation) {
+    const operation = priorOperation;
+    if (operation.status === "confirmed") return { ok: true, alreadyGranted: true };
+    if ((operation.status === "submitted" || operation.status === "unknown") && operation.txHash) {
+      try {
+        const receipt = await client.getTransactionReceipt({ hash: operation.txHash as `0x${string}` });
+        if (receipt.status === "success") {
+          await completeStarterGrant(address, operation.txHash);
+          return { ok: true, alreadyGranted: true, txHash: operation.txHash };
+        }
+        await markStarterGrantReverted(address);
+        return { ok: false, reason: `The prior starter grant reverted (tx ${operation.txHash}); contact support before retrying.` };
+      } catch {
+        return { ok: false, reason: `A starter grant is already pending (tx ${operation.txHash}). Check Arc before retrying.` };
+      }
+    }
+    return { ok: false, reason: "A starter grant request is already reserved but has no recorded transaction hash. It needs manual review; do not retry." };
   }
 
   // Address-keyed, not IP-keyed — deliberate simplification given design decision 2 (session-gated
@@ -51,7 +81,6 @@ export async function requestStarterGrant(address: Address): Promise<StarterGran
     return { ok: false, reason: "Daily starter-grant budget reached — try again tomorrow." };
   }
 
-  const client = arcPublicClient();
   const signer = operatorSigner();
   // A plain native-currency transfer needs a real wallet client directly, not the DCW
   // contract-execution path — `operatorSigner()` only ever constructs `raw-key` today, but this
@@ -72,19 +101,46 @@ export async function requestStarterGrant(address: Address): Promise<StarterGran
   }
 
   const valueWei = parseUnits(grantAmountUsdc(), 18);
-  const txHash = await signer.walletClient.sendTransaction({
-    account: signer.walletClient.account!,
-    chain: signer.walletClient.chain,
-    to: address,
-    value: valueWei,
-  });
+  const reservation = await reserveStarterGrantOperation(address);
+  if (!reservation.reserved) {
+    // Another request won after the initial read. It may now be broadcasting; never race it with
+    // a second transfer. The next authenticated retry will reconcile a recorded transaction hash.
+    return { ok: false, reason: "A starter grant request just started for this address. Check again shortly; do not retry the transfer." };
+  }
+  let txHash: `0x${string}`;
+  try {
+    txHash = await signer.walletClient.sendTransaction({
+      account: signer.walletClient.account!,
+      chain: signer.walletClient.chain,
+      to: address,
+      value: valueWei,
+    });
+  } catch (error) {
+    // A rejected RPC response can follow a broadcast. Keep the reservation as unknown; only an
+    // operator can clear a row with no transaction hash after investigating the sender nonce.
+    try { await markStarterGrantUnknown(address); } catch { /* reservation itself remains */ }
+    throw error;
+  }
 
-  const receipt = await client.waitForTransactionReceipt({ hash: txHash });
+  try {
+    await markStarterGrantSubmitted(address, txHash);
+  } catch (error) {
+    try { await markStarterGrantUnknown(address, txHash); } catch { /* preserve the reservation */ }
+    return { ok: false, reason: `The grant was submitted as ${txHash}, but its recovery record could not be updated. Check Arc before retrying.` };
+  }
+
+  let receipt;
+  try {
+    receipt = await client.waitForTransactionReceipt({ hash: txHash });
+  } catch {
+    return { ok: false, reason: `The grant is submitted as ${txHash} and its status is unknown. Check Arc before retrying.` };
+  }
   if (receipt.status !== "success") {
+    await markStarterGrantReverted(address);
     return { ok: false, reason: `Starter grant transfer reverted (tx ${txHash}).` };
   }
 
-  await recordStarterGrant(address, txHash);
+  await completeStarterGrant(address, txHash);
   return { ok: true, alreadyGranted: false, txHash };
 }
 

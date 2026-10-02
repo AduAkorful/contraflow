@@ -201,6 +201,18 @@ describe("verifyCertificateView", () => {
     expect(statusOf(signedStage, "certificate-signature:0")).toBe("fail");
   });
 
+  it("rejects a zero certificate ID and an expired certificate when it is newly proposed or signed", async () => {
+    const { view } = await signedCertificate({ domain, amounts: [500n, 300n] });
+    const zeroId = { ...view, certificate: { ...view.certificate, certificateId: `0x${"00".repeat(32)}` as Hex } };
+    expect(statusOf(await verifyCertificateView(zeroId, { now: NOW }), "certificate:id")).toBe("fail");
+
+    const expired = { ...view, certificate: { ...view.certificate, deadline: NOW - 1n } };
+    expect(statusOf(await verifyCertificateView(expired, { now: NOW, stage: "proposed" }), "certificate:deadline")).toBe("fail");
+    expect(statusOf(await verifyCertificateView(expired, { now: NOW }), "certificate:deadline")).toBe("fail");
+    // Expiry is evaluated at application time, so an applied certificate remains verifiable later.
+    expect(statusOf(await verifyCertificateView(expired, { now: NOW, stage: "applied" }), "certificate:deadline")).toBe("pass");
+  });
+
   it("can't confirm the applied stage without a chain client", async () => {
     const { view } = await signedCertificate({ domain, amounts: [500n, 300n] });
     const result = await verifyCertificateView(view, { now: NOW, stage: "applied" });

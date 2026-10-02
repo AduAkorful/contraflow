@@ -9,11 +9,24 @@ import { contraflowSettlerAbi } from "../contracts/abi/index";
 import { fetchNettableInvoiceEdges } from "../chain/readInvoices";
 import { submitContractExecutionViaDcw } from "../dcw/contractExecution";
 import type { OperatorSigner } from "../operator/signer";
+import type { DemoTransactionLimits } from "../demo/spendBudget";
+import { defaultComplianceProvider, filterFlaggedInvoices, type ComplianceProvider } from "../compliance";
 
 export class NoSettleableCycleError extends Error {
   constructor() {
     super("No cycle among the currently nettable invoices — nothing to settle");
     this.name = "NoSettleableCycleError";
+  }
+}
+
+export class SettleTransactionOutcomeError extends Error {
+  constructor(
+    public readonly txHash: Hex,
+    public readonly outcome: "reverted" | "unknown",
+    cause?: unknown,
+  ) {
+    super(`settle() transaction ${txHash} outcome is ${outcome}${cause instanceof Error ? `: ${cause.message}` : ""}`);
+    this.name = "SettleTransactionOutcomeError";
   }
 }
 
@@ -24,10 +37,12 @@ export async function proposeSettlement(params: {
   publicClient: PublicClient;
   registry: Address;
   invoiceIds: readonly Hex[];
+  complianceProvider?: ComplianceProvider;
 }): Promise<SettleCall | null> {
   const edges = await fetchNettableInvoiceEdges(params.publicClient, params.registry, params.invoiceIds);
+  const { clearInvoices } = await filterFlaggedInvoices(edges, params.complianceProvider ?? defaultComplianceProvider());
   // settle() reverts DuplicateParty on a loop that revisits a party.
-  return proposeSettleCall(edges, { requireDistinctParties: true });
+  return proposeSettleCall(clearInvoices, { requireDistinctParties: true });
 }
 
 export interface SettleResult {
@@ -37,7 +52,7 @@ export interface SettleResult {
   blockNumber: bigint;
   /// Native USDC (18 decimals) actually paid for this tx — feeds the Receipt screen's "gas
   /// paid" tile. Never conflate with the 6-decimal ERC-20 USDC `wNet` is in.
-  gasPaidWei: bigint;
+  gasPaidWei: bigint | null;
 }
 
 /// Settle screen: re-derives the proposal (never trusts a stale one the caller might be holding
@@ -51,10 +66,13 @@ export async function settleBestCycle(params: {
   registry: Address;
   settler: Address;
   invoiceIds: readonly Hex[];
+  /// Optional hard transaction limits for public, operator-funded callers such as `/app/demo`.
+  transactionLimits?: DemoTransactionLimits;
+  complianceProvider?: ComplianceProvider;
 }): Promise<SettleResult> {
-  const { publicClient, signer, registry, settler, invoiceIds } = params;
+  const { publicClient, signer, registry, settler, invoiceIds, transactionLimits, complianceProvider } = params;
 
-  const proposal = await proposeSettlement({ publicClient, registry, invoiceIds });
+  const proposal = await proposeSettlement({ publicClient, registry, invoiceIds, complianceProvider });
   if (!proposal) throw new NoSettleableCycleError();
 
   if (signer.kind === "raw-key") {
@@ -68,11 +86,17 @@ export async function settleBestCycle(params: {
       args: [proposal.invoiceIds, proposal.wNet],
       account: walletClient.account,
       chain: walletClient.chain,
+      ...(transactionLimits ?? {}),
     });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    let receipt;
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    } catch (cause) {
+      throw new SettleTransactionOutcomeError(txHash, "unknown", cause);
+    }
     if (receipt.status !== "success") {
-      throw new Error(`settle() tx ${txHash} reverted (status: ${receipt.status})`);
+      throw new SettleTransactionOutcomeError(txHash, "reverted");
     }
 
     return {
@@ -106,6 +130,6 @@ export async function settleBestCycle(params: {
     wNet: proposal.wNet,
     txHash,
     blockNumber,
-    gasPaidWei: gasPaidWei ?? 0n,
+    gasPaidWei: gasPaidWei ?? null,
   };
 }

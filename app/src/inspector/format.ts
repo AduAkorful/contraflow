@@ -49,6 +49,10 @@ export function describeFirstSeen(s: AddressSignals): string {
       return `On or before ${formatDate(s.firstSeen.at)}`;
     case "invoiceOnly":
       return `No transactions of its own. First named in a Contraflow invoice on ${formatDate(s.firstSeen.at)}`;
+    case "invoiceOnOrBefore":
+      return `No transactions of its own. First named in a Contraflow invoice on or before ${formatDate(s.firstSeen.at)}`;
+    case "unknown":
+      return "No transactions of its own. The first invoice date could not be determined from the available history";
     case "never":
       return "No onchain activity yet";
   }
@@ -102,14 +106,16 @@ export function describeCycle(c: CycleSignals): CycleFact[] {
   facts.push({
     label: "Shared first funder",
     value: c.sharedFunder
-      ? `${c.sharedFunder.count} of ${partyCount} parties were first funded by ${shortAddress(c.sharedFunder.address)}`
-      : "No two parties share a first funder",
+      ? `${c.sharedFunder.lowerBound ? "At least " : ""}${c.sharedFunder.count} of ${partyCount}${c.partiesIncomplete ? " observed" : ""} parties were first funded by ${shortAddress(c.sharedFunder.address)}`
+      : c.partiesIncomplete
+        ? `No two of the ${partyCount} parties with available records share a first funder`
+        : "No two parties share a first funder",
     note: "Funding from Contraflow's operator wallet (the starter grant) and bridged-in USDC isn't counted.",
   });
 
   facts.push({
     label: "No activity outside Contraflow",
-    value: `${c.contraflowOnlyCount} of ${partyCount} parties`,
+    value: `${c.contraflowOnlyCount} of ${partyCount}${c.partiesIncomplete ? " observed" : ""} parties`,
   });
 
   if (c.registerToSettleMs !== null) {

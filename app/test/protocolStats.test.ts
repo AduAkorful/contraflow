@@ -204,6 +204,22 @@ describe("updateStats", () => {
     expect(again.cursors).toEqual(first.cursors);
   });
 
+  it("does not advance a cursor when an explorer page contains undecoded logs", async () => {
+    const { deps } = fakeExplorer({});
+    const base = await updateStats(null, ctx(), deps);
+    const undecodedDeps: IndexerDeps = {
+      ...deps,
+      async fetchLogs(contract, since, maxPages) {
+        if (contract !== "R") return deps.fetchLogs(contract, since, maxPages);
+        return {
+          logs: [], undecoded: 1, newest: { blockNumber: 2, logIndex: 0 }, truncated: false,
+        };
+      },
+    };
+    await expect(updateStats(base, ctx(), undecodedDeps)).rejects.toThrow(/cursor was not advanced/);
+    expect(base.cursors.registry).toBeNull();
+  });
+
   it("marks a first build that hit the page cap as a lower bound", async () => {
     const many = Array.from({ length: STATS_MAX_PAGES * 2 + 1 }, (_, i) => registeredLog("1", { blockNumber: i + 1, logIndex: 0 }));
     const { deps } = fakeExplorer({ R: many }, 2);

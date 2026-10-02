@@ -7,7 +7,7 @@ import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses"
 import {
   fetchAddressTokenTransfers,
   fetchAddressTransactions,
-  fetchContractLogs,
+  fetchContractLogsBounded,
   fetchIsContract,
   fetchTransactionLogs,
   fetchTransactionTimestamp,
@@ -68,17 +68,20 @@ function sameAddress(a: string, b: string): boolean {
 
 /// Timestamp of the earliest registered invoice naming `address`, for parties with no activity of
 /// their own. Registry logs are fetched lazily, and at most once per request.
-async function firstInvoiceAt(address: string, registryLogs: () => Promise<RegisteredWithBlock[]>): Promise<string | null> {
-  const mine = (await registryLogs()).filter((e) => sameAddress(e.debtor, address) || sameAddress(e.creditor, address));
-  if (mine.length === 0) return null;
+interface RegistryLogScan { events: RegisteredWithBlock[]; truncated: boolean }
+
+async function firstInvoiceAt(address: string, registryLogs: () => Promise<RegistryLogScan>): Promise<{ at: string | null; lowerBound: boolean }> {
+  const scan = await registryLogs();
+  const mine = scan.events.filter((e) => sameAddress(e.debtor, address) || sameAddress(e.creditor, address));
+  if (mine.length === 0) return { at: null, lowerBound: scan.truncated };
   const earliest = mine.reduce((min, e) => (e.blockNumber < min.blockNumber ? e : min));
-  return fetchTransactionTimestamp(earliest.registerTxHash);
+  return { at: await fetchTransactionTimestamp(earliest.registerTxHash), lowerBound: scan.truncated };
 }
 
 async function loadAddressSignals(
   address: string,
   known: KnownAddresses,
-  registryLogs: () => Promise<RegisteredWithBlock[]>,
+  registryLogs: () => Promise<RegistryLogScan>,
 ): Promise<AddressSignals> {
   return cached(cacheKey("address", address), async () => {
     const [isContract, transactions, transfers] = await Promise.all([
@@ -87,22 +90,24 @@ async function loadAddressSignals(
       fetchAddressTokenTransfers(address),
     ]);
     const hasOwnActivity = transactions.items.length > 0 || transfers.items.length > 0;
+    const invoiceFirstSeen = hasOwnActivity ? null : await firstInvoiceAt(address, registryLogs);
     return addressSignals(
       {
         address,
         isContract,
         transactions,
         transfers,
-        firstInvoiceAt: hasOwnActivity ? null : await firstInvoiceAt(address, registryLogs),
+        firstInvoiceAt: invoiceFirstSeen?.at ?? null,
+        firstInvoiceLowerBound: invoiceFirstSeen?.lowerBound ?? false,
       },
       known,
     );
   });
 }
 
-function memoizedRegistryLogs(registry: string): () => Promise<RegisteredWithBlock[]> {
-  let pending: Promise<RegisteredWithBlock[]> | null = null;
-  return () => (pending ??= fetchContractLogs(registry).then(registeredEvents));
+function memoizedRegistryLogs(registry: string): () => Promise<RegistryLogScan> {
+  let pending: Promise<RegistryLogScan> | null = null;
+  return () => (pending ??= fetchContractLogsBounded(registry).then((scan) => ({ events: registeredEvents(scan.logs), truncated: scan.truncated })));
 }
 
 export async function getAddressSignals(address: string): Promise<AddressSignals> {
@@ -121,7 +126,8 @@ export async function getCycleSignals(settleTxHash: string): Promise<CycleSignal
     if (nettedIds.length === 0) return null;
 
     const registryLogs = memoizedRegistryLogs(known.registry);
-    const registered = await registryLogs();
+    const registryScan = await registryLogs();
+    const registered = registryScan.events;
     const cycleInvoices = nettedIds
       .map((id) => registered.find((e) => e.invoiceRef === id))
       .filter((e) => e !== undefined);
@@ -141,11 +147,12 @@ export async function getCycleSignals(settleTxHash: string): Promise<CycleSignal
       (min, e) => (!min || e.blockNumber < min.blockNumber ? e : min),
       null,
     );
+    const partiesIncomplete = cycleInvoices.length !== nettedIds.length;
     const [earliestRegisterAt, settleAt] = await Promise.all([
-      earliestRegister ? fetchTransactionTimestamp(earliestRegister.registerTxHash) : Promise.resolve(null),
+      earliestRegister && !partiesIncomplete ? fetchTransactionTimestamp(earliestRegister.registerTxHash) : Promise.resolve(null),
       fetchTransactionTimestamp(settleTxHash),
     ]);
 
-    return cycleSignals(parties, nettedIds.length, earliestRegisterAt, settleAt);
+    return cycleSignals(parties, nettedIds.length, earliestRegisterAt, settleAt, partiesIncomplete);
   });
 }

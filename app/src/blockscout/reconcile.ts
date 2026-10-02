@@ -13,10 +13,7 @@ import {
   type InvoiceRow,
 } from "../db/invoices";
 
-const USDC_DECIMALS = 1_000_000n;
-function formatUsdc(baseUnits: bigint): string {
-  return (Number(baseUnits) / Number(USDC_DECIMALS)).toFixed(2);
-}
+import { formatUsdcDisplay } from "../attest/amount";
 
 function sameAddress(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
@@ -38,6 +35,8 @@ export interface NettedEvent {
   wNetBaseUnits: bigint;
   remainingAfterBaseUnits: bigint;
   transactionHash: string;
+  blockNumber: number;
+  logIndex: number;
 }
 
 export function parseRegistered(log: DecodedLog): RegisteredEvent | null {
@@ -82,6 +81,8 @@ export function parseNetted(log: DecodedLog): NettedEvent | null {
     wNetBaseUnits: BigInt(wNet),
     remainingAfterBaseUnits: BigInt(remainingAfter),
     transactionHash: log.transactionHash,
+    blockNumber: log.blockNumber,
+    logIndex: log.logIndex ?? 0,
   };
 }
 
@@ -134,7 +135,7 @@ export async function reconcileAddress(address: string): Promise<ReconcileResult
           invoiceRef: r.invoiceRef,
           debtor: r.debtor,
           creditor: r.creditor,
-          amountUsdc: formatUsdc(r.amountBaseUnits),
+          amountUsdc: formatUsdcDisplay(r.amountBaseUnits),
           maturity: r.maturity,
           earlyNetConsent: r.earlyNetConsent,
           registerTxHash: r.registerTxHash,
@@ -143,20 +144,22 @@ export async function reconcileAddress(address: string): Promise<ReconcileResult
     }
 
     const settleTxHashesTouched = new Set<string>();
-    for (const n of netted) {
+    // The explorer returns newest-first. Apply cache writes oldest-first so the final stored
+    // remaining amount always reflects the latest event for each invoice.
+    for (const n of [...netted].sort((a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex)) {
       if (!myInvoiceRefs.has(n.invoiceRef)) continue;
       settleTxHashesTouched.add(n.transactionHash);
       await upsertSettledInvoice({
         invoiceRef: n.invoiceRef,
         settleTxHash: n.transactionHash,
-        wNetUsdc: formatUsdc(n.wNetBaseUnits),
-        remainingUsdc: formatUsdc(n.remainingAfterBaseUnits),
+        wNetUsdc: formatUsdcDisplay(n.wNetBaseUnits),
+        remainingUsdc: formatUsdcDisplay(n.remainingAfterBaseUnits),
       });
     }
 
     for (const settleTxHash of settleTxHashesTouched) {
       const cycle = nettedByTx.get(settleTxHash) ?? [];
-      const wNetUsdc = formatUsdc(cycle[0]?.wNetBaseUnits ?? 0n);
+      const wNetUsdc = formatUsdcDisplay(cycle[0]?.wNetBaseUnits ?? 0n);
       const fee = await fetchTransactionFee(settleTxHash);
       await upsertSettlement({
         settleTxHash,

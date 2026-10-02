@@ -197,28 +197,47 @@ export interface InsertObligationInput {
 /// Inserts the obligation and marks its proposal accepted, atomically. Idempotent: a repeat for
 /// the same obligation id changes nothing. Throws `DuplicateObligationError` if a different
 /// obligation already covers the same document for the same pair.
-export async function acceptProposalWithObligation(token: string, input: InsertObligationInput): Promise<void> {
+export type AcceptProposalOutcome = "accepted" | "already_accepted" | "expired" | "closed";
+
+export async function acceptProposalWithObligation(token: string, input: InsertObligationInput): Promise<AcceptProposalOutcome> {
   try {
-    await withDbRetry(async () => {
+    return await withDbRetry(async () => {
       const db = sql();
-      await db.transaction([
+      const [rows] = (await db.transaction([
         db`
+          WITH claimed AS (
+            UPDATE netting_proposals SET status = 'accepted', closed_by = ${input.createdBy.toLowerCase()}, closed_at = now()
+            WHERE token = ${token} AND status = 'open' AND expires_at > now()
+            RETURNING token
+          ), inserted AS (
           INSERT INTO netting_obligations (obligation_id, chain_id, ledger, document_hash, debtor, creditor, currency,
             amount, maturity, early_net_consent, salt, debtor_signature, creditor_signature, description, remaining,
             blinding, created_by)
-          VALUES (${input.obligationId.toLowerCase()}, ${input.chainId}, ${input.ledger.toLowerCase()},
+          SELECT ${input.obligationId.toLowerCase()}, ${input.chainId}, ${input.ledger.toLowerCase()},
             ${input.documentHash.toLowerCase()}, ${input.debtor.toLowerCase()}, ${input.creditor.toLowerCase()},
             ${input.currency}, ${input.amount.toString()}, ${input.maturity.toString()}, ${input.earlyNetConsent},
             ${input.salt.toLowerCase()}, ${input.debtorSignature.toLowerCase()}, ${input.creditorSignature.toLowerCase()},
             ${input.description}, ${input.amount.toString()}, ${input.blinding.toLowerCase()},
-            ${input.createdBy.toLowerCase()})
+            ${input.createdBy.toLowerCase()} FROM claimed
           ON CONFLICT (obligation_id) DO NOTHING
+          RETURNING obligation_id
+          )
+          SELECT p.status, p.expires_at,
+            EXISTS (SELECT 1 FROM netting_obligations o WHERE o.obligation_id = ${input.obligationId.toLowerCase()}) AS obligation_exists,
+            EXISTS (SELECT 1 FROM claimed) AS claimed,
+            (SELECT count(*) FROM inserted) AS inserted_count
+          FROM netting_proposals p WHERE p.token = ${token}
         `,
-        db`
-          UPDATE netting_proposals SET status = 'accepted', closed_by = ${input.createdBy.toLowerCase()}, closed_at = now()
-          WHERE token = ${token} AND status = 'open'
-        `,
-      ]);
+      ])) as Record<string, unknown>[][];
+      const row = rows?.[0] as Record<string, unknown> | undefined;
+      if (row?.claimed === true) {
+        return Number(row.inserted_count) > 0 ? "accepted" : "already_accepted";
+      }
+      if (row?.status === "accepted" && row.obligation_exists === true) {
+        return Number(row.inserted_count) > 0 ? "accepted" : "already_accepted";
+      }
+      if (row && new Date(row.expires_at as string) <= new Date()) return "expired";
+      return "closed";
     });
   } catch (error) {
     if (isDocumentConflict(error)) throw new DuplicateObligationError();
@@ -226,12 +245,14 @@ export async function acceptProposalWithObligation(token: string, input: InsertO
   }
 }
 
-export async function markProposalWithdrawn(token: string, by: string): Promise<void> {
-  await withDbRetry(async () => {
-    await sql()`
+export async function markProposalWithdrawn(token: string, by: string): Promise<boolean> {
+  return withDbRetry(async () => {
+    const rows = (await sql()`
       UPDATE netting_proposals SET status = 'withdrawn', closed_by = ${by.toLowerCase()}, closed_at = now()
       WHERE token = ${token} AND status = 'open'
-    `;
+      RETURNING token
+    `) as unknown[];
+    return rows.length > 0;
   });
 }
 

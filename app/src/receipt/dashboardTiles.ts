@@ -14,7 +14,7 @@ export interface DashboardTiles {
   /// UI layer, not computed as a literal Infinity here).
   multiplier: number | null;
   /// Native USDC (18 decimals) actually spent on gas for the settle tx.
-  gasPaidWei: bigint;
+  gasPaidWei: bigint | null;
 }
 
 export function computeDashboardTiles(result: SettleResult): DashboardTiles {

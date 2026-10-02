@@ -68,6 +68,15 @@ describe("addressSignals — first seen", () => {
     expect(describeFirstSeen(s)).toContain("First named in a Contraflow invoice on 21 Sept 2026");
   });
 
+  it("carries a truncated invoice scan into first-seen wording", () => {
+    const found = addressSignals(activity({ firstInvoiceAt: "2026-09-21T10:00:00Z", firstInvoiceLowerBound: true }), KNOWN);
+    expect(found.firstSeen).toEqual({ kind: "invoiceOnOrBefore", at: "2026-09-21T10:00:00Z" });
+    expect(describeFirstSeen(found)).toContain("on or before");
+    const missing = addressSignals(activity({ firstInvoiceLowerBound: true }), KNOWN);
+    expect(missing.firstSeen.kind).toBe("unknown");
+    expect(describeFirstSeen(missing)).toContain("could not be determined");
+  });
+
   it("reports no activity at all honestly", () => {
     expect(addressSignals(activity(), KNOWN).firstSeen).toEqual({ kind: "never" });
   });
@@ -198,7 +207,7 @@ describe("cycleSignals", () => {
       party("0xA000000000000000000000000000000000000003", "2026-09-20T00:05:00Z", FUNDER),
     ];
     const c = cycleSignals(parties, 3, "2026-09-20T01:00:00Z", "2026-09-20T01:12:00Z");
-    expect(c.sharedFunder).toEqual({ address: FUNDER.toLowerCase(), count: 3 });
+    expect(c.sharedFunder).toEqual({ address: FUNDER.toLowerCase(), count: 3, lowerBound: false });
     expect(c.firstSeenSpread).toEqual({ ms: 5 * 60_000, approximate: false });
     expect(c.contraflowOnlyCount).toBe(3);
     expect(c.registerToSettleMs).toBe(12 * 60_000);
@@ -210,6 +219,18 @@ describe("cycleSignals", () => {
       "3 of 3 parties",
       "12 minutes",
     ]);
+  });
+
+  it("qualifies cycle aggregates when bounded Registry history omits parties", () => {
+    const funder1 = party("0xA000000000000000000000000000000000000001", "2026-09-20T00:00:00Z", FUNDER);
+    const funder2 = party("0xA000000000000000000000000000000000000002", "2026-09-20T00:01:00Z", FUNDER);
+    const c = cycleSignals([funder1, funder2], 3, "2026-09-20T00:00:00Z", "2026-09-20T00:10:00Z", true);
+    expect(c.firstSeenSpread?.approximate).toBe(true);
+    expect(c.sharedFunder?.lowerBound).toBe(true);
+    expect(c.registerToSettleMs).toBeNull();
+    const facts = describeCycle(c);
+    expect(facts.find((fact) => fact.label === "Shared first funder")?.value).toContain("At least 2");
+    expect(facts.find((fact) => fact.label === "No activity outside Contraflow")?.value).toContain("observed");
   });
 
   it("does not report a shared funder when every party was operator- or mint-funded", () => {

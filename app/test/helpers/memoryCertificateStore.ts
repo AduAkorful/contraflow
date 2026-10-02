@@ -129,12 +129,14 @@ export function createMemoryCertificateStore(): MemoryCertificateStore {
     async addSignature({ certificateId, idx, signer, signature, required }) {
       write();
       const c = certificates.get(certificateId.toLowerCase());
-      if (!c || c.status !== "collecting") return;
-      if (!c.signatures.some((s) => s.idx === idx)) {
-        c.signatures.push({ idx, signer: signer.toLowerCase(), signature: signature.toLowerCase() });
-        c.signatures.sort((a, b) => a.idx - b.idx);
-      }
+      if (!c) return "missing";
+      if (BigInt(c.deadline) < BigInt(Math.floor(Date.now() / 1000))) return "expired";
+      if (c.status !== "collecting") return "closed";
+      if (c.signatures.some((s) => s.idx === idx)) return "already_present";
+      c.signatures.push({ idx, signer: signer.toLowerCase(), signature: signature.toLowerCase() });
+      c.signatures.sort((a, b) => a.idx - b.idx);
       if (c.signatures.length === required) c.status = "ready";
+      return "stored";
     },
 
     async abandonCertificate(certificateId, reason) {

@@ -31,7 +31,8 @@ const SEARCH_MAX_CYCLES = 500;
 export type LoopSearchResult =
   | { kind: "found"; currency: string; wNet: bigint; loop: CandidateObligation[] }
   | { kind: "none" }
-  | { kind: "too-many-parties"; currency: string; parties: number };
+  | { kind: "too-many-parties"; currency: string; parties: number }
+  | { kind: "search-incomplete"; currency: string; maxCycles: number };
 
 export function isNettableNow(o: CandidateObligation, now: bigint): boolean {
   return o.remaining > 0n && (o.maturity <= now || o.earlyNetConsent);
@@ -141,6 +142,7 @@ export function findBestLoop(
         maxCycleLength: MAX_LOOP_LENGTH,
         maxCycles: SEARCH_MAX_CYCLES,
         requireDistinctParties: true,
+        requiredParty: me,
       });
     } catch (error) {
       if (error instanceof GraphTooLargeError) {
@@ -149,6 +151,9 @@ export function findBestLoop(
       }
       throw error;
     }
+
+    // A saturated result list may have omitted a better loop. Refuse to treat it as complete.
+    if (cycles.length >= SEARCH_MAX_CYCLES) return { kind: "search-incomplete", currency, maxCycles: SEARCH_MAX_CYCLES };
 
     let best: { wNet: bigint; loop: CandidateObligation[] } | null = null;
     for (const cycle of cycles) {

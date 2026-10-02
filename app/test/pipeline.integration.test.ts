@@ -330,9 +330,9 @@ describe("full pipeline: fixture register -> propose -> settle (local anvil)", (
     });
 
     expect(result.danglingInvoiceIds).toHaveLength(1);
-    expect(estimateSwap).toHaveBeenCalledWith(expect.objectContaining({ amountIn: "0.300000" }));
+    expect(estimateSwap).toHaveBeenCalledWith(expect.objectContaining({ amountIn: "0.3" }));
     expect(deposit).toHaveBeenCalledTimes(1);
-    expect(spend).toHaveBeenCalledWith(expect.objectContaining({ amount: "0.300000" }));
+    expect(spend).toHaveBeenCalledWith(expect.objectContaining({ amount: "0.3" }));
     expect(result.residualQuote).toEqual({ estimatedOutput: { amount: "0.27", token: "EURC" } });
     expect(result.residualFund).toEqual({ txHash: "0xspend" });
     expect(result.residualFundError).toBeUndefined();

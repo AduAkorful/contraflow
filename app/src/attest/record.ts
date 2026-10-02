@@ -10,10 +10,7 @@ import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses"
 import { arcPublicClient } from "../chain/operatorEnv";
 import { upsertRegisteredInvoice } from "../db/invoices";
 
-const USDC_DECIMALS = 1_000_000n;
-function formatUsdc(baseUnits: bigint): string {
-  return (Number(baseUnits) / Number(USDC_DECIMALS)).toFixed(2);
-}
+import { formatUsdcDisplay } from "./amount";
 
 export type RecordResult = { ok: true; invoiceRef: Hex } | { ok: false; reason: string };
 
@@ -49,7 +46,7 @@ export async function recordRegistration(txHash: Hex): Promise<RecordResult> {
       invoiceRef: id,
       debtor,
       creditor,
-      amountUsdc: formatUsdc(amount),
+      amountUsdc: formatUsdcDisplay(amount),
       maturity: maturity.toString(),
       earlyNetConsent,
       registerTxHash: txHash,

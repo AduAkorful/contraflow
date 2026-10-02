@@ -5,6 +5,7 @@
 
 import {
   hexToBigInt,
+  encodeFunctionData,
   isAddressEqual,
   parseAbi,
   recoverAddress,
@@ -24,7 +25,7 @@ export interface SignatureCheck {
 }
 
 /// The subset of a viem public client the verifier uses.
-export type ChainReader = Pick<PublicClient, "getCode" | "readContract" | "getChainId">;
+export type ChainReader = Pick<PublicClient, "getCode" | "readContract" | "call" | "getChainId" | "getLogs" | "getBlockNumber">;
 
 const ECDSA_SIGNATURE_BYTES = 65;
 // Half the secp256k1 order: OpenZeppelin rejects any `s` above it (malleable signatures).
@@ -66,13 +67,17 @@ export async function checkSignature(
   if (!code || code === "0x") return { status: "fail", detail: `Not a valid signature from ${signer}` };
 
   try {
-    const result = await client.readContract({
-      address: signer,
+    const data = encodeFunctionData({
       abi: ERC1271_ABI,
       functionName: "isValidSignature",
       args: [digest, signature],
     });
-    if (result.toLowerCase() === ERC1271_MAGIC_VALUE) {
+    const result = await client.call({ to: signer, data });
+    const raw = result.data;
+    // Match OpenZeppelin's SignatureChecker: require at least one full ABI word and compare
+    // the complete first word, so non-zero padding cannot be discarded by bytes4 decoding.
+    const expectedWord = `${ERC1271_MAGIC_VALUE.slice(2)}${"0".repeat(56)}`;
+    if (raw && size(raw) >= 32 && raw.slice(2, 66).toLowerCase() === expectedWord.toLowerCase()) {
       return { status: "pass", detail: `ERC-1271 signature from smart account ${signer}` };
     }
     return { status: "fail", detail: `Smart account ${signer} rejected the signature` };

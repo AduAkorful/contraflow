@@ -39,7 +39,7 @@ export default function DemoPage() {
   const [registeredRows, setRegisteredRows] = useState<RegisteredRow[]>([]);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pendingSettleRef = useRef<{ invoiceIds: string[]; labels: Record<string, string> } | null>(null);
+  const pendingSettleRef = useRef<{ runSalt: string; invoiceIds: string[]; labels: Record<string, string> } | null>(null);
 
   const totalInvoicedUsdc = registeredRows.reduce((sum, r) => sum + Number(r.amountUsdc), 0).toFixed(2);
 
@@ -109,7 +109,7 @@ export default function DemoPage() {
 
     // Stashed in a ref (not state) since the settle step needs it but changing it shouldn't
     // trigger a re-render on its own.
-    pendingSettleRef.current = { invoiceIds: proposeResult.proposal.invoiceIds, labels };
+    pendingSettleRef.current = { runSalt, invoiceIds: proposeResult.proposal.invoiceIds, labels };
   }
 
   async function settle() {
@@ -121,7 +121,7 @@ export default function DemoPage() {
     setCenter({ kind: "settling" });
     setEdges((prev) => prev.map((e) => ({ ...e, status: "settling" as const })));
 
-    const result = await settleProposedCycle(pending.invoiceIds, pending.labels);
+    const result = await settleProposedCycle(pending.runSalt, pending.invoiceIds, pending.labels);
     if (!result.ok) {
       setError(result.error);
       setPhase("readyToSettle");

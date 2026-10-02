@@ -7,11 +7,7 @@
 
 import { useState } from "react";
 import type { InvoiceAttestation } from "../../src/attest/signAttestation";
-
-const USDC_DECIMALS = 1_000_000n;
-function formatUsdc(baseUnits: bigint): string {
-  return (Number(baseUnits) / Number(USDC_DECIMALS)).toFixed(2);
-}
+import { formatUsdcAmount } from "../../src/attest/amount";
 
 function formatMaturity(maturity: bigint): string {
   return new Date(Number(maturity) * 1000).toLocaleDateString(undefined, {
@@ -32,26 +28,26 @@ export function ReviewAndSign({
   children,
 }: {
   invoice: InvoiceAttestation;
-  viewerRole: "debtor" | "creditor";
+  viewerRole: "debtor" | "creditor" | null;
   description?: string;
   children?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const counterparty = viewerRole === "debtor" ? invoice.creditor : invoice.debtor;
-  const verb = viewerRole === "debtor" ? "You owe" : "You are owed";
+  const counterparty = viewerRole === null ? null : viewerRole === "debtor" ? invoice.creditor : invoice.debtor;
+  const verb = viewerRole === null ? "Invoice amount" : viewerRole === "debtor" ? "You owe" : "You are owed";
 
   return (
     <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
       <p className="text-xs uppercase tracking-wide text-muted">Invoice terms</p>
       <p className="mt-3 font-serif-display text-2xl">
-        {verb} <span className="text-gold">${formatUsdc(invoice.amount)}</span>
+        {verb} <span className="text-gold">${formatUsdcAmount(invoice.amount)}</span>
       </p>
       {description && <p className="mt-2 text-sm text-muted">{description}</p>}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Counterparty</dt>
-          <dd className="mt-1 font-mono">{shortAddr(counterparty)}</dd>
+          <dd className="mt-1 font-mono">{counterparty ? shortAddr(counterparty) : "Both invoice parties"}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Maturity</dt>

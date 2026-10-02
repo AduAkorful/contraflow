@@ -38,19 +38,27 @@ export interface UpsertInvoiceDocumentInput {
   createdBy: string;
 }
 
-export async function upsertInvoiceDocument(input: UpsertInvoiceDocumentInput): Promise<void> {
-  await withDbRetry(async () => {
+export type InsertInvoiceDocumentResult = "created" | "identical" | "conflict";
+
+export async function insertInvoiceDocumentIfAbsent(input: UpsertInvoiceDocumentInput): Promise<InsertInvoiceDocumentResult> {
+  return withDbRetry(async () => {
     const db = sql();
-    await db`
+    const inserted = await db`
       INSERT INTO invoice_documents (invoice_ref, description, debtor, creditor, amount_usdc, maturity, created_by)
       VALUES (${input.invoiceRef}, ${input.description}, ${input.debtor}, ${input.creditor}, ${input.amountUsdc}, ${input.maturity}, ${input.createdBy})
-      ON CONFLICT (invoice_ref) DO UPDATE SET
-        description = EXCLUDED.description,
-        debtor = EXCLUDED.debtor,
-        creditor = EXCLUDED.creditor,
-        amount_usdc = EXCLUDED.amount_usdc,
-        maturity = EXCLUDED.maturity
+      ON CONFLICT (invoice_ref) DO NOTHING
+      RETURNING invoice_ref
     `;
+    if ((inserted as Record<string, unknown>[]).length > 0) return "created";
+
+    const rows = await db`SELECT * FROM invoice_documents WHERE invoice_ref = ${input.invoiceRef}`;
+    const existing = (rows as Record<string, unknown>[])[0];
+    if (!existing) throw new Error("Invoice document conflict could not be read after insert");
+    const sameContent = existing.description === input.description &&
+      String(existing.debtor).toLowerCase() === input.debtor.toLowerCase() &&
+      String(existing.creditor).toLowerCase() === input.creditor.toLowerCase() &&
+      existing.amount_usdc === input.amountUsdc && existing.maturity === input.maturity;
+    return sameContent ? "identical" : "conflict";
   });
 }
 

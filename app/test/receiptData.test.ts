@@ -1,0 +1,78 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Address } from "viem";
+
+const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn() }));
+const { getSettlement, getInvoicesForSettlement, fetchTransactionFee, fetchTransactionLogs } = mocks;
+vi.mock("../src/db/invoices", () => ({ getSettlement: mocks.getSettlement, getInvoicesForSettlement: mocks.getInvoicesForSettlement }));
+vi.mock("../src/blockscout/client", () => ({
+  fetchTransactionFee: mocks.fetchTransactionFee,
+  fetchTransactionLogs: mocks.fetchTransactionLogs,
+  paramValue: (parameters: Array<{ name: string; value: string | string[] }>, name: string) => parameters.find((p) => p.name === name)?.value,
+}));
+
+import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../src/contracts/addresses";
+import { getReceiptData } from "../src/receipt/getReceiptData";
+
+const { registry, settler } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+const txHash = `0x${"ab".repeat(32)}`;
+const invoiceId = `0x${"cd".repeat(32)}`;
+
+function event(address: Address, methodCall: string, parameters: Array<{ name: string; value: string | string[] }>) {
+  return { address, transactionHash: txHash, blockNumber: 10, methodCall, parameters };
+}
+
+function validReceiptEvents() {
+  return [
+    event(registry, "InvoiceNetted", [
+      { name: "id", value: invoiceId }, { name: "wNet", value: "1000000" }, { name: "remainingAfter", value: "0" },
+    ]),
+    event(settler, "Settled", [
+      { name: "invoiceIds", value: [invoiceId] }, { name: "wNet", value: "1000000" },
+    ]),
+  ];
+}
+
+describe("receipt data fallback", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getSettlement.mockResolvedValue(null);
+    getInvoicesForSettlement.mockResolvedValue([]);
+    fetchTransactionLogs.mockResolvedValue(validReceiptEvents());
+    fetchTransactionFee.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123" });
+  });
+
+  it("falls back to authenticated Registry and Settler events when the DB read throws", async () => {
+    getSettlement.mockRejectedValueOnce(new Error("Neon unavailable"));
+    const result = await getReceiptData(txHash);
+    expect(result?.invoices).toHaveLength(1);
+    expect(result?.wNetUsdc).toBe("1.00");
+  });
+
+  it("does not treat a foreign emitter's InvoiceNetted event as a receipt", async () => {
+    const valid = validReceiptEvents();
+    fetchTransactionLogs.mockResolvedValueOnce([
+      event("0x00000000000000000000000000000000000000aa", "InvoiceNetted", valid[0]!.parameters),
+      valid[1],
+    ]);
+    expect(await getReceiptData(txHash)).toBeNull();
+  });
+
+  it("rejects partial event sets that disagree with the Settled aggregate", async () => {
+    const valid = validReceiptEvents();
+    fetchTransactionLogs.mockResolvedValueOnce([valid[0], event(settler, "Settled", [
+      { name: "invoiceIds", value: [invoiceId, `0x${"ef".repeat(32)}`] }, { name: "wNet", value: "1000000" },
+    ])]);
+    expect(await getReceiptData(txHash)).toBeNull();
+  });
+
+  it("keeps a missing Circle network fee visibly unknown instead of formatting it as zero", async () => {
+    getSettlement.mockResolvedValueOnce({
+      settleTxHash: txHash, blockNumber: "10", wNetUsdc: "1.00", cycleLength: 1, gasPaidWei: null,
+    });
+    getInvoicesForSettlement.mockResolvedValueOnce([{
+      invoiceRef: invoiceId, remainingUsdc: "0.00",
+    }]);
+    const result = await getReceiptData(txHash);
+    expect(result?.gasPaidUsdc).toBeNull();
+  });
+});

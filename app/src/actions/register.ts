@@ -12,12 +12,24 @@ import { readNextNonce } from "../chain/readInvoices";
 import { defaultComplianceProvider, screenAddresses, type ComplianceProvider } from "../compliance";
 import { submitContractExecutionViaDcw } from "../dcw/contractExecution";
 import type { OperatorSigner } from "../operator/signer";
+import type { DemoTransactionLimits } from "../demo/spendBudget";
 
 export interface RegisterResult {
   label: string;
   invoiceId: Hex;
   txHash: Hex;
   blockNumber: bigint;
+}
+
+export class RegisterTransactionOutcomeError extends Error {
+  constructor(
+    public readonly txHash: Hex,
+    public readonly outcome: "reverted" | "unknown",
+    cause?: unknown,
+  ) {
+    super(`register() transaction ${txHash} outcome is ${outcome}${cause instanceof Error ? `: ${cause.message}` : ""}`);
+    this.name = "RegisterTransactionOutcomeError";
+  }
 }
 
 /// Thrown before any submission is attempted, when compliance pre-screening flags a party's
@@ -43,8 +55,10 @@ export async function registerInvoice(params: {
   /// Defaults to `defaultComplianceProvider()` (denylist + stub, spec FR-1.3) — override in
   /// tests, or once a real vendor is wired in.
   complianceProvider?: ComplianceProvider;
+  /// Optional hard transaction limits for public, operator-funded callers such as `/app/demo`.
+  transactionLimits?: DemoTransactionLimits;
 }): Promise<{ invoiceId: Hex; txHash: Hex; blockNumber: bigint }> {
-  const { publicClient, signer, registry, invoice, debtorSignature, creditorSignature } = params;
+  const { publicClient, signer, registry, invoice, debtorSignature, creditorSignature, transactionLimits } = params;
 
   const complianceProvider = params.complianceProvider ?? defaultComplianceProvider();
   const screenResults = await screenAddresses([invoice.debtor, invoice.creditor], complianceProvider);
@@ -67,11 +81,17 @@ export async function registerInvoice(params: {
       args: [invoice, debtorSignature, creditorSignature],
       account: walletClient.account,
       chain: walletClient.chain,
+      ...(transactionLimits ?? {}),
     });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    let receipt;
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    } catch (cause) {
+      throw new RegisterTransactionOutcomeError(txHash, "unknown", cause);
+    }
     if (receipt.status !== "success") {
-      throw new Error(`register() tx ${txHash} reverted (status: ${receipt.status})`);
+      throw new RegisterTransactionOutcomeError(txHash, "reverted");
     }
 
     return { invoiceId, txHash, blockNumber: receipt.blockNumber };

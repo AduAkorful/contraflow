@@ -424,6 +424,12 @@ describe("export", () => {
       expect(view.entries.filter((e) => e.kind === "full")).toHaveLength(2);
       const result = await verifyCertificateView(view, { now: clock, stage: "applied", client: chain.client });
       expect(result.checks.filter((c) => c.status !== "pass")).toEqual([]);
+      const substituted = {
+        ...view,
+        certificate: { ...view.certificate, contentHash: `0x${"ee".repeat(32)}` as Hex },
+      };
+      const substitutedResult = await verifyCertificateView(substituted, { now: clock, stage: "applied", client: chain.client });
+      expect(substitutedResult.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("fail");
     }
   });
 });

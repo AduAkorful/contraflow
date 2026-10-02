@@ -24,6 +24,20 @@ export class DcwTransactionTimeoutError extends Error {
   }
 }
 
+/// The transaction was accepted by Circle, but polling failed. Preserve the Circle transaction
+/// handle and last known state so callers can inspect/retry that same operation without sending
+/// another contract execution.
+export class DcwTransactionPollingError extends Error {
+  constructor(
+    public readonly transactionId: string,
+    public readonly lastState: string,
+    cause?: unknown,
+  ) {
+    super(`DCW transaction ${transactionId} polling failed (last: ${lastState})${cause instanceof Error ? `: ${cause.message}` : ""}`);
+    this.name = "DcwTransactionPollingError";
+  }
+}
+
 const TERMINAL_SUCCESS_STATES = new Set(["CONFIRMED", "COMPLETE"]);
 const TERMINAL_FAILURE_STATES = new Set(["FAILED", "DENIED", "CANCELLED"]);
 
@@ -82,7 +96,12 @@ export async function submitContractExecutionViaDcw(
   const deadline = Date.now() + timeoutMs;
   let lastState = submitted.data!.state;
   while (Date.now() < deadline) {
-    const polled = await client.getTransaction({ id: transactionId });
+    let polled;
+    try {
+      polled = await client.getTransaction({ id: transactionId });
+    } catch (cause) {
+      throw new DcwTransactionPollingError(transactionId, lastState, cause);
+    }
     const tx = polled.data?.transaction;
     if (!tx) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));

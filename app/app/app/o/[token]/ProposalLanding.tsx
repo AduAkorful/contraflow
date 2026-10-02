@@ -6,7 +6,7 @@
 /// any of it as trustworthy. A mismatch is a full stop, not a warning.
 
 import { useState } from "react";
-import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
+import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
@@ -14,6 +14,7 @@ import { shortAddr } from "../../../../components/netting/format";
 import { appLedgerDomain } from "../../../../src/netting/domain";
 import { hashObligationDocument, obligationMatchesDocument } from "../../../../src/netting/document";
 import { obligationId, obligationTypedData } from "../../../../src/netting/obligation";
+import { prepareWalletContext } from "../../../../src/attest/walletContext";
 import { parseObligationJson } from "../../../../src/netting/serialize";
 import { checkSignature, type ChainReader } from "../../../../src/netting/signature";
 import type { NettingObligation } from "../../../../src/netting/types";
@@ -35,8 +36,9 @@ type Phase =
 const INVALID = "This proposal is invalid or has been altered. Don't sign it.";
 
 export function ProposalLanding({ token }: { token: string }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
 
   const [phase, setPhase] = useState<Phase>("signin");
@@ -104,7 +106,11 @@ export function ProposalLanding({ token }: { token: string }) {
     setError(null);
     setPhase("signing");
     try {
+      const expectedSigner = proposal.proposerRole === "debtor" ? obligation.creditor : obligation.debtor;
+      const chainId = Number(appLedgerDomain().chainId);
+      await prepareWalletContext(connector, expectedSigner, chainId, switchChainAsync);
       const signature = await signTypedDataAsync(obligationTypedData(obligation, appLedgerDomain()));
+      await prepareWalletContext(connector, expectedSigner, chainId, switchChainAsync);
       setPhase("saving");
       const result = await acceptProposal(token, signature);
       if (!result.ok) {

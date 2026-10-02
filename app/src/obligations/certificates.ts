@@ -181,14 +181,17 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     const check = await checkSignature(session, certificateDigest(view.certificate, view.domain), signature as Hex, client);
     if (check.status !== "pass") return { ok: false, error: "That signature isn't valid for this certificate." };
 
-    await store.addSignature({
+    const stored = await store.addSignature({
       certificateId: row.certificateId,
       idx,
       signer: session,
       signature,
       required: row.entries.length,
     });
-    return { ok: true };
+    if (stored === "stored" || stored === "already_present") return { ok: true };
+    if (stored === "expired") return { ok: false, error: "This certificate has expired." };
+    if (stored === "missing") return { ok: false, error: NOT_FOUND };
+    return { ok: false, error: "This certificate just changed. Reload and try again." };
   }
 
   async function declineCertificate(session: Address, token: unknown): Promise<Result> {

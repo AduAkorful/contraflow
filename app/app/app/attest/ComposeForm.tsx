@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { isAddress, type Address } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 import { ReviewAndSign } from "../../../components/attest/ReviewAndSign";
 import { invoiceAttestationTypedData, type InvoiceAttestation } from "../../../src/attest/signAttestation";
 import { encodeAttestLink } from "../../../src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../src/attest/document";
+import { formatUsdcAmount, parseUsdcAmount, UsdcAmountError } from "../../../src/attest/amount";
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
+import { prepareWalletContext } from "../../../src/attest/walletContext";
 import { requestGrant, nextNonceFor, saveInvoiceDocument } from "./actions";
 
 type Phase = "compose" | "review" | "signing" | "done";
@@ -23,8 +25,9 @@ function shortAddr(addr: string): string {
 }
 
 export function ComposeForm({ signerAddress }: { signerAddress: string }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
   const { login } = usePrivy();
 
   const [counterparty, setCounterparty] = useState("");
@@ -55,9 +58,11 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       setError("Enter a valid counterparty address.");
       return;
     }
-    const amount = Number(amountUsd);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter a positive amount.");
+    let amount: bigint;
+    try {
+      amount = parseUsdcAmount(amountUsd);
+    } catch (err) {
+      setError(err instanceof UsdcAmountError ? err.message : "Enter a valid USDC amount.");
       return;
     }
     if (!maturityDate) {
@@ -84,7 +89,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       description: description.trim(),
       debtor,
       creditor,
-      amountUsdc: amount.toFixed(2),
+      amountUsdc: formatUsdcAmount(amount),
       maturity: maturityDate,
     };
     const invoiceRef = hashInvoiceDocument(doc);
@@ -98,7 +103,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
     const { registry, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
     const built: InvoiceAttestation = {
       invoiceRef,
-      amount: BigInt(Math.round(amount * 1_000_000)),
+      amount,
       currency: usdc,
       maturity: dateToUnixSeconds(maturityDate),
       earlyNetConsent,
@@ -118,8 +123,10 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
     setError(null);
     setPhase("signing");
     try {
+      await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const typedData = invoiceAttestationTypedData(invoice);
       const signatureA = await signTypedDataAsync(typedData);
+      await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const encoded = encodeAttestLink({ invoice, role, signatureA, document: invoiceDocument });
       const url = `${window.location.origin}/app/attest/${encoded}`;
       setLink(url);

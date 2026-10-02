@@ -3,11 +3,12 @@
 /// nonce live, and runs the real compliance screen. Only if every check passes is the caller told
 /// it's safe to self-submit `register()`.
 
-import { recoverTypedDataAddress, type Hex } from "viem";
+import { isAddress, isHash, recoverTypedDataAddress, type Hex } from "viem";
 import { invoiceAttestationTypedData, type InvoiceAttestation } from "./signAttestation";
 import { resolveNextNonce } from "./nextNonce";
 import { defaultComplianceProvider, screenAddresses } from "../compliance";
 import { checkRateLimit } from "../ratelimit/limiter";
+import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 
 const PRECHECK_RATE_LIMIT_MAX = 10;
 const PRECHECK_RATE_LIMIT_WINDOW_SECONDS = 60;
@@ -23,15 +24,68 @@ export interface PreCheckInput {
   rateLimitKey: string;
 }
 
+const MAX_UINT256 = (1n << 256n) - 1n;
+const MAX_UINT64 = (1n << 64n) - 1n;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function invalidAttestationReason(invoice: InvoiceAttestation): string | null {
+  if (!invoice || typeof invoice !== "object") return "Invoice data is invalid.";
+  if (!isHash(invoice.invoiceRef)) return "Invoice reference must be a 32-byte hash.";
+  if (typeof invoice.amount !== "bigint" || invoice.amount <= 0n || invoice.amount > MAX_UINT256) {
+    return "Invoice amount must be a positive uint256.";
+  }
+  if (!isAddress(invoice.currency) || !isAddress(invoice.registry) || !isAddress(invoice.debtor) || !isAddress(invoice.creditor)) {
+    return "Invoice contains an invalid address.";
+  }
+  if (invoice.debtor.toLowerCase() === ZERO_ADDRESS || invoice.creditor.toLowerCase() === ZERO_ADDRESS) {
+    return "Invoice parties cannot be the zero address.";
+  }
+  if (invoice.debtor.toLowerCase() === invoice.creditor.toLowerCase()) {
+    return "Invoice parties must be different addresses.";
+  }
+  if (typeof invoice.maturity !== "bigint" || invoice.maturity < 0n || invoice.maturity > MAX_UINT64) {
+    return "Invoice maturity must fit uint64.";
+  }
+  if (typeof invoice.nonce !== "bigint" || invoice.nonce <= 0n || invoice.nonce > MAX_UINT256) {
+    return "Invoice nonce must be a positive uint256.";
+  }
+  if (typeof invoice.earlyNetConsent !== "boolean") return "Invoice consent value is invalid.";
+  if (typeof invoice.chainId !== "bigint" || invoice.chainId !== BigInt(ARC_TESTNET_CHAIN_ID)) {
+    return "Invoice is for a different chain.";
+  }
+
+  const configured = addressesForChain(ARC_TESTNET_CHAIN_ID);
+  if (invoice.registry.toLowerCase() !== configured.registry.toLowerCase()) {
+    return "Invoice is for a different Registry.";
+  }
+  if (invoice.currency.toLowerCase() !== configured.usdc.toLowerCase()) {
+    return "Invoice is not denominated in the configured USDC asset.";
+  }
+  return null;
+}
+
 export async function preCheckAttestation(input: PreCheckInput): Promise<PreCheckResult> {
   const { invoice, debtorSignature, creditorSignature } = input;
 
-  const rateLimit = await checkRateLimit(`precheck:${input.rateLimitKey}`, PRECHECK_RATE_LIMIT_MAX, PRECHECK_RATE_LIMIT_WINDOW_SECONDS);
+  let rateLimit;
+  try {
+    rateLimit = await checkRateLimit(`precheck:${input.rateLimitKey}`, PRECHECK_RATE_LIMIT_MAX, PRECHECK_RATE_LIMIT_WINDOW_SECONDS);
+  } catch {
+    return { ok: false, reason: "Pre-check is temporarily unavailable." };
+  }
   if (!rateLimit.allowed) {
     return { ok: false, reason: "Too many pre-check attempts — try again shortly." };
   }
 
-  const typedData = invoiceAttestationTypedData(invoice);
+  const invalidReason = invalidAttestationReason(invoice);
+  if (invalidReason) return { ok: false, reason: invalidReason };
+
+  let typedData;
+  try {
+    typedData = invoiceAttestationTypedData(invoice);
+  } catch {
+    return { ok: false, reason: "Invoice data is invalid." };
+  }
 
   let recoveredDebtor: Hex, recoveredCreditor: Hex;
   try {
@@ -48,7 +102,12 @@ export async function preCheckAttestation(input: PreCheckInput): Promise<PreChec
     return { ok: false, reason: "Creditor signature does not match the invoice's creditor address." };
   }
 
-  const expectedNonce = await resolveNextNonce(invoice.debtor, invoice.creditor);
+  let expectedNonce: bigint;
+  try {
+    expectedNonce = await resolveNextNonce(invoice.debtor, invoice.creditor);
+  } catch {
+    return { ok: false, reason: "Could not verify the invoice nonce against Arc." };
+  }
   if (invoice.nonce !== expectedNonce) {
     return {
       ok: false,
@@ -56,7 +115,12 @@ export async function preCheckAttestation(input: PreCheckInput): Promise<PreChec
     };
   }
 
-  const screenResults = await screenAddresses([invoice.debtor, invoice.creditor], defaultComplianceProvider());
+  let screenResults;
+  try {
+    screenResults = await screenAddresses([invoice.debtor, invoice.creditor], defaultComplianceProvider());
+  } catch {
+    return { ok: false, reason: "Compliance screening is temporarily unavailable." };
+  }
   const flagged = screenResults.filter((r) => r.status === "flagged");
   if (flagged.length > 0) {
     return { ok: false, reason: "Blocked by compliance screening." };

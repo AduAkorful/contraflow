@@ -70,6 +70,7 @@ export interface NewCertificate {
 /// `locked`: an obligation was taken by another open certificate first. `changed`: an
 /// obligation's status or state changed since it was read.
 export type InsertCertificateResult = "inserted" | "locked" | "changed";
+export type AddSignatureResult = "stored" | "already_present" | "closed" | "expired" | "missing";
 
 export interface AppliedEntryUpdate {
   obligationId: string;
@@ -93,7 +94,7 @@ export interface CertificateStore {
   listCertificatesForParty(address: string): Promise<CertificateRow[]>;
   /// Stores the signature only while the certificate is collecting (idempotent per index), and
   /// moves it to `ready` in the same transaction once `required` signatures are in.
-  addSignature(params: { certificateId: string; idx: number; signer: string; signature: string; required: number }): Promise<void>;
+  addSignature(params: { certificateId: string; idx: number; signer: string; signature: string; required: number }): Promise<AddSignatureResult>;
   /// `collecting` → `abandoned`, releasing its locks. Returns whether it was abandoned.
   abandonCertificate(certificateId: string, reason: string): Promise<boolean>;
   /// `collecting`/`ready` → `expired`, releasing its locks.

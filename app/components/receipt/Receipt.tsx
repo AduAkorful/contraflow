@@ -7,6 +7,7 @@
 /// Layout: header block -> dashed separator -> itemized rows -> totals.
 
 import { EurcQuote } from "../quote/EurcQuote";
+import { parseUnits } from "viem";
 
 export interface ReceiptInvoiceRow {
   label: string;
@@ -23,13 +24,13 @@ export interface ReceiptData {
   grossCancelledUsdc: string;
   cashMovedUsdc: string;
   multiplierLabel: string;
-  gasPaidUsdc: string;
+  gasPaidUsdc: string | null;
   invoices: ReceiptInvoiceRow[];
 }
 
 /// Still owed after this settlement. The quote itself reads the live amount from the Registry.
 function hasRemaining(afterUsdc: string): boolean {
-  return Number(afterUsdc) > 0;
+  return parseUnits(afterUsdc, 6) > 0n;
 }
 
 function shortHash(hash: string): string {
@@ -101,7 +102,7 @@ export function Receipt({ data }: { data: ReceiptData }) {
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted">Gas paid</dt>
-            <dd className="mt-1 font-serif-display text-xl">{data.gasPaidUsdc} USDC</dd>
+            <dd className="mt-1 font-serif-display text-xl">{data.gasPaidUsdc === null ? "Unknown" : `${data.gasPaidUsdc} USDC`}</dd>
           </div>
         </dl>
       </div>

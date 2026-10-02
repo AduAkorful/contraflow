@@ -16,8 +16,8 @@ import type { Address, Hex, PublicClient } from "viem";
 import type { SwapEstimate, UnifiedBalanceChain } from "@circle-fin/app-kit";
 
 import { signAttestation, type InvoiceAttestation } from "../attest/signAttestation";
-import { registerInvoice, type RegisterResult } from "./register";
-import { settleBestCycle, NoSettleableCycleError, type SettleResult } from "./settle";
+import { registerInvoice, RegisterTransactionOutcomeError, type RegisterResult } from "./register";
+import { settleBestCycle, NoSettleableCycleError, SettleTransactionOutcomeError, type SettleResult } from "./settle";
 import { computeDashboardTiles, type DashboardTiles } from "../receipt/dashboardTiles";
 import type { ComplianceProvider } from "../compliance";
 import type { OperatorSigner } from "../operator/signer";
@@ -49,29 +49,30 @@ export interface ResidualParams {
 
 export interface SettlementPipelineResult {
   registered: RegisterResult[];
-  /// `null` when no cycle exists among the registered invoices at all (not an error — a valid
-  /// outcome; see `NoSettleableCycleError`).
+  /// `null` unless this invocation confirmed a settlement.
   settle: SettleResult | null;
+  settleStatus: "settled" | "no_cycle" | "failed" | "unknown" | "not_attempted";
+  settleError?: { message: string; txHash?: Hex };
+  registrationError?: { index: number; label: string; message: string; outcome: "failed" | "unknown"; txHash?: Hex };
   /// Registered invoices no settled cycle reached. Equals every registered id when `settle` is
   /// `null`.
   danglingInvoiceIds: readonly Hex[];
   residualQuote?: SwapEstimate;
+  residualQuoteError?: string;
   residualFund?: Awaited<ReturnType<typeof fundResidualViaGateway>>;
   /// Set instead of throwing when funding the residual fails after its deposit already landed —
   /// call `resumeFundResidualViaGateway` with this error's own fields to retry without
   /// re-depositing.
   residualFundError?: GatewayFundResidualPartialFailureError;
+  residualFundingError?: string;
   /// `null` when `settle` is `null` — no settle result to compute tiles from.
   dashboardTiles: DashboardTiles | null;
 }
 
-/// USDC's own decimal count (6) — a known, spec-locked constant already used throughout this
-/// app layer's `amountUsdc` string params (`unifiedBalance.ts`, `swap.ts`), not something to
-/// query dynamically for this one stablecoin.
-const USDC_DECIMALS = 6;
+import { fromBaseUnits } from "../kits/gatewayBalance";
 
 function formatUsdcAmount(baseUnits: bigint): string {
-  return (Number(baseUnits) / 10 ** USDC_DECIMALS).toFixed(USDC_DECIMALS);
+  return fromBaseUnits(baseUnits);
 }
 
 export async function runSettlementPipeline(params: {
@@ -91,54 +92,87 @@ export async function runSettlementPipeline(params: {
   // invoice's nonce derivation could depend on an earlier one this same call just confirmed if
   // they share a (debtor, creditor) pair.
   const registered: RegisterResult[] = [];
+  let registrationError: SettlementPipelineResult["registrationError"];
   for (let i = 0; i < invoicesToRegister.length; i++) {
     const pending = invoicesToRegister[i]!;
     const { debtorSignature, creditorSignature } = await signAttestation(pending.invoice, pending.debtorPrivateKey, pending.creditorPrivateKey);
-    const result = await registerInvoice({
-      publicClient,
-      signer: registerSigner,
-      registry,
-      invoice: pending.invoice,
-      debtorSignature,
-      creditorSignature,
-      complianceProvider,
-    });
-    registered.push({ label: pending.label ?? `invoice-${i}`, ...result });
+    const label = pending.label ?? `invoice-${i}`;
+    try {
+      const result = await registerInvoice({
+        publicClient,
+        signer: registerSigner,
+        registry,
+        invoice: pending.invoice,
+        debtorSignature,
+        creditorSignature,
+        complianceProvider,
+      });
+      registered.push({ label, ...result });
+    } catch (err) {
+      const known = err instanceof RegisterTransactionOutcomeError ? err : null;
+      registrationError = {
+        index: i,
+        label,
+        message: err instanceof Error ? err.message : String(err),
+        outcome: known?.outcome === "reverted" ? "failed" : "unknown",
+        ...(known ? { txHash: known.txHash } : {}),
+      };
+      break;
+    }
   }
 
   const registeredIds = registered.map((r) => r.invoiceId);
 
-  let settle: SettleResult | null;
-  try {
-    settle = await settleBestCycle({ publicClient, signer: settleSigner, registry, settler, invoiceIds: registeredIds });
-  } catch (err) {
-    if (err instanceof NoSettleableCycleError) {
-      settle = null;
-    } else {
-      throw err; // a genuine settle() failure (not "no cycle") should surface, not be swallowed
+  let settle: SettleResult | null = null;
+  let settleStatus: SettlementPipelineResult["settleStatus"] = registrationError ? "not_attempted" : "no_cycle";
+  let settleError: SettlementPipelineResult["settleError"];
+  if (!registrationError) {
+    try {
+      settle = await settleBestCycle({ publicClient, signer: settleSigner, registry, settler, invoiceIds: registeredIds, complianceProvider });
+      settleStatus = "settled";
+    } catch (err) {
+      if (err instanceof NoSettleableCycleError) {
+        settleStatus = "no_cycle";
+      } else {
+        const known = err instanceof SettleTransactionOutcomeError ? err : null;
+        settleStatus = known?.outcome === "reverted" ? "failed" : "unknown";
+        settleError = {
+          message: err instanceof Error ? err.message : String(err),
+          ...(known ? { txHash: known.txHash } : {}),
+        };
+      }
     }
   }
 
   const settledIds = new Set(settle?.invoiceIds ?? []);
   const danglingInvoiceIds = registeredIds.filter((id) => !settledIds.has(id));
-  const danglingAmountBaseUnits = invoicesToRegister
-    .filter((p, i) => danglingInvoiceIds.includes(registered[i]!.invoiceId))
-    .reduce((sum, p) => sum + p.invoice.amount, 0n);
+  // Registration stops at the first failure, so only the successfully registered prefix can
+  // contribute. Indexing from the input array would read past `registered` on an early failure.
+  const danglingAmountBaseUnits = registered.reduce((sum, result, i) => {
+    if (!danglingInvoiceIds.includes(result.invoiceId)) return sum;
+    return sum + invoicesToRegister[i]!.invoice.amount;
+  }, 0n);
 
   let residualQuote: SwapEstimate | undefined;
+  let residualQuoteError: string | undefined;
   let residualFund: SettlementPipelineResult["residualFund"];
   let residualFundError: GatewayFundResidualPartialFailureError | undefined;
+  let residualFundingError: string | undefined;
 
-  if (residual && danglingInvoiceIds.length > 0 && danglingAmountBaseUnits > 0n) {
+  if (residual && (settleStatus === "settled" || settleStatus === "no_cycle") && danglingInvoiceIds.length > 0 && danglingAmountBaseUnits > 0n) {
     const amountUsdc = formatUsdcAmount(danglingAmountBaseUnits);
 
     if (residual.swapKit) {
-      residualQuote = await estimateUsdcToEurcSwap({ swapKit: residual.swapKit, amountInUsdc: amountUsdc });
+      try {
+        residualQuote = await estimateUsdcToEurcSwap({ swapKit: residual.swapKit, amountInUsdc: amountUsdc });
+      } catch (err) {
+        residualQuoteError = err instanceof Error ? err.message : String(err);
+      }
     }
 
     if (residual.fundVia) {
-      if (!residual.sourceChain) throw new Error("runSettlementPipeline: residual.sourceChain is required when residual.fundVia is given");
       try {
+        if (!residual.sourceChain) throw new Error("runSettlementPipeline: residual.sourceChain is required when residual.fundVia is given");
         residualFund = await fundResidualViaGateway({
           appKit: residual.fundVia,
           arcChainId,
@@ -151,7 +185,7 @@ export async function runSettlementPipeline(params: {
         if (err instanceof GatewayFundResidualPartialFailureError) {
           residualFundError = err;
         } else {
-          throw err;
+          residualFundingError = err instanceof Error ? err.message : String(err);
         }
       }
     }
@@ -160,10 +194,15 @@ export async function runSettlementPipeline(params: {
   return {
     registered,
     settle,
+    settleStatus,
+    settleError,
+    registrationError,
     danglingInvoiceIds,
     residualQuote,
+    residualQuoteError,
     residualFund,
     residualFundError,
+    residualFundingError,
     dashboardTiles: settle ? computeDashboardTiles(settle) : null,
   };
 }

@@ -14,6 +14,13 @@ const CONTRACTS: StatsContract[] = ["registry", "settler", "ledger"];
 /// Parallel transaction lookups, kept small so a rebuild doesn't trip the explorer's rate limit.
 const TX_LOOKUP_CONCURRENCY = 4;
 
+export class UndecodedStatsLogsError extends Error {
+  constructor(public readonly contract: StatsContract, public readonly count: number) {
+    super(`${count} undecoded ${contract} log(s); stats cursor was not advanced`);
+    this.name = "UndecodedStatsLogsError";
+  }
+}
+
 export interface IndexerDeps {
   fetchLogs(contract: string, since: LogPosition | null, maxPages: number): Promise<LogsSince>;
   fetchTransaction(txHash: string): Promise<TransactionSummary>;
@@ -48,6 +55,13 @@ export async function updateStats(previous: StatsState | null, ctx: IndexerConte
     const result = await deps.fetchLogs(ctx.contracts[contract], since, STATS_MAX_PAGES);
     if (!rebuild && result.truncated) return updateStats(null, ctx, deps);
     fetched[contract] = result;
+  }
+
+  // Never advance a cursor past raw logs the explorer could not decode. Retrying from the
+  // previous cursor lets a later decoder/provider response recover them without presenting
+  // totals that silently omit protocol activity.
+  for (const contract of CONTRACTS) {
+    if (fetched[contract].undecoded > 0) throw new UndecodedStatsLogsError(contract, fetched[contract].undecoded);
   }
 
   const parsed = CONTRACTS.flatMap((contract) =>

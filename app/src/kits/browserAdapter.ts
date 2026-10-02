@@ -8,6 +8,8 @@ import { createPublicClient, getAddress, http, type EIP1193Provider } from "viem
 
 import { viemChainFor, type GatewayChain } from "./gatewayChains";
 import type { FeeLine, GatewayBalancesLike } from "./gatewayBalance";
+import type { GatewayMintRetry } from "./unifiedBalance";
+import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 
 const TOKEN = "USDC" as const;
 
@@ -81,9 +83,73 @@ export async function moveToArc(
   arc: GatewayChain,
   owner: `0x${string}`,
   amount: string,
-): Promise<{ txHash: string; recipient: string }> {
+): Promise<{ txHash: string; recipient: string; transferId?: string; expirationBlock?: string }> {
   const result = await gatewayKit().spend(spendParams(adapter, source, arc, owner, amount));
+  return {
+    txHash: result.txHash,
+    recipient: result.recipientAddress,
+    transferId: result.transferId,
+    expirationBlock: result.expirationBlock,
+  };
+}
+
+export async function retryMoveMint(
+  adapter: UserAdapter,
+  arc: GatewayChain,
+  owner: `0x${string}`,
+  amount: string,
+  retry: GatewayMintRetry,
+): Promise<{ txHash: string; recipient: string }> {
+  const result = await gatewayKit().spend({
+    to: { adapter, chain: arc.chain as never },
+    token: TOKEN,
+    amount,
+    config: { retry },
+  });
   return { txHash: result.txHash, recipient: result.recipientAddress };
+}
+
+export type GatewayForwarderStatus = "pending" | "confirmed" | "finalized" | "failed" | "expired";
+
+/// Reads only the original transfer's forwarding state. A status check never creates a new transfer.
+export async function getForwarderStatus(transferId: string, arcChainId: number): Promise<{
+  status: GatewayForwarderStatus;
+  transactionHash?: string;
+  failureReason?: string;
+  expirationBlock?: string;
+}> {
+  if (arcChainId !== ARC_TESTNET_CHAIN_ID) throw new Error("Gateway recovery status is currently enabled only for Arc Testnet.");
+  if (!transferId || transferId.length > 256) throw new Error("Gateway transfer identifier is invalid.");
+  const response = await fetch(`https://gateway-api-testnet.circle.com/v1/transfer/${encodeURIComponent(transferId)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Circle could not read the original transfer status (${response.status}).`);
+  const body: unknown = await response.json();
+  if (!body || typeof body !== "object") throw new Error("Circle returned an invalid transfer status.");
+  const record = body as Record<string, unknown>;
+  const statuses: GatewayForwarderStatus[] = ["pending", "confirmed", "finalized", "failed", "expired"];
+  if (typeof record.status !== "string" || !statuses.includes(record.status as GatewayForwarderStatus)) {
+    throw new Error("Circle returned an unrecognized transfer status.");
+  }
+  const forwarding = record.forwardingDetails && typeof record.forwardingDetails === "object"
+    ? record.forwardingDetails as Record<string, unknown>
+    : undefined;
+  const attestation = record.attestation && typeof record.attestation === "object"
+    ? record.attestation as Record<string, unknown>
+    : undefined;
+  if (record.transactionHash !== undefined && (typeof record.transactionHash !== "string" || !/^0x[0-9a-f]{64}$/i.test(record.transactionHash))) {
+    throw new Error("Circle returned an invalid destination transaction hash.");
+  }
+  if (attestation?.expirationBlock !== undefined && (typeof attestation.expirationBlock !== "string" || !/^\d+$/.test(attestation.expirationBlock))) {
+    throw new Error("Circle returned an invalid attestation expiry block.");
+  }
+  return {
+    status: record.status as GatewayForwarderStatus,
+    ...(typeof record.transactionHash === "string" ? { transactionHash: record.transactionHash } : {}),
+    ...(typeof forwarding?.failureReason === "string" ? { failureReason: forwarding.failureReason } : {}),
+    ...(typeof attestation?.expirationBlock === "string" ? { expirationBlock: attestation.expirationBlock } : {}),
+  };
 }
 
 /// ERC-20 USDC held in the wallet itself on `chain`, in base units.

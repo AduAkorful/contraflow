@@ -25,12 +25,16 @@ export interface AddressActivity {
   /// Timestamp of the earliest invoice naming this address. Only looked up when the address has
   /// no activity of its own (a party that only ever signs).
   firstInvoiceAt: string | null;
+  /// The bounded Registry scan may have omitted an earlier matching event or any match at all.
+  firstInvoiceLowerBound?: boolean;
 }
 
 export type FirstSeen =
   | { kind: "exact"; at: string }
   | { kind: "onOrBefore"; at: string }
   | { kind: "invoiceOnly"; at: string }
+  | { kind: "invoiceOnOrBefore"; at: string }
+  | { kind: "unknown" }
   | { kind: "never" };
 
 export type Funder =
@@ -62,7 +66,8 @@ export interface CycleSignals {
   /// Spread between the earliest and latest party first-seen times. `approximate` when any party's
   /// time is a lower bound or an invoice-appearance fallback, or when a party has no time at all.
   firstSeenSpread: { ms: number; approximate: boolean } | null;
-  sharedFunder: { address: string; count: number } | null;
+  sharedFunder: { address: string; count: number; lowerBound: boolean } | null;
+  partiesIncomplete: boolean;
   contraflowOnlyCount: number;
   registerToSettleMs: number | null;
 }
@@ -81,7 +86,12 @@ function firstSeenOf(activity: AddressActivity): FirstSeen {
     ...activity.transfers.items.map((t) => t.timestamp),
   ];
   if (stamps.length === 0) {
-    return activity.firstInvoiceAt ? { kind: "invoiceOnly", at: activity.firstInvoiceAt } : { kind: "never" };
+    if (activity.firstInvoiceAt) {
+      return activity.firstInvoiceLowerBound
+        ? { kind: "invoiceOnOrBefore", at: activity.firstInvoiceAt }
+        : { kind: "invoiceOnly", at: activity.firstInvoiceAt };
+    }
+    return activity.firstInvoiceLowerBound ? { kind: "unknown" } : { kind: "never" };
   }
   const earliest = stamps.reduce((min, s) => (toMs(s) < toMs(min) ? s : min));
   const truncated = activity.transactions.truncated || activity.transfers.truncated;
@@ -136,18 +146,18 @@ function firstSeenSpread(parties: AddressSignals[]): CycleSignals["firstSeenSpre
   );
   if (timed.length < 2) return null;
   const times = timed.map((p) => toMs(p.firstSeen.at));
-  const approximate = timed.length < parties.length || timed.some((p) => p.firstSeen.kind !== "exact");
+  const approximate = timed.length < parties.length || parties.some((p) => p.firstSeen.kind === "unknown") || timed.some((p) => p.firstSeen.kind !== "exact");
   return { ms: Math.max(...times) - Math.min(...times), approximate };
 }
 
-function sharedFunder(parties: AddressSignals[]): CycleSignals["sharedFunder"] {
+function sharedFunder(parties: AddressSignals[], lowerBound: boolean): CycleSignals["sharedFunder"] {
   const counts = new Map<string, number>();
   for (const p of parties) {
     if (p.matchingFunder) counts.set(p.matchingFunder, (counts.get(p.matchingFunder) ?? 0) + 1);
   }
-  let best: { address: string; count: number } | null = null;
+  let best: { address: string; count: number; lowerBound: boolean } | null = null;
   for (const [address, count] of counts) {
-    if (count >= 2 && (!best || count > best.count)) best = { address, count };
+    if (count >= 2 && (!best || count > best.count)) best = { address, count, lowerBound };
   }
   return best;
 }
@@ -157,14 +167,17 @@ export function cycleSignals(
   cycleLength: number,
   earliestRegisterAt: string | null,
   settleAt: string | null,
+  partiesIncomplete = parties.length < cycleLength,
 ): CycleSignals {
+  const spread = firstSeenSpread(parties);
   return {
     parties,
     cycleLength,
-    firstSeenSpread: firstSeenSpread(parties),
-    sharedFunder: sharedFunder(parties),
+    firstSeenSpread: spread && partiesIncomplete ? { ...spread, approximate: true } : spread,
+    sharedFunder: sharedFunder(parties, partiesIncomplete),
+    partiesIncomplete,
     contraflowOnlyCount: parties.filter(isContraflowOnly).length,
     registerToSettleMs:
-      earliestRegisterAt && settleAt ? Math.max(0, toMs(settleAt) - toMs(earliestRegisterAt)) : null,
+      !partiesIncomplete && earliestRegisterAt && settleAt ? Math.max(0, toMs(settleAt) - toMs(earliestRegisterAt)) : null,
   };
 }

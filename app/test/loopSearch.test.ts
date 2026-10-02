@@ -119,6 +119,35 @@ describe("findBestLoop", () => {
     expect(result.kind === "found" && result.wNet).toBe(40n);
   });
 
+  it("does not let unrelated inner cycles exhaust the caller's cycle budget", () => {
+    const candidates = [ob(A, B, 100n)];
+    for (let i = 0; i < 501; i++) {
+      candidates.push(ob(B, C, 100n), ob(C, B, 100n));
+    }
+    candidates.push(ob(B, A, 100n));
+    const result = findBestLoop(candidates, A, { now: NOW });
+    expect(result.kind).toBe("found");
+    if (result.kind === "found") {
+      expect(result.loop).toHaveLength(2);
+      expect(result.loop.some((e) => e.debtor === A)).toBe(true);
+    }
+  });
+
+  it("reports an incomplete search when the caller's cycle output cap is saturated", () => {
+    const parties = Array.from({ length: 7 }, (_, i) => party(200 + i));
+    const candidates: CandidateObligation[] = [];
+    for (const debtor of parties) {
+      for (const creditor of parties) {
+        if (debtor !== creditor) candidates.push(ob(debtor, creditor, 10n));
+      }
+    }
+    expect(findBestLoop(candidates, parties[0]!, { now: NOW })).toEqual({
+      kind: "search-incomplete",
+      currency: "USD",
+      maxCycles: 500,
+    });
+  });
+
   it("fails closed when the caller's own neighbourhood is over the cap", () => {
     // A owes 40 parties, each of whom owes A back: 41 parties, all within reach.
     const crowd: CandidateObligation[] = [];

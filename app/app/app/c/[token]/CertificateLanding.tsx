@@ -6,7 +6,7 @@
 /// ledger's current state) before offering to sign or apply, and stops on any failure.
 
 import { useState } from "react";
-import { useAccount, usePublicClient, useSignTypedData, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useSignTypedData, useWriteContract, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { displayDate, displayMinorAmount, shortAddr } from "../../../../components/netting/format";
@@ -20,6 +20,7 @@ import type { ChainReader } from "../../../../src/netting/signature";
 import type { CertificateView, EntryDocument } from "../../../../src/netting/types";
 import type { PartyCertificate } from "../../../../src/obligations/certificates";
 import { requestGrant } from "../../attest/actions";
+import { prepareWalletContext } from "../../../../src/attest/walletContext";
 import {
   declineCertificate,
   exportCertificate,
@@ -34,10 +35,11 @@ const INVALID = "This certificate failed a check in your browser. Don't sign or 
 const EXPLORER = arcTestnet.blockExplorers?.default.url;
 
 export function CertificateLanding({ token }: { token: string }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const publicClient = usePublicClient();
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
 
   const [phase, setPhase] = useState<Phase>("signin");
   const [me, setMe] = useState<Address | null>(null);
@@ -96,7 +98,10 @@ export function CertificateLanding({ token }: { token: string }) {
   const handleSign = () =>
     run("Sign in your wallet...", async () => {
       if (!view || !me) return;
+      const chainId = Number(view.domain.chainId);
+      await prepareWalletContext(connector, me, chainId, switchChainAsync);
       const signature = await signTypedDataAsync(certificateTypedData(view.certificate, view.domain));
+      await prepareWalletContext(connector, me, chainId, switchChainAsync);
       const result = await signCertificate(token, signature);
       if (!result.ok) throw new Error(result.error);
       await load(me);
@@ -105,8 +110,11 @@ export function CertificateLanding({ token }: { token: string }) {
   const handleApply = () =>
     run("Preparing...", async () => {
       if (!view || !me || !publicClient) return;
+      const chainId = Number(view.domain.chainId);
+      await prepareWalletContext(connector, me, chainId, switchChainAsync);
       // One-time starter gas for a wallet that has none. Anything after that is the party's own.
       await requestGrant().catch(() => undefined);
+      await prepareWalletContext(connector, me, chainId, switchChainAsync);
       setBusy("Confirm in your wallet...");
       const hash = await writeContractAsync({
         address: view.domain.verifyingContract,

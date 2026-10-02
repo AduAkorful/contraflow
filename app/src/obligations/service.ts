@@ -235,7 +235,7 @@ export async function acceptProposal(session: Address, token: unknown, signature
   if (id !== row.obligationId) return { ok: false, error: "This proposal can't be read." };
 
   try {
-    await acceptProposalWithObligation(token, {
+    const accepted = await acceptProposalWithObligation(token, {
       obligationId: id,
       chainId: row.chainId,
       ledger: row.ledger,
@@ -252,6 +252,8 @@ export async function acceptProposal(session: Address, token: unknown, signature
       blinding: ZERO_HASH,
       createdBy: session,
     });
+    if (accepted === "expired") return { ok: false, error: "This proposal has expired. Ask for a new one." };
+    if (accepted === "closed") return { ok: false, error: "This proposal was closed. Reload to see its current status." };
   } catch (error) {
     if (error instanceof DuplicateObligationError) return { ok: false, error: error.message };
     throw error;
@@ -269,8 +271,10 @@ export async function withdrawProposal(session: Address, token: unknown): Promis
     return { ok: false, error: NOT_FOUND };
   }
   if (row.status === "accepted") return { ok: false, error: "This proposal was already accepted." };
-  await markProposalWithdrawn(token, session);
-  return { ok: true };
+  const withdrawn = await markProposalWithdrawn(token, session);
+  return withdrawn
+    ? { ok: true }
+    : { ok: false, error: "This proposal just changed. Reload to see its current status." };
 }
 
 export interface ProposalSummary {

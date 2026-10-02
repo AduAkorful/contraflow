@@ -41,10 +41,10 @@ function registeredLog(id: string, debtor: string, creditor: string, txHash: str
   };
 }
 
-function nettedLog(id: string, wNet: string, remainingAfter: string, txHash: string) {
+function nettedLog(id: string, wNet: string, remainingAfter: string, txHash: string, blockNumber = 2) {
   return {
     transactionHash: txHash,
-    blockNumber: 2,
+    blockNumber,
     methodCall: "InvoiceNetted(bytes32 indexed id, uint256 wNet, uint256 remainingAfter, uint8 status)",
     parameters: [
       { name: "id", type: "bytes32", value: id },
@@ -81,6 +81,8 @@ describe("parseRegistered / parseNetted", () => {
       wNetBaseUnits: 500_000_000n,
       remainingAfterBaseUnits: 300_000_000n,
       transactionHash: "0xtx2",
+      blockNumber: 2,
+      logIndex: 0,
     });
   });
 });
@@ -144,6 +146,20 @@ describe("reconcileAddress", () => {
       cycleLength: 3,
       gasPaidWei: "12345",
     });
+  });
+
+  it("applies newest-first explorer events oldest-first so the cache keeps the latest remaining amount", async () => {
+    fetchContractLogs.mockResolvedValueOnce([
+      registeredLog("0xmine", DEBTOR, CREDITOR, "0xreg1"),
+      nettedLog("0xmine", "20000000", "60000000", "0xsettle-latest", 30),
+      nettedLog("0xmine", "20000000", "80000000", "0xsettle-older", 20),
+    ]);
+    fetchTransactionFee.mockResolvedValue({ blockNumber: 20, gasPaidWei: "123" });
+
+    await reconcileAddress(DEBTOR);
+
+    const updates = upsertSettledInvoice.mock.calls.map(([input]) => input.remainingUsdc);
+    expect(updates).toEqual(["80.00", "60.00"]);
   });
 
   it("never throws on a Blockscout failure — returns the existing DB rows with reconciled: false", async () => {
