@@ -70,6 +70,10 @@ fails transiently here (`fetch failed`, `ETIMEDOUT`); re-run on failure.
 | 004 | Certificates, entries (with the lock index), signatures; the `out_of_sync` status |
 | 005 | API tenants, keys, permissions, webhook tables, idempotency; `netting_proposals.created_by_tenant` |
 | 006 | `netting_changes` and its triggers |
+| 007 | Nullable settlement fee for unknown DCW fees |
+| 008 | Durable starter-grant operation reservations |
+| 009 | Owner-token leases for recoverable API idempotency operations |
+| 010 | Terminal `suppressed` webhook-event status after permission loss |
 
 ## Operator scripts
 
@@ -172,7 +176,9 @@ minutes on testnet.
 
 ### Webhooks failing for a tenant
 
-1. Query `webhook_deliveries` for the tenant's recent events: the status code or error says why.
+1. Query `webhook_events` and `webhook_deliveries` for the tenant's recent events. `suppressed` means read access
+   was revoked, expired or the tenant was suspended before delivery; restore permission and create a new event if
+   the tenant should receive a later state change. Suppressed events are terminal and are not replayed.
 2. Fix the endpoint, or re-register it with `set-webhook`.
 3. Wait for the next retry. Pending events retry with backoff for three days, then are marked `failed`.
 4. To force a pass, call the cron route with the secret:

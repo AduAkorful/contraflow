@@ -134,7 +134,9 @@ sequenceDiagram
   D->>D: write document, invoiceRef = hash(canonical document)
   D->>S: next nonce for the pair (from explorer history)
   D->>D: sign InvoiceAttestation
-  D-->>C: share link (terms, document, signature)
+  D-->>C: v2 share link (attestation fields, signature; no description)
+  C->>S: sign in and load document as a named party
+  S-->>C: canonical document
   C->>C: re-hash document, then check the proposer's signature
   C->>C: sign
   C->>S: pre-check (signatures, live nonce, screening)
@@ -161,7 +163,9 @@ API requests go through `route()` in `src/api/http.ts`, which handles authentica
 then call the same services as the web app, acting for the party named in the request. Changes to obligations and
 certificates are captured by Postgres triggers into a change log, whichever path made them. After each API request
 and web-app action, and daily from Vercel Cron, a pipeline turns changes into signed webhook events and delivers
-them. See [API reference](api.md#webhooks).
+them. Immediately before each delivery attempt it rechecks the tenant's active status and current read permission
+for every party named in the event. Revoked, expired or suspended access suppresses the queued event. See
+[API reference](api.md#webhooks).
 
 ## Data stores
 

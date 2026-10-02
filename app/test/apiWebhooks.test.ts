@@ -81,6 +81,7 @@ function memoryWebhookStore(opts: {
       if (!events.has(e.eventId)) events.set(e.eventId, e);
     },
     claimDueEvents: async () => opts.due ?? [],
+    hasCurrentReadAccess: async () => true,
     recordAttempt: async (eventId, attempt, result, outcome) => void attempts.push({ eventId, attempt, statusCode: result.statusCode, outcome }),
   };
   return { store, events, completed, attempts };

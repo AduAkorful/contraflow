@@ -169,7 +169,7 @@ export async function saveInvoiceDocument(invoiceRef: string, document: Canonica
 /// Reads only if the signed-in party is one of the two named on the stored document — returns
 /// "not found" rather than "forbidden" for a non-party, so a lookup can't confirm a document
 /// exists to someone who isn't named on it.
-export type GetDocumentResult = { ok: true; description: string } | { ok: false; error: string };
+export type GetDocumentResult = { ok: true; document: CanonicalInvoiceDocument } | { ok: false; error: string };
 
 export async function getInvoiceDocument(invoiceRef: string): Promise<GetDocumentResult> {
   const session = await getSession();
@@ -183,5 +183,14 @@ export async function getInvoiceDocument(invoiceRef: string): Promise<GetDocumen
     session.address.toLowerCase() === row.creditor.toLowerCase();
   if (!isParty) return { ok: false, error: "Not found." };
 
-  return { ok: true, description: row.description };
+  return {
+    ok: true,
+    document: {
+      description: row.description,
+      debtor: row.debtor as Address,
+      creditor: row.creditor as Address,
+      amountUsdc: row.amountUsdc,
+      maturity: row.maturity,
+    },
+  };
 }

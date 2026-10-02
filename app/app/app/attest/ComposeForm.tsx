@@ -127,7 +127,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       const typedData = invoiceAttestationTypedData(invoice);
       const signatureA = await signTypedDataAsync(typedData);
       await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
-      const encoded = encodeAttestLink({ invoice, role, signatureA, document: invoiceDocument });
+      const encoded = encodeAttestLink({ invoice, role, signatureA });
       const url = `${window.location.origin}/app/attest/${encoded}`;
       setLink(url);
       setPhase("done");

@@ -84,7 +84,7 @@ random tokens, but the token is a handle, not the access control: reads always c
 | API keys | Random 32 bytes. Only a SHA-256 hash is stored, and the key is shown once. The key decides the network. |
 | API permissions | EIP-712 grants signed by the party, scoped (read / propose / deliver signatures), expiring within a year, revocable. None allows signing. |
 | Idempotency | A reservation row is written before the request runs, so concurrent retries can't both execute. |
-| Webhooks | HMAC-SHA256 over timestamp and body, a 5-minute tolerance, redirects refused, events only about permitted parties. |
+| Webhooks | HMAC-SHA256 over timestamp and body, a 5-minute tolerance, redirects refused, and current tenant/read permissions rechecked before each send; revoked access suppresses queued events. |
 
 ## Abuse limits
 

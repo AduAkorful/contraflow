@@ -11,7 +11,7 @@ const SECTIONS = [
   {
     title: "What we store, and who can read it",
     body: [
-      "For invoices, we store the invoice terms, which are already public on Arc, and the description you write, which only the invoice's two parties can read in the app.",
+      "For invoices, Arc publicly records the debtor and creditor addresses, amount, maturity and invoice reference. We separately store the description you write. New invoice links don't contain the description: one of the two parties must sign in before the app loads it. Older links may contain the description directly, so anyone who already has one of those links can still read it.",
       "For offchain obligations, we store each obligation you and your counterparty sign: the parties, amount, currency, maturity, description and signatures, and its remaining balance. Only the obligation's two parties can see it in the app. For a netting certificate, each party sees only their own obligations and the amount netted.",
       "Contraflow itself can read everything stored here, including every obligation submitted to it. It needs obligations to find loops to net.",
       "We also record which addresses have received the one-time starter gas grant.",
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
       <main className="relative z-10">
         <section className="mx-auto max-w-3xl px-6 pb-8 pt-10">
           <h1 className="font-serif-display text-5xl leading-[1.05]">Privacy Policy</h1>
-          <p className="mt-6 text-sm text-muted">Last updated 26 September 2026</p>
+          <p className="mt-6 text-sm text-muted">Last updated 2 October 2026</p>
         </section>
 
         <section className="mx-auto max-w-3xl px-6 py-8">

@@ -38,7 +38,11 @@ export interface DueEvent {
   secrets: string[];
 }
 
-export type AttemptOutcome = { kind: "delivered" } | { kind: "retry"; nextAt: Date } | { kind: "failed" };
+export type AttemptOutcome =
+  | { kind: "delivered" }
+  | { kind: "retry"; nextAt: Date }
+  | { kind: "failed" }
+  | { kind: "suppressed" };
 
 export interface WebhookStore {
   /// Leases up to `limit` unprocessed changes; a lease that isn't completed lapses and is retried.
@@ -51,6 +55,8 @@ export interface WebhookStore {
   insertEvent(event: { eventId: string; tenantId: Hex; type: WebhookEventType; body: string }): Promise<void>;
   /// Leases up to `limit` due events so a concurrent run can't send them too.
   claimDueEvents(limit: number): Promise<DueEvent[]>;
+  /// Rechecks tenant status and live read permissions for every party named in the event.
+  hasCurrentReadAccess(event: DueEvent, nowSeconds: bigint): Promise<boolean>;
   recordAttempt(eventId: string, attempt: number, result: { statusCode: number | null; error: string | null }, outcome: AttemptOutcome): Promise<void>;
 }
 
@@ -85,14 +91,43 @@ export async function fanOutChanges(store: WebhookStore, now: Date): Promise<num
   return created;
 }
 
-export async function deliverDue(store: WebhookStore, now: Date, post: Poster): Promise<{ delivered: number; failed: number }> {
+export async function deliverDue(
+  store: WebhookStore,
+  now: Date,
+  post: Poster,
+): Promise<{ delivered: number; failed: number; suppressed?: number }> {
   let delivered = 0;
   let failed = 0;
+  let suppressed = 0;
   for (const event of await store.claimDueEvents(DELIVERY_BATCH)) {
     const attempt = event.attempts + 1;
     const timestamp = Math.floor(now.getTime() / 1000);
     let statusCode: number | null = null;
     let error: string | null = null;
+    let authorized: boolean;
+    try {
+      authorized = await store.hasCurrentReadAccess(event, BigInt(timestamp));
+    } catch (e) {
+      // Authorization infrastructure failures must not turn into a data disclosure. Keep the
+      // event retryable and do not make the HTTP request until the permission check succeeds.
+      error = `Read permission check failed: ${e instanceof Error ? e.message : String(e)}`;
+      const nextAt = new Date(now.getTime() + retryDelaySeconds(attempt) * 1000);
+      const expired = nextAt.getTime() - event.createdAt.getTime() > RETRY_WINDOW_SECONDS * 1000;
+      const outcome: AttemptOutcome = expired ? { kind: "failed" } : { kind: "retry", nextAt };
+      await store.recordAttempt(event.eventId, attempt, { statusCode, error }, outcome);
+      if (expired) failed++;
+      continue;
+    }
+    if (!authorized) {
+      await store.recordAttempt(
+        event.eventId,
+        attempt,
+        { statusCode: null, error: "Delivery suppressed because current read permission is no longer active." },
+        { kind: "suppressed" },
+      );
+      suppressed++;
+      continue;
+    }
     try {
       statusCode = await post(event.url, event.body, {
         "Content-Type": "application/json",
@@ -115,7 +150,7 @@ export async function deliverDue(store: WebhookStore, now: Date, post: Poster): 
     }
     await store.recordAttempt(event.eventId, attempt, { statusCode, error }, outcome);
   }
-  return { delivered, failed };
+  return suppressed > 0 ? { delivered, failed, suppressed } : { delivered, failed };
 }
 
 /// Redirects count as failures, like Stripe's, so a webhook is never sent somewhere unregistered.

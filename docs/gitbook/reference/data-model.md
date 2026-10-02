@@ -173,7 +173,7 @@ erDiagram
     jsonb payload
     int attempts
     timestamptz next_attempt_at
-    text status "pending, delivered, failed"
+    text status "pending, delivered, failed, suppressed"
   }
   webhook_deliveries {
     text event_id PK, FK
@@ -207,7 +207,9 @@ erDiagram
 
 `netting_changes` is written by triggers on `netting_obligations` (insert) and `netting_certificates` (insert and
 status change). The webhook pipeline turns each change into events for tenants with `read` permission from a party
-it touches. None of the API tables is readable outside the server.
+it touches, then rechecks current permission before every send. `webhook_events.status` can be `pending`,
+`delivered`, `failed` or `suppressed`; a suppressed event is terminal and was withheld after access changed. None
+of the API tables is readable outside the server.
 
 ## Upstash Redis
 

@@ -25,10 +25,10 @@ const DOCUMENT: CanonicalInvoiceDocument = {
 };
 
 describe("encodeAttestLink / decodeAttestLink", () => {
-  it("round-trips an invoice and document, preserving bigint fields exactly", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
+  it("encodes a version 2 link without embedding the document and preserves bigint fields", () => {
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
     const decoded = decodeAttestLink(encoded);
-    expect(decoded).toEqual({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
+    expect(decoded).toEqual({ version: 2, invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
     expect(typeof decoded.invoice.amount).toBe("bigint");
     expect(typeof decoded.invoice.maturity).toBe("bigint");
     expect(typeof decoded.invoice.nonce).toBe("bigint");
@@ -36,7 +36,7 @@ describe("encodeAttestLink / decodeAttestLink", () => {
   });
 
   it("produces a URL-safe string (no +, /, or = characters)", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "creditor", signatureA: "0xdeadbeef", document: DOCUMENT });
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "creditor", signatureA: "0xdeadbeef" });
     expect(encoded).not.toMatch(/[+/=]/);
   });
 
@@ -45,7 +45,7 @@ describe("encodeAttestLink / decodeAttestLink", () => {
   });
 
   it("throws MalformedAttestLinkError for a truncated/tampered link", () => {
-    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123", document: DOCUMENT });
+    const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
     expect(() => decodeAttestLink(encoded.slice(0, -10))).toThrow(MalformedAttestLinkError);
   });
 

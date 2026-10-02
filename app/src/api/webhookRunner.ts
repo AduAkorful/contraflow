@@ -8,14 +8,20 @@ import { deliverDue, fanOutChanges, fetchPoster } from "./webhookPipeline";
 const LOCK_KEY = "api:webhooks:lock";
 const LOCK_SECONDS = 60;
 
-export async function runWebhookPipeline(): Promise<{ ran: boolean; events?: number; delivered?: number; failed?: number }> {
+export async function runWebhookPipeline(): Promise<{
+  ran: boolean;
+  events?: number;
+  delivered?: number;
+  failed?: number;
+  suppressed?: number;
+}> {
   const locked = (await redis().set(LOCK_KEY, "1", { nx: true, ex: LOCK_SECONDS })) === "OK";
   if (!locked) return { ran: false };
   try {
     const now = new Date();
     const events = await fanOutChanges(neonWebhookStore, now);
-    const { delivered, failed } = await deliverDue(neonWebhookStore, now, fetchPoster);
-    return { ran: true, events, delivered, failed };
+    const { delivered, failed, suppressed } = await deliverDue(neonWebhookStore, now, fetchPoster);
+    return { ran: true, events, delivered, failed, suppressed };
   } finally {
     await redis().del(LOCK_KEY).catch(() => {
       // The lock expires on its own.

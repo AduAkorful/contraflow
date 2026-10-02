@@ -377,6 +377,10 @@ Contraflow registers one HTTPS endpoint per tenant and gives you a signing secre
 
 - **Which events you get:** only those about parties that granted you `read`.
 - **What they name:** only those parties, never others in the loop.
+- **Permission at delivery:** immediately before each delivery attempt, Contraflow checks that your tenant is
+  active and still has unexpired, unrevoked `read` permission for every party named in the event. If access has
+  been revoked, expired or suspended, the event is marked `suppressed` and isn't sent. If the permission check
+  service is temporarily unavailable, Contraflow sends nothing and retries later.
 - **Changes made elsewhere:** events also fire for changes made in the Contraflow web app, such as a
   counterparty signing there.
 

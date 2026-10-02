@@ -10,17 +10,17 @@ import { recoverTypedDataAddress, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { ReviewAndSign } from "../../../../components/attest/ReviewAndSign";
 import { decodeAttestLink, type AttestLinkPayload } from "../../../../src/attest/link";
-import { hashInvoiceDocument } from "../../../../src/attest/document";
+import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../../src/attest/document";
 import { invoiceAttestationTypedData } from "../../../../src/attest/signAttestation";
 import { invoiceViewerRole, isInvoiceCounterparty } from "../../../../src/attest/viewer";
 import { prepareWalletContext } from "../../../../src/attest/walletContext";
 import { ARC_TESTNET_CHAIN_ID } from "../../../../src/contracts/addresses";
 import { contraflowRegistryAbi } from "../../../../src/contracts/abi/index";
 import { arcTestnet } from "../../../../src/chain/client";
-import { checkLinkFreshness, requestGrant, preCheck, record } from "../actions";
+import { checkLinkFreshness, getInvoiceDocument, requestGrant, preCheck, record } from "../actions";
 import { whoAmI } from "../../siwe/actions";
 
-type Phase = "verifying" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
+type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
 const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
 
 function serializeInvoice(invoice: AttestLinkPayload["invoice"]) {
@@ -42,6 +42,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
 
   const [phase, setPhase] = useState<Phase>("verifying");
   const [payload, setPayload] = useState<AttestLinkPayload | null>(null);
+  const [document, setDocument] = useState<CanonicalInvoiceDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [resultTxHash, setResultTxHash] = useState<string | null>(null);
@@ -49,6 +50,84 @@ export function LandingClient({ encoded }: { encoded: string }) {
 
   const viewerRole = payload ? invoiceViewerRole(payload.invoice, sessionAddress) : null;
   const mayCoSign = payload ? isInvoiceCounterparty(payload.invoice, payload.role, sessionAddress, address) : false;
+
+  async function verifyTerms(decoded: AttestLinkPayload, terms: CanonicalInvoiceDocument) {
+    // Always compare the canonical document before recovering or trusting either signature.
+    let documentHash: string;
+    try {
+      documentHash = hashInvoiceDocument(terms);
+    } catch {
+      setError("This link is invalid or has been altered.");
+      setPhase("invalid");
+      return;
+    }
+    if (documentHash !== decoded.invoice.invoiceRef) {
+      setError("This link is invalid or has been altered.");
+      setPhase("invalid");
+      return;
+    }
+
+    const claimedSignerAddress = decoded.role === "debtor" ? decoded.invoice.debtor : decoded.invoice.creditor;
+    let recovered: string;
+    try {
+      recovered = await recoverTypedDataAddress({
+        ...invoiceAttestationTypedData(decoded.invoice),
+        signature: decoded.signatureA,
+      });
+    } catch {
+      setError("This link is invalid or has been altered.");
+      setPhase("invalid");
+      return;
+    }
+    if (recovered.toLowerCase() !== claimedSignerAddress.toLowerCase()) {
+      setError("This link is invalid or has been altered.");
+      setPhase("invalid");
+      return;
+    }
+
+    const freshness = await checkLinkFreshness(decoded.invoice.debtor, decoded.invoice.creditor, decoded.invoice.nonce.toString());
+    if (!freshness.ok) {
+      setError(freshness.error);
+      setPhase("error");
+      return;
+    }
+    if (!freshness.fresh) {
+      setError("This invoice is no longer current — it may already be registered, or a newer one exists for this pair.");
+      setPhase("stale");
+      return;
+    }
+
+    setDocument(terms);
+    setPhase("ready");
+  }
+
+  async function loadPrivateTerms(decoded: AttestLinkPayload, signedInAddress: string) {
+    if (decoded.version !== 2) return;
+    const isParty = [decoded.invoice.debtor, decoded.invoice.creditor].some(
+      (party) => party.toLowerCase() === signedInAddress.toLowerCase(),
+    );
+    if (!isParty) {
+      setError("This invoice link isn't available to the signed-in wallet.");
+      setPhase("invalid");
+      return;
+    }
+
+    setPhase("verifying");
+    let result: Awaited<ReturnType<typeof getInvoiceDocument>>;
+    try {
+      result = await getInvoiceDocument(decoded.invoice.invoiceRef);
+    } catch {
+      setError("Invoice details couldn't be loaded. Try again in a moment.");
+      setPhase("error");
+      return;
+    }
+    if (!result.ok) {
+      setError(result.error === "Sign in first." ? result.error : "This invoice link isn't available to the signed-in wallet.");
+      setPhase("invalid");
+      return;
+    }
+    await verifyTerms(decoded, result.document);
+  }
 
   useEffect(() => {
     (async () => {
@@ -60,52 +139,23 @@ export function LandingClient({ encoded }: { encoded: string }) {
         setPhase("invalid");
         return;
       }
-
-      // invoiceRef is the document's own hash, not an arbitrary value — a mismatch here is
-      // exactly as disqualifying as a bad signature.
-      if (hashInvoiceDocument(decoded.document) !== decoded.invoice.invoiceRef) {
-        setError("This link is invalid or has been altered.");
-        setPhase("invalid");
-        return;
-      }
-
-      const claimedSignerAddress = decoded.role === "debtor" ? decoded.invoice.debtor : decoded.invoice.creditor;
-      let recovered: string;
-      try {
-        recovered = await recoverTypedDataAddress({
-          ...invoiceAttestationTypedData(decoded.invoice),
-          signature: decoded.signatureA,
-        });
-      } catch {
-        setError("This link is invalid or has been altered.");
-        setPhase("invalid");
-        return;
-      }
-      if (recovered.toLowerCase() !== claimedSignerAddress.toLowerCase()) {
-        setError("This link is invalid or has been altered.");
-        setPhase("invalid");
-        return;
-      }
-
-      const freshness = await checkLinkFreshness(decoded.invoice.debtor, decoded.invoice.creditor, decoded.invoice.nonce.toString());
-      if (!freshness.ok) {
-        setError(freshness.error);
-        setPhase("error");
-        return;
-      }
-      if (!freshness.fresh) {
-        setError("This invoice is no longer current — it may already be registered, or a newer one exists for this pair.");
-        setPhase("stale");
-        return;
-      }
-
       setPayload(decoded);
-      setPhase("ready");
-
       const who = await whoAmI();
       setSessionAddress(who.address ?? null);
+      if (decoded.version === 1) {
+        await verifyTerms(decoded, decoded.document);
+      } else if (who.address) {
+        await loadPrivateTerms(decoded, who.address);
+      } else {
+        setPhase("sign-in-required");
+      }
     })();
   }, [encoded]);
+
+  function handleSignedIn(signedInAddress: string) {
+    setSessionAddress(signedInAddress);
+    if (payload?.version === 2) void loadPrivateTerms(payload, signedInAddress);
+  }
 
   async function handleSignAndRegister() {
     if (!payload || !publicClient) return;
@@ -201,6 +251,18 @@ export function LandingClient({ encoded }: { encoded: string }) {
     );
   }
 
+  if (phase === "sign-in-required") {
+    return (
+      <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
+        <h1 className="font-serif-display text-3xl">Sign in to review this invoice</h1>
+        <p className="mt-3 text-sm text-muted">Only one of the two invoice parties can load its description and terms.</p>
+        <div className="mt-6">
+          <ConnectButton onSignedIn={handleSignedIn} />
+        </div>
+      </div>
+    );
+  }
+
   if (phase === "done" && resultTxHash) {
     return (
       <div className="animate-card-entrance rounded-card border border-gold/30 bg-gold/[0.06] p-6 text-center">
@@ -252,7 +314,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
         signed, not a claim.
       </p>
       <div className="mt-8">
-        <ReviewAndSign invoice={payload.invoice} viewerRole={viewerRole} description={payload.document.description}>
+        <ReviewAndSign invoice={payload.invoice} viewerRole={viewerRole} description={document?.description}>
           {!sessionAddress ? (
             <div className="flex flex-col items-center gap-3">
               <p className="text-xs text-muted">Connect and sign in to continue.</p>

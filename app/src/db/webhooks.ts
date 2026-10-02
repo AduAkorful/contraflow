@@ -1,7 +1,7 @@
 /// Neon implementation of the webhook pipeline's store. Claims use `FOR UPDATE SKIP LOCKED` inside a
 /// single statement, so overlapping runs never take the same change or event.
 
-import { getAddress, type Address, type Hex } from "viem";
+import { getAddress, isAddress, type Address, type Hex } from "viem";
 import type { ChangeContext, DueEvent, PendingChange, WebhookStore } from "../api/webhookPipeline";
 import { sql, withDbRetry } from "./client";
 
@@ -100,6 +100,35 @@ export const neonWebhookStore: WebhookStore = {
             : [r.secret],
       }),
     );
+  },
+
+  async hasCurrentReadAccess(event, nowSeconds) {
+    let chainId: string;
+    let parties: string[];
+    try {
+      const body = JSON.parse(event.body) as { chainId?: unknown; data?: { parties?: unknown } };
+      if (typeof body.chainId !== "string" || !/^\d+$/.test(body.chainId) || !Array.isArray(body.data?.parties)) return false;
+      if (body.data.parties.length === 0 || body.data.parties.some((party) => typeof party !== "string" || !isAddress(party))) {
+        return false;
+      }
+      chainId = body.chainId;
+      parties = [...new Set((body.data.parties as string[]).map((party) => party.toLowerCase()))];
+    } catch {
+      return false;
+    }
+
+    const rows = (await withDbRetry(
+      () => sql()`SELECT COUNT(DISTINCT p.party)::int AS authorized_count
+                  FROM tenant_permissions p
+                  JOIN tenants t ON t.tenant_id = p.tenant_id AND t.status = 'active'
+                  WHERE p.tenant_id = ${event.tenantId.toLowerCase()}
+                    AND p.chain_id = ${chainId}
+                    AND p.party = ANY(${parties})
+                    AND p.revoked_at IS NULL
+                    AND p.expires_at > ${nowSeconds.toString()}
+                    AND (p.scopes & 1) = 1`,
+    )) as { authorized_count: number }[];
+    return Number(rows[0]?.authorized_count ?? 0) === parties.length;
   },
 
   async recordAttempt(eventId, attempt, result, outcome) {

@@ -1,4 +1,6 @@
-/// Self-contained attest link payload — no server-side state.
+/// Versioned attest link payload. Version 2 keeps invoice descriptions out of the share URL and
+/// requires a party-gated document read at the destination. Version 1 is the legacy self-contained
+/// format; it remains readable for existing links, which already disclose their embedded terms.
 /// `InvoiceAttestation`'s `amount`/`maturity`/`nonce`/`chainId` fields are `bigint`, which
 /// `JSON.stringify` can't serialize directly — encoded
 /// as decimal strings here and parsed back to `bigint` on decode, never round-tripped through a
@@ -28,15 +30,19 @@ function base64UrlToBytes(encoded: string): Uint8Array {
   return bytes;
 }
 
-export interface AttestLinkPayload {
+interface AttestLinkBase {
   invoice: InvoiceAttestation;
   role: "debtor" | "creditor";
   signatureA: Hex;
-  /// The document `invoice.invoiceRef` is the hash of. Carried in the link so Party B can
-  /// independently recompute the hash and assert it equals `invoice.invoiceRef` before trusting
-  /// anything — the same discipline already applied to `signatureA`.
-  document: CanonicalInvoiceDocument;
 }
+
+export type AttestLinkPayload = AttestLinkBase &
+  (
+    | { version: 2; document?: never }
+    | { version: 1; document: CanonicalInvoiceDocument }
+  );
+
+export type AttestLinkInput = AttestLinkBase;
 
 interface SerializedInvoice {
   invoiceRef: Hex;
@@ -51,8 +57,9 @@ interface SerializedInvoice {
   chainId: string;
 }
 
-export function encodeAttestLink(payload: AttestLinkPayload): string {
+export function encodeAttestLink(payload: AttestLinkInput): string {
   const serialized = {
+    version: 2,
     invoice: {
       ...payload.invoice,
       amount: payload.invoice.amount.toString(),
@@ -62,7 +69,6 @@ export function encodeAttestLink(payload: AttestLinkPayload): string {
     } satisfies SerializedInvoice,
     role: payload.role,
     signatureA: payload.signatureA,
-    document: payload.document,
   };
   return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(serialized)));
 }
@@ -75,12 +81,7 @@ export class MalformedAttestLinkError extends Error {
 }
 
 export function decodeAttestLink(encoded: string): AttestLinkPayload {
-  let parsed: {
-    invoice: SerializedInvoice;
-    role: "debtor" | "creditor";
-    signatureA: Hex;
-    document: CanonicalInvoiceDocument;
-  };
+  let parsed: Record<string, unknown>;
   try {
     const json = new TextDecoder().decode(base64UrlToBytes(encoded));
     parsed = JSON.parse(json);
@@ -88,20 +89,12 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
     throw new MalformedAttestLinkError();
   }
 
-  if (!parsed?.invoice || !parsed.role || !parsed.signatureA) throw new MalformedAttestLinkError();
-  const { document } = parsed;
-  if (
-    !document ||
-    typeof document.description !== "string" ||
-    typeof document.debtor !== "string" ||
-    typeof document.creditor !== "string" ||
-    typeof document.amountUsdc !== "string" ||
-    typeof document.maturity !== "string"
-  ) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new MalformedAttestLinkError();
+  if (!parsed.invoice || (parsed.role !== "debtor" && parsed.role !== "creditor") || typeof parsed.signatureA !== "string") {
     throw new MalformedAttestLinkError();
   }
 
-  const { invoice } = parsed;
+  const invoice = parsed.invoice as SerializedInvoice;
   if (
     typeof invoice.amount !== "string" ||
     typeof invoice.maturity !== "string" ||
@@ -111,8 +104,31 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
     throw new MalformedAttestLinkError();
   }
 
+  const version = parsed.version === undefined ? 1 : parsed.version;
+  let document: CanonicalInvoiceDocument | undefined;
+  if (version === 1) {
+    const candidate = parsed.document as Partial<CanonicalInvoiceDocument> | undefined;
+    if (
+      !candidate ||
+      typeof candidate.description !== "string" ||
+      typeof candidate.debtor !== "string" ||
+      typeof candidate.creditor !== "string" ||
+      typeof candidate.amountUsdc !== "string" ||
+      typeof candidate.maturity !== "string"
+    ) {
+      throw new MalformedAttestLinkError();
+    }
+    document = candidate as CanonicalInvoiceDocument;
+  } else if (version === 2) {
+    // Reject a v2 link carrying legacy terms; otherwise a downgrade or malformed payload could
+    // accidentally restore bearer access to the description.
+    if (parsed.document !== undefined) throw new MalformedAttestLinkError();
+  } else {
+    throw new MalformedAttestLinkError();
+  }
+
   try {
-    return {
+    const base: AttestLinkBase = {
       invoice: {
         invoiceRef: invoice.invoiceRef,
         amount: BigInt(invoice.amount),
@@ -126,9 +142,9 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
         chainId: BigInt(invoice.chainId),
       },
       role: parsed.role,
-      signatureA: parsed.signatureA,
-      document,
+      signatureA: parsed.signatureA as Hex,
     };
+    return version === 1 ? { ...base, version: 1, document: document! } : { ...base, version: 2 };
   } catch {
     throw new MalformedAttestLinkError();
   }
