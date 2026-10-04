@@ -11,6 +11,8 @@ overrides:
   stream-json@<3.5.0: 3.5.0
   toml@<4.2.0: 4.2.0
 
+packageExtensionsChecksum: sha256-O34p3iozSUoSo6jlQiRRNnuDViwFgH6pvanoVqn7IvU=
+
 importers:
 
   .: {}
@@ -4015,6 +4017,7 @@ snapshots:
       bs58: 6.0.0
       buffer: 6.0.3
       pino: 10.1.0
+      uuid: 11.1.1
       zod: 3.25.67
     transitivePeerDependencies:
       - bufferutil
