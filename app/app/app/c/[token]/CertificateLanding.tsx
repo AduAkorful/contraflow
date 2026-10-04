@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useAccount, usePublicClient, useSignTypedData, useWriteContract, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
+import { Address as AddressText } from "../../../../components/ui/Address";
 import { displayDate, displayMinorAmount, shortAddr } from "../../../../components/netting/format";
 import { groupChecks, statusMark, type CheckGroup } from "../../../../components/netting/checks";
 import { checkAsParty } from "../../../../components/netting/partyChecks";
@@ -151,7 +152,7 @@ export function CertificateLanding({ token }: { token: string }) {
   if (phase === "signin") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
-        <h1 className="font-serif-display text-3xl leading-[1.05]">A netting certificate</h1>
+        <h1 className="heading-1">A netting certificate</h1>
         <p className="mt-4 text-sm text-muted">
           Sign in with your wallet. A certificate is only shown to the parties in its loop.
         </p>
@@ -197,7 +198,7 @@ export function CertificateLanding({ token }: { token: string }) {
 
   return (
     <>
-      <h1 className="font-serif-display text-3xl leading-[1.05]">{heading}</h1>
+      <h1 className="heading-1">{heading}</h1>
       <p className="mt-4 text-sm text-muted">
         Nets <span className="text-foreground">{displayMinorAmount(summary.wNet, summary.currency)}</span> off every
         obligation in a loop of {summary.parties} parties. You see your own two obligations; the others are hidden from
@@ -254,12 +255,12 @@ export function CertificateLanding({ token }: { token: string }) {
             </a>
           )}
           {(status === "ready" || status === "applied") && (
-            <button onClick={handleDownload} disabled={busy !== null} className="text-xs text-gold hover:underline disabled:opacity-40">
+            <button onClick={handleDownload} disabled={busy !== null} className="text-xs text-gold hover:underline disabled:state-disabled">
               Download certificate
             </button>
           )}
           {status === "collecting" && (
-            <button onClick={handleDecline} disabled={busy !== null} className="text-xs text-muted hover:underline disabled:opacity-40">
+            <button onClick={handleDecline} disabled={busy !== null} className="text-xs text-muted hover:underline disabled:state-disabled">
               Decline
             </button>
           )}
@@ -280,7 +281,7 @@ function OwnObligation({ doc, me, currency }: { doc: EntryDocument; me: Address;
   return (
     <div className="rounded-lg border border-white/10 p-4 text-sm">
       <p>
-        {youOwe ? "You owe" : "Owed to you by"} <span className="font-mono">{shortAddr(counterparty)}</span>
+        {youOwe ? "You owe" : "Owed to you by"} <AddressText address={counterparty} />
       </p>
       <p className="mt-2">
         <span className="text-muted">{displayMinorAmount(doc.remainingBefore.toString(), currency)}</span>
@@ -313,7 +314,7 @@ function ActionButton({ onClick, busy, label }: { onClick: () => void; busy: str
     <button
       onClick={onClick}
       disabled={busy !== null}
-      className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+      className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
     >
       {busy ?? label}
     </button>

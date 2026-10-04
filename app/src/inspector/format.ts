@@ -2,6 +2,7 @@
 /// wording, including every lower-bound phrasing, is unit-tested rather than living in JSX.
 
 import { getAddress, isAddress } from "viem";
+import { formatAddress } from "../format/address";
 import { MAX_ACTIVITY_PAGES } from "../blockscout/client";
 import type { AddressSignals, CycleSignals } from "./signals";
 
@@ -19,10 +20,7 @@ export function displayAddress(address: string): string {
   return isAddress(address, { strict: false }) ? getAddress(address) : address;
 }
 
-export function shortAddress(address: string): string {
-  const display = displayAddress(address);
-  return `${display.slice(0, 6)}…${display.slice(-4)}`;
-}
+export const shortAddress = formatAddress;
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

@@ -7,6 +7,8 @@
 
 import { useState } from "react";
 import type { InvoiceAttestation } from "../../src/attest/signAttestation";
+import { Address } from "../ui/Address";
+import { Money } from "../ui/Money";
 import { formatUsdcAmount } from "../../src/attest/amount";
 
 function formatMaturity(maturity: bigint): string {
@@ -15,10 +17,6 @@ function formatMaturity(maturity: bigint): string {
     month: "long",
     day: "numeric",
   });
-}
-
-function shortAddr(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 export function ReviewAndSign({
@@ -39,15 +37,15 @@ export function ReviewAndSign({
   return (
     <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
       <p className="text-xs uppercase tracking-wide text-muted">Invoice terms</p>
-      <p className="mt-3 font-serif-display text-2xl">
-        {verb} <span className="text-gold">${formatUsdcAmount(invoice.amount)}</span>
+      <p className="mt-3 heading-2">
+        {verb} <span className="text-gold"><Money value={formatUsdcAmount(invoice.amount)} /></span>
       </p>
       {description && <p className="mt-2 text-sm text-muted">{description}</p>}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Counterparty</dt>
-          <dd className="mt-1 font-mono">{counterparty ? shortAddr(counterparty) : "Both invoice parties"}</dd>
+          <dd className="mt-1">{counterparty ? <Address address={counterparty} /> : "Both invoice parties"}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Maturity</dt>

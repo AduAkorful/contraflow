@@ -136,7 +136,7 @@ export function ProposalLanding({ token }: { token: string }) {
   if (phase === "signin") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
-        <h1 className="font-serif-display text-3xl leading-[1.05]">An obligation is waiting for you</h1>
+        <h1 className="heading-1">An obligation is waiting for you</h1>
         <p className="mt-4 text-sm text-muted">
           Sign in with the wallet this was sent to. Its terms are only shown to the two parties named on it.
         </p>
@@ -186,7 +186,7 @@ export function ProposalLanding({ token }: { token: string }) {
 
   return (
     <>
-      <h1 className="font-serif-display text-3xl leading-[1.05]">
+      <h1 className="heading-1">
         {phase === "waiting" ? "Waiting for your counterparty" : "Review this obligation"}
       </h1>
       <p className="mt-4 text-sm text-muted">
@@ -202,7 +202,7 @@ export function ProposalLanding({ token }: { token: string }) {
                 <button
                   onClick={handleSign}
                   disabled={phase !== "ready"}
-                  className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+                  className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
                 >
                   {phase === "signing" ? "Sign in your wallet..." : phase === "saving" ? "Recording..." : "Sign obligation"}
                 </button>

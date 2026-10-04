@@ -81,7 +81,7 @@ export function VerifyCertificate() {
       <button
         onClick={() => void verify(text)}
         disabled={checking || text.trim().length === 0}
-        className="self-start rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+        className="self-start rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
       >
         {checking ? "Checking..." : "Verify"}
       </button>

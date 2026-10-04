@@ -1,6 +1,9 @@
 import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 
+export const metadata = { title: "Integrations" };
+
+
 type Integration = { title: string; body: string; href?: string };
 
 const IN_THE_APP: Integration[] = [

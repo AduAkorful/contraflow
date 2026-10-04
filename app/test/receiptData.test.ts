@@ -41,6 +41,13 @@ describe("receipt data fallback", () => {
     fetchTransactionFee.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123" });
   });
 
+  it.each(["bad", "0x1234", `0x${"zz".repeat(32)}`, `${txHash}00`, ""])("answers no settlement for %j without touching the database or explorer", async (input) => {
+    expect(await getReceiptData(input)).toBeNull();
+    expect(getSettlement).not.toHaveBeenCalled();
+    expect(fetchTransactionLogs).not.toHaveBeenCalled();
+    expect(fetchTransactionFee).not.toHaveBeenCalled();
+  });
+
   it("falls back to authenticated Registry and Settler events when the DB read throws", async () => {
     getSettlement.mockRejectedValueOnce(new Error("Neon unavailable"));
     const result = await getReceiptData(txHash);

@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
+import { formatAddress } from "../../src/format/address";
 import { buildSiweMessage } from "../../src/siwe/message";
 import { requestNonce, signIn, signOut, whoAmI } from "../../app/app/siwe/actions";
 
-function shortAddr(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 type Phase = "idle" | "signing" | "signed-in" | "error";
 
@@ -86,11 +84,11 @@ export function ConnectButton({
       <div className="flex flex-col items-center gap-4">
         <div className="flex items-center gap-3">
           <span className="rounded-pill border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs font-mono text-gold">
-            {shortAddr(sessionAddress)}
+            {formatAddress(sessionAddress)}
           </span>
           <button
             onClick={handleSignOut}
-            className="rounded-pill border border-white/15 px-4 py-1.5 text-xs text-muted hover:border-white/30"
+            className="rounded-pill border border-border-input px-4 py-1.5 text-xs text-muted hover:border-white/30"
           >
             Sign out
           </button>
@@ -116,9 +114,9 @@ export function ConnectButton({
         <button
           onClick={handleSignIn}
           disabled={phase === "signing"}
-          className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:opacity-40"
+          className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
         >
-          {phase === "signing" ? "Sign in your wallet..." : `Sign in as ${shortAddr(address ?? "")}`}
+          {phase === "signing" ? "Sign in your wallet..." : `Sign in as ${formatAddress(address ?? "")}`}
         </button>
       )}
       {error && <p className="max-w-xs text-center text-xs text-red-300">{error}</p>}

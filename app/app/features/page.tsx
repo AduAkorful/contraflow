@@ -2,6 +2,9 @@ import Link from "next/link";
 import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 
+export const metadata = { title: "Features" };
+
+
 const INVOICES = [
   {
     number: "1",

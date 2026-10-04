@@ -2,6 +2,9 @@ import { SiteNav } from "../../../../components/site-nav";
 import { SiteFooter } from "../../../../components/site-footer";
 import { CertificateLanding } from "./CertificateLanding";
 
+export const metadata = { title: "Netting certificate" };
+
+
 export default async function CertificatePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 

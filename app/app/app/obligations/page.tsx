@@ -7,6 +7,9 @@ import { certificateService } from "../../../src/obligations/certificateDefaults
 import { CertificatesPanel } from "./CertificatesPanel";
 import { ObligationsList } from "./ObligationsList";
 
+export const metadata = { title: "Offchain obligations" };
+
+
 export default async function ObligationsPage() {
   const session = await getSession();
   // Certificates first: listing them brings any the ledger has applied up to date, so the
@@ -20,7 +23,7 @@ export default async function ObligationsPage() {
       <main className="relative z-10">
         <section className="mx-auto max-w-2xl px-6 py-16">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <h1 className="font-serif-display text-4xl leading-[1.05]">Offchain obligations</h1>
+            <h1 className="heading-1">Offchain obligations</h1>
             {session && (
               <Link href="/app/obligations/new" className="text-sm text-gold hover:underline">
                 Record an obligation →

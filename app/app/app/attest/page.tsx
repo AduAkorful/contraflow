@@ -4,6 +4,9 @@ import { SiteFooter } from "../../../components/site-footer";
 import { getSession } from "../../../src/session/getSession";
 import { ComposeForm } from "./ComposeForm";
 
+export const metadata = { title: "Propose an invoice" };
+
+
 export default async function AttestComposePage() {
   const session = await getSession();
 
@@ -12,7 +15,7 @@ export default async function AttestComposePage() {
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-xl px-6 py-16">
-          <h1 className="font-serif-display text-3xl leading-[1.05]">Propose an invoice</h1>
+          <h1 className="heading-1">Propose an invoice</h1>
           <p className="mt-4 text-sm text-muted">
             Sign a USDC invoice with your wallet and send your counterparty the link. Nothing is
             registered on Arc until they sign too.

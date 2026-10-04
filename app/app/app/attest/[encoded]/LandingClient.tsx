@@ -254,7 +254,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
   if (phase === "sign-in-required") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
-        <h1 className="font-serif-display text-3xl">Sign in to review this invoice</h1>
+        <h1 className="heading-1">Sign in to review this invoice</h1>
         <p className="mt-3 text-sm text-muted">Only one of the two invoice parties can load its description and terms.</p>
         <div className="mt-6">
           <ConnectButton onSignedIn={handleSignedIn} />
@@ -308,7 +308,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
 
   return (
     <>
-      <h1 className="font-serif-display text-3xl leading-[1.05]">Review this invoice</h1>
+      <h1 className="heading-1">Review this invoice</h1>
       <p className="mt-4 text-sm text-muted">
         Signed by your counterparty. Verified against their signature — this is genuinely what they
         signed, not a claim.
@@ -331,7 +331,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
               <button
                 onClick={handleSignAndRegister}
                 disabled={phase === "signing" || phase === "submitting" || phase === "recording"}
-                className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+                className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
               >
                 {phase === "signing" && "Sign in your wallet..."}
                 {phase === "submitting" && "Submitting to Arc..."}

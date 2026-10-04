@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { displayDate, displayMajorAmount, displayMinorAmount, shortAddr } from "../../../components/netting/format";
+import { Address } from "../../../components/ui/Address";
+import { displayDate, displayMajorAmount, displayMinorAmount } from "../../../components/netting/format";
 import type { ObligationSummary, ProposalSummary } from "../../../src/obligations/service";
 import { closeObligation, withdrawProposal } from "./actions";
 
@@ -63,7 +64,7 @@ export function ObligationsList({
                   <div className="min-w-0">
                     <p className="text-sm">
                       {p.youOwe ? "You owe" : "Owed to you by"}{" "}
-                      <span className="font-mono text-foreground/90">{shortAddr(p.counterparty)}</span>
+                      <Address address={p.counterparty} className="text-foreground/90" />
                     </p>
                     <p className="mt-1 truncate text-xs text-muted">
                       {displayMajorAmount(p.amount, p.currency)} · {p.description}
@@ -108,7 +109,7 @@ export function ObligationsList({
                 <div className="min-w-0">
                   <p className="text-sm">
                     {o.youOwe ? "You owe" : "Owed to you by"}{" "}
-                    <span className="font-mono text-foreground/90">{shortAddr(o.counterparty)}</span>
+                    <Address address={o.counterparty} className="text-foreground/90" />
                   </p>
                   <p className="mt-1 truncate text-xs text-muted">
                     {displayMinorAmount(o.amount, o.currency)}

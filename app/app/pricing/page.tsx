@@ -2,6 +2,9 @@ import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 import { Pricing } from "../../components/sections/pricing";
 
+export const metadata = { title: "Pricing" };
+
+
 const COST_NOTES = [
   { title: "Protocol fee", body: "$0 today. Contraflow doesn't take a cut when you net a loop." },
   {

@@ -10,6 +10,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import { readGatewayBalances, walletUsdc } from "../../../src/kits/browserAdapter";
 import { fromBaseUnits, parseGatewayBalances, toBaseUnits, type GatewayBalanceView } from "../../../src/kits/gatewayBalance";
 import { gatewayArcChain, networkTypeForChainId } from "../../../src/kits/gatewayChains";
+import { Money } from "../../../components/ui/Money";
+import { formatAddress } from "../../../src/format/address";
 import { roundDecimalString } from "../../../src/kits/quoteFormat";
 import { DepositPanel } from "./DepositPanel";
 import { MovePanel } from "./MovePanel";
@@ -31,9 +33,6 @@ async function withQuietRetry<T>(read: () => Promise<T>): Promise<T> {
   throw lastError;
 }
 
-function shortAddr(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arcChainId: number }) {
   const arc = useMemo(() => gatewayArcChain(arcChainId), [arcChainId]);
@@ -83,8 +82,8 @@ export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arc
         )}
         {typeof balances === "object" && (
           <>
-            <p className="mt-3 font-serif-display text-3xl tabular-nums">
-              {roundDecimalString(balances.totalConfirmed, 2)} <span className="text-base text-muted">USDC</span>
+            <p className="mt-3 figure text-3xl">
+              <Money value={roundDecimalString(balances.totalConfirmed, 2)} unit={false} /> <span className="text-base text-muted">USDC</span>
             </p>
             {hasPending && (
               <p className="mt-1 text-xs text-muted">
@@ -119,7 +118,7 @@ export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arc
 
       {wallet.status === "disconnected" && (
         <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
-          <p className="text-sm text-muted">Connect the wallet you signed in with ({shortAddr(owner)}) to deposit or move USDC.</p>
+          <p className="text-sm text-muted">Connect the wallet you signed in with ({formatAddress(owner)}) to deposit or move USDC.</p>
           <button type="button" onClick={() => connectWallet()} className="mt-3 text-sm text-gold hover:underline">
             Connect wallet
           </button>
@@ -127,7 +126,7 @@ export function BalanceClient({ owner, arcChainId }: { owner: `0x${string}`; arc
       )}
       {wallet.status === "mismatch" && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          Your wallet is connected as {shortAddr(wallet.connected)}, but you signed in as {shortAddr(owner)}. Switch
+          Your wallet is connected as {formatAddress(wallet.connected)}, but you signed in as {formatAddress(owner)}. Switch
           accounts in your wallet to continue.
         </p>
       )}

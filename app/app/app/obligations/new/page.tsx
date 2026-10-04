@@ -4,6 +4,9 @@ import { SiteFooter } from "../../../../components/site-footer";
 import { getSession } from "../../../../src/session/getSession";
 import { ComposeObligation } from "./ComposeObligation";
 
+export const metadata = { title: "Record an obligation" };
+
+
 export default async function NewObligationPage() {
   const session = await getSession();
 
@@ -12,7 +15,7 @@ export default async function NewObligationPage() {
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-xl px-6 py-16">
-          <h1 className="font-serif-display text-3xl leading-[1.05]">Record an offchain obligation</h1>
+          <h1 className="heading-1">Record an offchain obligation</h1>
           <p className="mt-4 text-sm text-muted">
             A debt in any currency that&apos;s paid outside Contraflow. You and your counterparty both sign it, so
             it can later be netted against other obligations in a loop. Nothing is recorded until they sign too.

@@ -6,13 +6,16 @@ import { ProtocolStats } from "../../components/stats/ProtocolStats";
 import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
 
+export const metadata = { title: "Sign in" };
+
+
 export default function AppLandingPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center">
-          <h1 className="font-serif-display text-4xl leading-[1.05]">Sign in with your wallet</h1>
+          <h1 className="heading-1">Sign in with your wallet</h1>
           <p className="mt-6 max-w-md text-muted">
             Sign in with your wallet or your email, then record a debt with a counterparty: a USDC
             invoice on Arc, or an obligation in any currency. Nothing is recorded until they sign too.

@@ -7,6 +7,9 @@ import { ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
 import { unifiedBalanceEnabled } from "../../../src/kits/gatewayChains";
 import { BalanceClient } from "./BalanceClient";
 
+export const metadata = { title: "Bring USDC from another chain" };
+
+
 /// The server only decides who's signed in. Balances, deposits and moves all run in the browser,
 /// between the user's own wallet and Circle.
 export default async function BalancePage() {
@@ -18,7 +21,7 @@ export default async function BalancePage() {
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-2xl px-6 py-16">
-          <h1 className="font-serif-display text-4xl leading-[1.05]">Bring USDC from another chain</h1>
+          <h1 className="heading-1">Bring USDC from another chain</h1>
           <p className="mt-4 text-sm text-muted">
             Deposit USDC from your wallet on another chain into Circle Gateway, then move it to your own wallet on
             Arc. Your wallet signs every step, and the funds only ever go to your own address.

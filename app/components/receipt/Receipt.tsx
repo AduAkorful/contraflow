@@ -6,6 +6,7 @@
 ///
 /// Layout: header block -> dashed separator -> itemized rows -> totals.
 
+import { Money } from "../ui/Money";
 import { EurcQuote } from "../quote/EurcQuote";
 import { parseUnits } from "viem";
 
@@ -56,13 +57,13 @@ export function Receipt({ data }: { data: ReceiptData }) {
             </svg>
             Settled
           </span>
-          <h2 className="mt-3 font-serif-display text-2xl">Settlement receipt</h2>
+          <h2 className="mt-3 heading-2">Settlement receipt</h2>
         </div>
         <div className="text-right text-xs text-muted">
           <p>
             Block <span className="text-foreground">{data.blockNumber}</span>
           </p>
-          <a href={data.explorerUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-gold hover:underline">
+          <a href={data.explorerUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono text-gold hover:underline">
             {shortHash(data.txHash)} →
           </a>
         </div>
@@ -76,8 +77,8 @@ export function Receipt({ data }: { data: ReceiptData }) {
               <div className="flex items-center justify-between gap-4">
                 <span className="text-foreground/90">{row.label}</span>
                 <span className="flex items-baseline gap-2 tabular-nums">
-                  <span className="text-muted line-through">${row.beforeUsdc}</span>
-                  <span className="text-gold">${row.afterUsdc}</span>
+                  <Money value={row.beforeUsdc} className="text-muted line-through" />
+                  <Money value={row.afterUsdc} className="text-gold" />
                 </span>
               </div>
               {hasRemaining(row.afterUsdc) && <EurcQuote invoiceId={row.invoiceId} className="mt-2 text-right" />}
@@ -90,19 +91,19 @@ export function Receipt({ data }: { data: ReceiptData }) {
         <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted">Cancelled</dt>
-            <dd className="mt-1 font-serif-display text-xl">${data.grossCancelledUsdc}</dd>
+            <dd className="mt-1 figure text-xl"><Money value={data.grossCancelledUsdc} /></dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted">Cash moved</dt>
-            <dd className="mt-1 font-serif-display text-xl">${data.cashMovedUsdc}</dd>
+            <dd className="mt-1 figure text-xl"><Money value={data.cashMovedUsdc} /></dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted">Multiplier</dt>
-            <dd className="mt-1 font-serif-display text-xl">{data.multiplierLabel}</dd>
+            <dd className="mt-1 figure text-xl">{data.multiplierLabel}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted">Gas paid</dt>
-            <dd className="mt-1 font-serif-display text-xl">{data.gasPaidUsdc === null ? "Unknown" : `${data.gasPaidUsdc} USDC`}</dd>
+            <dd className="mt-1 figure text-xl">{data.gasPaidUsdc === null ? "Unknown" : <Money value={data.gasPaidUsdc} />}</dd>
           </div>
         </dl>
       </div>

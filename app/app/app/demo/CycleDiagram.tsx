@@ -227,7 +227,7 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
         <text x={CENTER.x} y={CENTER.y - 8} textAnchor="middle" fontSize="10" fill={COLOR.muted} letterSpacing="0.05em">
           NET TO SETTLE
         </text>
-        <text x={CENTER.x} y={CENTER.y + 16} textAnchor="middle" fontSize="20" fill={COLOR.foreground} fontFamily="var(--font-serif-display)">
+        <text x={CENTER.x} y={CENTER.y + 16} textAnchor="middle" fontSize="20" fill={COLOR.foreground} fontFamily="var(--font-sans)" fontWeight={600}>
           ${center.wNetUsdc}
         </text>
       </g>

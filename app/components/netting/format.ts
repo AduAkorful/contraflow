@@ -1,10 +1,8 @@
-import { getAddress } from "viem";
 import { formatAmount } from "../../src/netting/currency";
+import { formatAddress } from "../../src/format/address";
 
-export function shortAddr(addr: string): string {
-  const checksummed = getAddress(addr);
-  return `${checksummed.slice(0, 6)}…${checksummed.slice(-4)}`;
-}
+/// Text-only form for sentences and error messages; JSX uses <Address>.
+export const shortAddr = formatAddress;
 
 /// "1250.00" in USD → "$1,250.00". Passes the decimal string straight to Intl, which formats it
 /// exactly (no float rounding); falls back to "USD 1250.00" on older engines.

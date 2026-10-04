@@ -1,6 +1,9 @@
 import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
 
+export const metadata = { title: "Terms of Service" };
+
+
 const SECTIONS = [
   {
     title: "The service",

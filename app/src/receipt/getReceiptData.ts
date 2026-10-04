@@ -116,7 +116,11 @@ async function fromBlockscout(txHash: string): Promise<ReceiptData | null> {
   };
 }
 
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+
 export async function getReceiptData(txHash: string): Promise<ReceiptData | null> {
+  // Anything that isn't a transaction hash is "no settlement", before any database or RPC call.
+  if (!TX_HASH.test(txHash)) return null;
   let fromDb: ReceiptData | null = null;
   try {
     fromDb = await fromDatabase(txHash);

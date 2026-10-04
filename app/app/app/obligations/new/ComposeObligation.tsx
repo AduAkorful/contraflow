@@ -146,7 +146,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
           <button
             onClick={handleSign}
             disabled={phase === "signing"}
-            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:opacity-40"
+            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
             {phase === "signing" ? "Sign in your wallet..." : "Sign & create link"}
           </button>
@@ -178,7 +178,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
   }
 
   const input =
-    "mt-1 w-full rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50";
+    "mt-1 w-full rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus";
 
   return (
     <div className="flex flex-col gap-4">

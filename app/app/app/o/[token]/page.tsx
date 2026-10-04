@@ -2,6 +2,9 @@ import { SiteNav } from "../../../../components/site-nav";
 import { SiteFooter } from "../../../../components/site-footer";
 import { ProposalLanding } from "./ProposalLanding";
 
+export const metadata = { title: "Obligation" };
+
+
 export default async function ProposalLinkPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 

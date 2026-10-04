@@ -242,7 +242,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           onChange={(e) => setAmountUsd(e.target.value)}
           placeholder="1000.00"
           inputMode="decimal"
-          className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50"
+          className="mt-1 w-full rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
         />
       </label>
 
@@ -252,7 +252,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           type="date"
           value={maturityDate}
           onChange={(e) => setMaturityDate(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50"
+          className="mt-1 w-full rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
         />
       </label>
 
@@ -263,7 +263,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Invoice #, PO #, or a short description of what this is for"
           rows={2}
-          className="mt-1 w-full resize-none rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-gold/50"
+          className="mt-1 w-full resize-none rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
         />
       </label>
       <p className="-mt-2 text-xs text-muted">

@@ -271,12 +271,12 @@ export function MovePanel({
                 : "The result is uncertain. Do not create another move until the original is checked.")}
           </p>
           {pendingMove.state === "retry_mint" && (
-            <button type="button" onClick={handleRetryMint} disabled={busy !== null} className="mt-3 rounded-pill bg-gold px-4 py-2 text-xs font-medium text-black disabled:opacity-50">
+            <button type="button" onClick={handleRetryMint} disabled={busy !== null} className="mt-3 rounded-pill bg-gold px-4 py-2 text-xs font-medium text-black disabled:state-disabled disabled:scale-100">
               Retry original delivery
             </button>
           )}
           {pendingMove.state === "forwarder_pending" && (
-            <button type="button" onClick={handleCheckForwarder} disabled={busy !== null} className="mt-3 rounded-pill border border-white/15 px-4 py-2 text-xs disabled:opacity-50">
+            <button type="button" onClick={handleCheckForwarder} disabled={busy !== null} className="mt-3 rounded-pill border border-border-input px-4 py-2 text-xs disabled:state-disabled">
               Check original transfer
             </button>
           )}
@@ -301,7 +301,7 @@ export function MovePanel({
                 value={selected?.chain}
                 onChange={(e) => edit(() => setChainName(e.target.value))}
                 disabled={busy !== null || pendingMove !== null || depositPending || !recoveryStorageReady}
-                className="mt-1 block w-full rounded-lg border border-white/15 bg-bg px-3 py-2 text-sm text-foreground"
+                className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm text-foreground"
               >
                 {sources.map((row) => (
                   <option key={row.chain} value={row.chain}>
@@ -318,7 +318,7 @@ export function MovePanel({
                 inputMode="decimal"
                 placeholder="0.00"
                 disabled={busy !== null || pendingMove !== null}
-                className="mt-1 block w-full rounded-lg border border-white/15 bg-bg px-3 py-2 text-sm tabular-nums text-foreground"
+                className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm tabular-nums text-foreground"
               />
             </label>
           </div>
@@ -347,7 +347,7 @@ export function MovePanel({
                 type="button"
                 onClick={handleMove}
                 disabled={busy !== null || pendingMove !== null}
-                className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+                className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:state-disabled disabled:scale-100"
               >
                 Move {review.amount} USDC to {arc.name}
               </button>
@@ -356,7 +356,7 @@ export function MovePanel({
                 type="button"
                 onClick={handleReview}
                 disabled={busy !== null || pendingMove !== null || depositPending || !recoveryStorageReady || amount.trim() === ""}
-                className="rounded-pill border border-white/15 px-5 py-2 text-sm hover:border-white/30 disabled:opacity-50"
+                className="rounded-pill border border-border-input px-5 py-2 text-sm hover:border-white/30 disabled:state-disabled"
               >
                 Review move
               </button>

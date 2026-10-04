@@ -56,7 +56,7 @@ export function CertificatesPanel({ certificates }: { certificates: CertificateS
         <button
           onClick={find}
           disabled={searching}
-          className="rounded-pill border border-gold/40 px-5 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-40"
+          className="rounded-pill border border-gold/40 px-5 py-2 text-sm text-gold hover:bg-gold/10 disabled:state-disabled"
         >
           {searching ? "Searching..." : "Find a netting loop"}
         </button>

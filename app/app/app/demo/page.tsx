@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { SiteNav } from "../../../components/site-nav";
 import { SiteFooter } from "../../../components/site-footer";
 import { Receipt, type ReceiptData } from "../../../components/receipt/Receipt";
+import { Money } from "../../../components/ui/Money";
+import { sumUsdc } from "../../../src/format/money";
 import { CycleDiagram, type DemoEdge, type DiagramCenter } from "./CycleDiagram";
 import { registerCycleInvoiceStep, proposeCycle, settleProposedCycle } from "./actions";
 import { MIN_DEMO_PARTIES, MAX_DEMO_PARTIES, deriveDemoParties } from "../../../src/fixtures/demoIdentities";
@@ -41,7 +43,7 @@ export default function DemoPage() {
   const [error, setError] = useState<string | null>(null);
   const pendingSettleRef = useRef<{ runSalt: string; invoiceIds: string[]; labels: Record<string, string> } | null>(null);
 
-  const totalInvoicedUsdc = registeredRows.reduce((sum, r) => sum + Number(r.amountUsdc), 0).toFixed(2);
+  const totalInvoicedUsdc = sumUsdc(registeredRows.map((r) => r.amountUsdc));
 
   function setEdgeStatus(index: number, patch: Partial<DemoEdge>) {
     setEdges((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
@@ -142,7 +144,7 @@ export default function DemoPage() {
           <span className="inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
             DEMO
           </span>
-          <h1 className="mt-4 font-serif-display text-4xl leading-[1.05]">
+          <h1 className="mt-4 heading-1">
             Watch a cycle cancel, live
           </h1>
           <p className="mt-4 text-muted">
@@ -200,7 +202,7 @@ export default function DemoPage() {
               {phase === "readyToSettle" && (
                 <>
                   <p className="text-center text-sm text-muted">
-                    {registeredRows.length} invoices, totaling ${totalInvoicedUsdc} — settling reduces
+                    {registeredRows.length} invoices, totaling <Money value={totalInvoicedUsdc} /> — settling reduces
                     every one of them by the same amount.
                   </p>
                   <button
@@ -215,7 +217,7 @@ export default function DemoPage() {
               {phase === "done" && (
                 <button
                   onClick={runFixture}
-                  className="rounded-pill border border-white/15 px-6 py-3 text-sm font-medium hover:border-white/30"
+                  className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium hover:border-white/30"
                 >
                   Run it again
                 </button>
@@ -235,7 +237,7 @@ export default function DemoPage() {
                   {registeredRows.map((row) => (
                     <li key={row.invoiceId} className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-muted">
-                        {row.label} <span className="text-foreground/70">· ${row.amountUsdc}</span>
+                        {row.label} <span className="text-foreground/70">· <Money value={row.amountUsdc} /></span>
                       </span>
                       <a href={row.explorerUrl} target="_blank" rel="noreferrer" className="text-gold hover:underline">
                         View transaction →

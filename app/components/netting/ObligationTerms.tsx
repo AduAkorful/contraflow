@@ -8,7 +8,8 @@ import { useState } from "react";
 import type { CanonicalObligationDocument } from "../../src/netting/document";
 import { serializeObligation } from "../../src/netting/serialize";
 import type { NettingObligation } from "../../src/netting/types";
-import { displayDate, displayMajorAmount, shortAddr } from "./format";
+import { Address } from "../ui/Address";
+import { displayDate, displayMajorAmount } from "./format";
 
 export function ObligationTerms({
   document,
@@ -27,7 +28,7 @@ export function ObligationTerms({
   return (
     <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
       <p className="text-xs uppercase tracking-wide text-muted">Obligation terms</p>
-      <p className="mt-3 font-serif-display text-2xl">
+      <p className="mt-3 figure text-2xl">
         {viewerRole === "debtor" ? "You owe" : "You are owed"}{" "}
         <span className="text-gold">{displayMajorAmount(document.amount, document.currency)}</span>
       </p>
@@ -36,7 +37,7 @@ export function ObligationTerms({
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Counterparty</dt>
-          <dd className="mt-1 font-mono">{shortAddr(counterparty)}</dd>
+          <dd className="mt-1"><Address address={counterparty} /></dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Maturity</dt>

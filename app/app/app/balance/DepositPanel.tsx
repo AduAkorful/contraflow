@@ -206,7 +206,7 @@ export function DepositPanel({
           )}
           {pendingDeposit && <p className="mt-2 break-all font-mono text-[10px] text-muted">Operation: {pendingDeposit.operationId}</p>}
           {pendingDeposit && (
-            <button type="button" onClick={handleCheckDeposit} disabled={busy !== null} className="mt-3 rounded-pill border border-white/15 px-4 py-2 text-xs disabled:opacity-50">
+            <button type="button" onClick={handleCheckDeposit} disabled={busy !== null} className="mt-3 rounded-pill border border-border-input px-4 py-2 text-xs disabled:state-disabled">
               Check original deposit
             </button>
           )}
@@ -225,7 +225,7 @@ export function DepositPanel({
             value={chainName}
             onChange={(e) => edit(() => setChainName(e.target.value))}
             disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady}
-            className="mt-1 block w-full rounded-lg border border-white/15 bg-bg px-3 py-2 text-sm text-foreground"
+            className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm text-foreground"
           >
             {chains.map((c) => (
               <option key={c.chain} value={c.chain}>
@@ -242,7 +242,7 @@ export function DepositPanel({
             inputMode="decimal"
             placeholder="0.00"
             disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady}
-            className="mt-1 block w-full rounded-lg border border-white/15 bg-bg px-3 py-2 text-sm tabular-nums text-foreground"
+            className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm tabular-nums text-foreground"
           />
         </label>
       </div>
@@ -283,7 +283,7 @@ export function DepositPanel({
             type="button"
             onClick={handleDeposit}
             disabled={busy !== null || pendingDeposit !== null}
-            className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+            className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:state-disabled disabled:scale-100"
           >
             Deposit {review.amount} USDC
           </button>
@@ -292,7 +292,7 @@ export function DepositPanel({
             type="button"
             onClick={handleReview}
             disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady || amount.trim() === ""}
-            className="rounded-pill border border-white/15 px-5 py-2 text-sm hover:border-white/30 disabled:opacity-50"
+            className="rounded-pill border border-border-input px-5 py-2 text-sm hover:border-white/30 disabled:state-disabled"
           >
             Review deposit
           </button>

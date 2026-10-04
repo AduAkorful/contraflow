@@ -1,19 +1,71 @@
 @import "tailwindcss";
 
 @theme {
+  /* Sans-first: Geist for the product, Geist Mono for addresses and hashes, Instrument Serif only as a
+     marketing display accent. Mono turns contextual alternates off so "0x" never renders as "0×". */
   --font-serif-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
-  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono--font-feature-settings: "calt" 0;
 
-  --color-bg: #0a0a15;
+  /* Contrast is checked against surface-1 by test/designTokens.test.ts; keep the ratios there in step. */
+  --color-bg: #08090f;
   --color-bg-warm: #100f0b;
   --color-surface: #000000;
-  --color-foreground: #ffffff;
-  --color-muted: #8a8a8a;
+  --color-surface-1: #0f1118;
+  --color-surface-2: #161923;
+  --color-border-subtle: #232737;
+  --color-border-input: #636a80;
+  --color-foreground: #eef0f5;
+  --color-muted: #a8aebd;
+  --color-faint: #80879a;
   --color-gold: #f5be09;
   --color-gold-dark: #ecb500;
+  --color-focus: #ffd24d;
+  --color-success: #4cc38a;
+  --color-danger: #f2707a;
 
   --radius-pill: 42px;
   --radius-card: 20px;
+}
+
+/* App type scale (sans). Marketing headings keep font-serif-display. */
+@utility heading-1 {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@utility heading-2 {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+@utility figure {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One disabled look for filled and outlined controls: never opacity on gold. */
+@utility state-disabled {
+  background-color: var(--color-surface-2);
+  color: var(--color-faint);
+  border-color: var(--color-border-subtle);
+  cursor: not-allowed;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
 }
 
 :root {

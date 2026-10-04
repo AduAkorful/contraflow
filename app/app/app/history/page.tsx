@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { SiteNav } from "../../../components/site-nav";
 import { SiteFooter } from "../../../components/site-footer";
+import { Address } from "../../../components/ui/Address";
+import { Money } from "../../../components/ui/Money";
 import { EurcQuote } from "../../../components/quote/EurcQuote";
 import { ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
 import { unifiedBalanceEnabled } from "../../../src/kits/gatewayChains";
@@ -15,9 +17,6 @@ import {
 
 const SIGNALS_TITLE = "Onchain signals";
 
-function shortAddr(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 
@@ -61,7 +60,7 @@ export default function HistoryPage() {
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-2xl px-6 pb-10 pt-10">
-          <h1 className="font-serif-display text-4xl leading-[1.05]">Invoice history</h1>
+          <h1 className="heading-1">Invoice history</h1>
           <p className="mt-4 text-muted">
             Look up any address&apos;s invoices on Arc testnet — no sign-in needed. Useful for
             checking a counterparty, or your own address after running{" "}
@@ -77,12 +76,12 @@ export default function HistoryPage() {
               onChange={(e) => setAddress(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
               placeholder="0x..."
-              className="flex-1 rounded-pill border border-white/15 bg-white/[0.02] px-4 py-3 text-sm font-mono outline-none focus:border-gold/50"
+              className="flex-1 rounded-pill border border-border-input bg-surface-1 px-4 py-3 text-sm font-mono focus:border-focus"
             />
             <button
               onClick={search}
               disabled={loading || address.trim().length === 0}
-              className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:opacity-40"
+              className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
             >
               {loading ? "Looking up..." : "Look up"}
             </button>
@@ -125,12 +124,12 @@ export default function HistoryPage() {
                   <div>
                     <p className="text-sm">
                       {inv.role === "debtor" ? "Owed to" : "Owed by"}{" "}
-                      <span className="font-mono text-foreground/90">{shortAddr(inv.counterparty)}</span>
+                      <Address address={inv.counterparty} className="text-foreground/90" />
                     </p>
                     <p className="mt-1 text-xs text-muted">
-                      ${inv.amountUsdc}
+                      <Money value={inv.amountUsdc} />
                       {inv.status === "settled" && inv.remainingUsdc !== null && (
-                        <> · now ${inv.remainingUsdc} remaining</>
+                        <> · now <Money value={inv.remainingUsdc} /> remaining</>
                       )}
                     </p>
                     {stillOwed(inv) && <EurcQuote invoiceId={inv.invoiceRef} className="mt-1.5" />}

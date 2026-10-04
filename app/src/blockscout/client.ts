@@ -3,18 +3,12 @@
 /// topic-filtered log search silently returns zero results even for real matches.
 /// Reconciliation therefore paginates full decoded contract logs and filters client-side.
 
-const BLOCKSCOUT_BASE = "https://explorer.testnet.arc.io";
+import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { blockscoutBaseFor } from "./explorer";
 
-/// Explorer per chain. Mainnet is added with the mainnet deploy, from a URL verified live then.
-const BLOCKSCOUT_BASE_BY_CHAIN_ID: Record<number, string> = {
-  5042002: BLOCKSCOUT_BASE,
-};
+export { blockscoutBaseFor };
 
-export function blockscoutBaseFor(chainId: number): string {
-  const base = BLOCKSCOUT_BASE_BY_CHAIN_ID[chainId];
-  if (!base) throw new Error(`No Blockscout explorer configured for chain ${chainId}`);
-  return base;
-}
+const BLOCKSCOUT_BASE = blockscoutBaseFor(ARC_TESTNET_CHAIN_ID);
 
 /// Bounds a single reconciliation call's log-fetch cost — at 50 items/page this is up to 1000
 /// decoded logs, comfortably more than this project's actual Registry log volume today. Flagged,

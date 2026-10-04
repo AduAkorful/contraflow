@@ -31,7 +31,7 @@ export function Hero() {
           </Link>
           <Link
             href="/features"
-            className="rounded-pill border border-white/15 px-6 py-3 text-sm font-medium transition-colors hover:border-white/30"
+            className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium transition-colors hover:border-white/30"
           >
             Explore Features
           </Link>
