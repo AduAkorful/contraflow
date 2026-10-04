@@ -132,6 +132,19 @@ export async function getInvoicesForAddress(address: string): Promise<InvoiceRow
   });
 }
 
+/// Newest cached invoices for an address, matched case-insensitively. A fast read for the overview:
+/// no explorer call, so it can lag the chain until `/app/history` reconciles.
+export async function getRecentInvoicesForAddress(address: string, limit: number): Promise<InvoiceRow[]> {
+  return withDbRetry(async () => {
+    const db = sql();
+    const rows = await db`
+      SELECT * FROM invoices WHERE lower(debtor) = lower(${address}) OR lower(creditor) = lower(${address})
+      ORDER BY created_at DESC LIMIT ${limit}
+    `;
+    return (rows as Record<string, unknown>[]).map(toInvoiceRow);
+  });
+}
+
 export async function getSettlement(settleTxHash: string): Promise<SettlementRow | null> {
   return withDbRetry(async () => {
     const db = sql();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatAddress } from "../../src/format/address";
@@ -11,11 +12,9 @@ import { requestNonce, signIn, signOut, whoAmI } from "../../app/app/siwe/action
 type Phase = "idle" | "signing" | "signed-in" | "error";
 
 export function ConnectButton({
-  signedInExtra,
   onSignedIn,
   onSignedOut,
 }: {
-  signedInExtra?: React.ReactNode;
   /// Called once a session exists, whether it was already there or was just created.
   onSignedIn?: (address: string) => void;
   onSignedOut?: () => void;
@@ -23,6 +22,7 @@ export function ConnectButton({
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { login, logout } = usePrivy();
+  const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
@@ -65,6 +65,8 @@ export function ConnectButton({
       setSessionAddress(result.address);
       setPhase("signed-in");
       onSignedIn?.(result.address);
+      // The app shell reads the session on the server, so it needs a refresh to show the new state.
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
       setPhase("error");
@@ -77,6 +79,7 @@ export function ConnectButton({
     setSessionAddress(null);
     setPhase("idle");
     onSignedOut?.();
+    router.refresh();
   }
 
   if (phase === "signed-in" && sessionAddress) {
@@ -93,7 +96,6 @@ export function ConnectButton({
             Sign out
           </button>
         </div>
-        {signedInExtra}
       </div>
     );
   }
@@ -101,25 +103,37 @@ export function ConnectButton({
   return (
     <div className="flex flex-col items-center gap-2">
       {!isConnected ? (
-        <button
-          onClick={() => {
-            setError(null);
-            login();
-          }}
-          className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
-        >
-          Connect Wallet
-        </button>
+        <>
+          <button
+            onClick={() => {
+              setError(null);
+              login();
+            }}
+            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
+          >
+            Sign in
+          </button>
+          <p className="max-w-xs text-center text-xs text-muted">Use a wallet or your email. Nothing is sent onchain.</p>
+        </>
       ) : (
-        <button
-          onClick={handleSignIn}
-          disabled={phase === "signing"}
-          className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
-        >
-          {phase === "signing" ? "Sign in your wallet..." : `Sign in as ${formatAddress(address ?? "")}`}
-        </button>
+        <>
+          <button
+            onClick={handleSignIn}
+            disabled={phase === "signing"}
+            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
+          >
+            {phase === "signing" ? "Sign in your wallet..." : `Sign in as ${formatAddress(address ?? "")}`}
+          </button>
+          <p className="max-w-xs text-center text-xs text-muted">
+            Your wallet is connected. Signing in takes one free signature: no transaction, no gas.
+          </p>
+        </>
       )}
-      {error && <p className="max-w-xs text-center text-xs text-red-300">{error}</p>}
+      {error && (
+        <p role="alert" className="max-w-xs text-center text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

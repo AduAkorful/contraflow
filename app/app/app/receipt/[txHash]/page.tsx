@@ -1,5 +1,3 @@
-import { SiteNav } from "../../../../components/site-nav";
-import { SiteFooter } from "../../../../components/site-footer";
 import { Receipt } from "../../../../components/receipt/Receipt";
 import { getReceiptData } from "../../../../src/receipt/getReceiptData";
 import { CycleSignals } from "./CycleSignals";
@@ -16,28 +14,24 @@ export default async function ReceiptPage({ params }: { params: Promise<{ txHash
   const data = await getReceiptData(txHash);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-2xl px-6 py-16">
-          {data ? (
-            <>
-              <Receipt data={data} />
-              <CycleSignals txHash={txHash} />
-            </>
-          ) : (
-            <div className="rounded-card border border-white/10 bg-white/[0.02] p-8 text-center">
-              <h1 className="heading-2">No settlement found</h1>
-              <p className="mt-3 text-sm text-muted">
-                <span className="break-all font-mono">{txHash.length > 80 ? `${txHash.slice(0, 80)}…` : txHash}</span>{" "}
-                isn&apos;t a settle() transaction on Arc testnet, or the transaction is too new for the explorer to have
-                indexed yet.
-              </p>
-            </div>
-          )}
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+    <>
+      <section className="mx-auto max-w-2xl px-6 py-16">
+        {data ? (
+          <>
+            <Receipt data={data} />
+            <CycleSignals txHash={txHash} />
+          </>
+        ) : (
+          <div className="rounded-card border border-white/10 bg-white/[0.02] p-8 text-center">
+            <h1 className="heading-2">No settlement found</h1>
+            <p className="mt-3 text-sm text-muted">
+              <span className="break-all font-mono">{txHash.length > 80 ? `${txHash.slice(0, 80)}…` : txHash}</span>{" "}
+              isn&apos;t a settle() transaction on Arc testnet, or the transaction is too new for the explorer to have
+              indexed yet.
+            </p>
+          </div>
+        )}
+      </section>
+    </>
   );
 }

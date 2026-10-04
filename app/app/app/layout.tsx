@@ -1,3 +1,7 @@
+import { AppShell } from "../../components/app-shell/AppShell";
+import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
+import { getSession } from "../../src/session/getSession";
 import { Providers } from "./providers";
 
 /// `PrivyProvider` validates its `appId` synchronously on init and throws on an invalid one — a
@@ -6,6 +10,13 @@ import { Providers } from "./providers";
 /// client UI anyway, so there's nothing worth prerendering statically here.
 export const dynamic = "force-dynamic";
 
-export default function AppSectionLayout({ children }: { children: React.ReactNode }) {
-  return <Providers>{children}</Providers>;
+export default async function AppSectionLayout({ children }: { children: React.ReactNode }) {
+  const session = await getSession();
+  return (
+    <Providers>
+      <AppShell address={session?.address ?? null} balanceEnabled={unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)}>
+        {children}
+      </AppShell>
+    </Providers>
+  );
 }

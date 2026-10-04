@@ -49,7 +49,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || PLACEHOLDER_APP_ID}
       config={{
         loginMethods: ["wallet", "email"],
-        appearance: { theme: "dark" },
+        appearance: {
+          theme: "dark",
+          accentColor: "#f5be09",
+          logo: <img src="/logo-mark.png" alt="Contraflow" />,
+          landingHeader: "Sign in to Contraflow",
+          loginMessage: "Use your wallet or your email. Signing in is free and sends no transaction.",
+          showWalletLoginFirst: true,
+        },
         defaultChain: arcTestnet,
         supportedChains: privyChains,
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },

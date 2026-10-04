@@ -1,8 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { SiteNav } from "../../../components/site-nav";
-import { SiteFooter } from "../../../components/site-footer";
 import { Receipt, type ReceiptData } from "../../../components/receipt/Receipt";
 import { Money } from "../../../components/ui/Money";
 import { sumUsdc } from "../../../src/format/money";
@@ -137,126 +135,122 @@ export default function DemoPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-3xl px-6 pb-10 pt-10">
-          <span className="inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
-            DEMO
-          </span>
-          <h1 className="mt-4 heading-1">
-            Watch a cycle cancel, live
-          </h1>
-          <p className="mt-4 text-muted">
-            This runs for real on Arc testnet. To let you see the whole flow without other real
-            people, we sign every side ourselves with keys held server-side — the parties below
-            aren't real companies. Everything after that — registering, finding the cycle, and
-            settling it — happens exactly as it would for anyone.
-          </p>
-          <p className="mt-3 text-muted">
-            Each invoice owes a different amount, on purpose — settling reduces every invoice in
-            the cycle by the same figure, so only the smallest one fully clears. The rest keep a
-            real remaining balance, visible in the receipt below.
-          </p>
-          <p className="mt-3 rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-muted">
-            Arc Testnet · chain id 5042002 — gas is native USDC, invoices are ERC-20 USDC.
-          </p>
-        </section>
+    <>
+      <section className="mx-auto max-w-3xl px-6 pb-10 pt-10">
+        <span className="inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
+          DEMO
+        </span>
+        <h1 className="mt-4 heading-1">
+          Watch a cycle cancel, live
+        </h1>
+        <p className="mt-4 text-muted">
+          This runs for real on Arc testnet. To let you see the whole flow without other real
+          people, we sign every side ourselves with keys held server-side — the parties below
+          aren't real companies. Everything after that — registering, finding the cycle, and
+          settling it — happens exactly as it would for anyone.
+        </p>
+        <p className="mt-3 text-muted">
+          Each invoice owes a different amount, on purpose — settling reduces every invoice in
+          the cycle by the same figure, so only the smallest one fully clears. The rest keep a
+          real remaining balance, visible in the receipt below.
+        </p>
+        <p className="mt-3 rounded-card border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-muted">
+          Arc Testnet · chain id 5042002 — gas is native USDC, invoices are ERC-20 USDC.
+        </p>
+      </section>
 
-        <section className="mx-auto max-w-2xl px-6 pb-20">
-          <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-10">
-            {phase === "idle" && (
-              <div className="mb-8 flex flex-col items-center gap-3">
-                <p className="text-xs uppercase tracking-wide text-muted">Cycle size</p>
-                <div className="flex gap-2">
-                  {PARTY_COUNT_OPTIONS.map((count) => (
-                    <button
-                      key={count}
-                      onClick={() => selectPartyCount(count)}
-                      className={`rounded-pill border px-4 py-1.5 text-sm transition-colors ${
-                        count === partyCount ? "border-gold bg-gold/10 text-gold" : "border-white/15 text-muted hover:border-white/30"
-                      }`}
-                    >
-                      {count} parties
-                    </button>
-                  ))}
-                </div>
-                <p className="text-center text-xs text-muted">
-                  Invoice loops settle with {MIN_DEMO_PARTIES} to {MAX_DEMO_PARTIES} parties.
-                </p>
+      <section className="mx-auto max-w-2xl px-6 pb-20">
+        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-10">
+          {phase === "idle" && (
+            <div className="mb-8 flex flex-col items-center gap-3">
+              <p className="text-xs uppercase tracking-wide text-muted">Cycle size</p>
+              <div className="flex gap-2">
+                {PARTY_COUNT_OPTIONS.map((count) => (
+                  <button
+                    key={count}
+                    onClick={() => selectPartyCount(count)}
+                    className={`rounded-pill border px-4 py-1.5 text-sm transition-colors ${
+                      count === partyCount ? "border-gold bg-gold/10 text-gold" : "border-white/15 text-muted hover:border-white/30"
+                    }`}
+                  >
+                    {count} parties
+                  </button>
+                ))}
               </div>
+              <p className="text-center text-xs text-muted">
+                Invoice loops settle with {MIN_DEMO_PARTIES} to {MAX_DEMO_PARTIES} parties.
+              </p>
+            </div>
+          )}
+
+          <CycleDiagram edges={edges} center={center} />
+
+          <div className="mt-8 flex flex-col items-center gap-4">
+            {phase === "idle" && (
+              <button
+                onClick={runFixture}
+                className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
+              >
+                Run the demo
+              </button>
             )}
-
-            <CycleDiagram edges={edges} center={center} />
-
-            <div className="mt-8 flex flex-col items-center gap-4">
-              {phase === "idle" && (
+            {phase === "running" && <p className="text-sm text-muted">Registering invoices on Arc...</p>}
+            {phase === "readyToSettle" && (
+              <>
+                <p className="text-center text-sm text-muted">
+                  {registeredRows.length} invoices, totaling <Money value={totalInvoicedUsdc} /> — settling reduces
+                  every one of them by the same amount.
+                </p>
                 <button
-                  onClick={runFixture}
+                  onClick={settle}
                   className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
                 >
-                  Run the demo
+                  Settle this cycle
                 </button>
-              )}
-              {phase === "running" && <p className="text-sm text-muted">Registering invoices on Arc...</p>}
-              {phase === "readyToSettle" && (
-                <>
-                  <p className="text-center text-sm text-muted">
-                    {registeredRows.length} invoices, totaling <Money value={totalInvoicedUsdc} /> — settling reduces
-                    every one of them by the same amount.
-                  </p>
-                  <button
-                    onClick={settle}
-                    className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
-                  >
-                    Settle this cycle
-                  </button>
-                </>
-              )}
-              {phase === "settling" && <p className="text-sm text-muted">Settling on Arc...</p>}
-              {phase === "done" && (
-                <button
-                  onClick={runFixture}
-                  className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium hover:border-white/30"
-                >
-                  Run it again
-                </button>
-              )}
+              </>
+            )}
+            {phase === "settling" && <p className="text-sm text-muted">Settling on Arc...</p>}
+            {phase === "done" && (
+              <button
+                onClick={runFixture}
+                className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium hover:border-white/30"
+              >
+                Run it again
+              </button>
+            )}
 
-              {error && (
-                <p className="w-full rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            {registeredRows.length > 0 && (
-              <div className="mt-8 border-t border-white/10 pt-6">
-                <p className="text-xs uppercase tracking-wide text-muted">Registered, one at a time</p>
-                <ul className="mt-3 space-y-2 text-sm">
-                  {registeredRows.map((row) => (
-                    <li key={row.invoiceId} className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-muted">
-                        {row.label} <span className="text-foreground/70">· <Money value={row.amountUsdc} /></span>
-                      </span>
-                      <a href={row.explorerUrl} target="_blank" rel="noreferrer" className="text-gold hover:underline">
-                        View transaction →
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {error && (
+              <p className="w-full rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
+                {error}
+              </p>
             )}
           </div>
 
-          {receipt && (
-            <div className="mt-6">
-              <Receipt data={receipt} />
+          {registeredRows.length > 0 && (
+            <div className="mt-8 border-t border-white/10 pt-6">
+              <p className="text-xs uppercase tracking-wide text-muted">Registered, one at a time</p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {registeredRows.map((row) => (
+                  <li key={row.invoiceId} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-muted">
+                      {row.label} <span className="text-foreground/70">· <Money value={row.amountUsdc} /></span>
+                    </span>
+                    <a href={row.explorerUrl} target="_blank" rel="noreferrer" className="text-gold hover:underline">
+                      View transaction →
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+        </div>
+
+        {receipt && (
+          <div className="mt-6">
+            <Receipt data={receipt} />
+          </div>
+        )}
+      </section>
+    </>
   );
 }
