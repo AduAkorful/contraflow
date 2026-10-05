@@ -89,7 +89,7 @@ export function VerifyCertificate() {
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
 
       {result && (
-        <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6">
+        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
           <p className="text-sm">
             {result.ok ? "Every check passed." : `${failed} of ${result.checks.length} checks did not pass.`}
           </p>

@@ -13,16 +13,16 @@ import { ProtocolStatsSection } from "../components/sections/protocol-stats";
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <Hero />
-        <ProtocolStatsSection />
         <WhyUs />
         <KeyFeatures />
         <Values />
         <Cta />
         <HowItWorks />
+        <ProtocolStatsSection />
         <Integrations />
         <Pricing />
         <Faq />

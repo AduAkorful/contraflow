@@ -26,7 +26,7 @@ export function ObligationTerms({
   const counterparty = viewerRole === "debtor" ? document.creditor : document.debtor;
 
   return (
-    <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+    <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
       <p className="text-xs uppercase tracking-wide text-muted">Obligation terms</p>
       <p className="mt-3 figure text-2xl">
         {viewerRole === "debtor" ? "You owe" : "You are owed"}{" "}

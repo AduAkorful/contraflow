@@ -21,7 +21,7 @@ const SCOPE = [
 
 export default function AboutPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-16 pt-10 text-center">

@@ -35,4 +35,5 @@ Yes, they're upgradeable. See [Trust and security](how-it-works.md#trust-and-sec
 Nothing. A debt with only one signature is never registered or netted.
 
 **Is there an API?**
-Not yet. See [API](api/README.md).
+Yes. Platforms such as ERPs, accounting apps and marketplaces can record offchain obligations, find netting loops
+and apply certificates for their customers over HTTPS. Access is by request. See [API](api/README.md).

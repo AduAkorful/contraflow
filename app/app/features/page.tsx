@@ -37,7 +37,7 @@ const OBLIGATIONS = [
   {
     number: "2",
     title: "Both sides sign",
-    body: "Send a short link. Only your counterparty can open it, after signing in with the wallet it names, and their browser checks your signature before they sign.",
+    body: "Send a short link. It's shown only to your counterparty, after they sign in with the wallet it names, and their browser checks your signature before they sign.",
   },
   {
     number: "3",
@@ -72,10 +72,6 @@ const TRUST = [
     body: "Cancelling a valid loop isn't gated behind us. Anyone can trigger it once it's ready.",
   },
   {
-    title: "Upgradeable, and we say so",
-    body: "The team can upgrade Contraflow's three contracts, the invoice registry, the settler and the netting ledger, with a single administrative key. See our Terms.",
-  },
-  {
     title: "Real numbers only",
     body: "Every figure the app shows, from the protocol stats to a receipt, comes from an actual transaction, never a sample or a mock.",
   },
@@ -104,7 +100,7 @@ function Steps({ steps }: { steps: Step[] }) {
 
 export default function FeaturesPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
@@ -145,13 +141,13 @@ export default function FeaturesPage() {
 
         <section className="mx-auto max-w-6xl px-6 py-16">
           <p className="text-center text-xs font-medium uppercase tracking-wide text-gold">
-            Trust & disclosure
+            Trust
           </p>
           <h2 className="mt-3 text-center font-serif-display text-3xl">
             How Contraflow is built
           </h2>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2">
+          <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {TRUST.map((t) => (
               <div key={t.title} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
                 <h3 className="font-medium">{t.title}</h3>

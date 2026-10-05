@@ -9,6 +9,8 @@ import { useAccount, useSignTypedData, useWriteContract, usePublicClient, useSwi
 import { recoverTypedDataAddress, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { ReviewAndSign } from "../../../../components/attest/ReviewAndSign";
+import { Money } from "../../../../components/ui/Money";
+import { formatUsdcAmount } from "../../../../src/attest/amount";
 import { decodeAttestLink, type AttestLinkPayload } from "../../../../src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../../src/attest/document";
 import { invoiceAttestationTypedData } from "../../../../src/attest/signAttestation";
@@ -46,6 +48,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
   const [error, setError] = useState<string | null>(null);
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [resultTxHash, setResultTxHash] = useState<string | null>(null);
+  const [registeredRef, setRegisteredRef] = useState<string | null>(null);
   const [recordWarning, setRecordWarning] = useState<string | null>(null);
 
   const viewerRole = payload ? invoiceViewerRole(payload.invoice, sessionAddress) : null;
@@ -214,6 +217,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
       setPhase("done");
       try {
         const recordResult = await record(txHash);
+        if (recordResult.ok) setRegisteredRef(recordResult.invoiceRef);
         if (!recordResult.ok) {
           setRecordWarning("Arc confirmed the registration, but history has not synced yet. Contraflow will reconcile it automatically.");
           console.error("record() failed after a successful register():", recordResult.error);
@@ -280,12 +284,31 @@ export function LandingClient({ encoded }: { encoded: string }) {
           </svg>
           Invoice registered on Arc
         </p>
-        {recordWarning && <p className="mt-3 text-xs text-muted">{recordWarning}</p>}
-        {ARC_EXPLORER && (
-          <a href={`${ARC_EXPLORER}/tx/${resultTxHash}`} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs text-gold hover:underline">
-            View transaction →
-          </a>
+        <p className="mt-3 text-xs text-muted">
+          {payload ? <Money value={formatUsdcAmount(payload.invoice.amount)} className="text-foreground" /> : "This invoice"} is now registered.
+          If it ends up in a loop of registered invoices, a settlement can net it down.
+        </p>
+        {registeredRef && (
+          <p className="mt-3 text-xs text-faint">
+            Invoice ID <span className="break-all font-mono text-muted">{registeredRef}</span>
+          </p>
         )}
+        {recordWarning && <p className="mt-3 text-xs text-muted">{recordWarning}</p>}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
+          {sessionAddress && (
+            <a href={`/app/history?address=${sessionAddress}`} className="text-gold hover:underline">
+              See it in your history →
+            </a>
+          )}
+          {ARC_EXPLORER && (
+            <a href={`${ARC_EXPLORER}/tx/${resultTxHash}`} target="_blank" rel="noreferrer" className="text-muted hover:underline">
+              View transaction →
+            </a>
+          )}
+          <a href="/app/attest" className="text-muted hover:underline">
+            Propose another invoice →
+          </a>
+        </div>
       </div>
     );
   }

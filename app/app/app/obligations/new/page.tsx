@@ -10,9 +10,9 @@ export default async function NewObligationPage() {
 
   return (
     <>
-      <section className="mx-auto max-w-xl px-6 py-16">
+      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <h1 className="heading-1">Record an offchain obligation</h1>
-        <p className="mt-4 text-sm text-muted">
+        <p className="mt-4 max-w-xl text-sm text-muted">
           A debt in any currency that&apos;s paid outside Contraflow. You and your counterparty both sign it, so
           it can later be netted against other obligations in a loop. Nothing is recorded until they sign too.
         </p>

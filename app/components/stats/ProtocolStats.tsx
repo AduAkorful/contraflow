@@ -26,7 +26,7 @@ function Tile({ tile, size }: { tile: StatTile; size: "lg" | "sm" }) {
 
 function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "full" }) {
   return (
-    <div className="animate-card-entrance">
+    <div>
       <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {view.headline.map((tile) => (
           <Tile key={tile.label} tile={tile} size="lg" />

@@ -28,15 +28,15 @@ const IN_THE_APP: Integration[] = [
   },
 ];
 
-const IN_THE_PIPELINE: Integration[] = [
+const FROM_CIRCLE: Integration[] = [
   {
     title: "Swap Kit",
-    body: "Can get a live USDC to EURC quote for any balance a loop leaves behind. Quotes only: it never places a trade.",
+    body: "Shows a live USDC to EURC quote for any balance a loop leaves behind. Quote only: it never places a trade.",
     href: "https://docs.arc.io/app-kit",
   },
   {
     title: "Unified Balance / Gateway",
-    body: "Can fund a remaining balance on Arc from USDC held on another chain.",
+    body: "Lets you bring USDC from another chain to your own address on Arc, from your own wallet, to cover a balance a loop leaves behind.",
     href: "https://docs.arc.io/app-kit/unified-balance",
   },
   {
@@ -66,7 +66,7 @@ function Cards({ items }: { items: Integration[] }) {
 
 export default function IntegrationsPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
@@ -82,12 +82,8 @@ export default function IntegrationsPage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-12">
-          <h2 className="font-serif-display text-3xl">In the settlement pipeline</h2>
-          <p className="mt-4 max-w-2xl text-sm text-muted">
-            Contraflow&apos;s settlement pipeline runs server-side after a loop is netted, and uses Circle&apos;s App Kit
-            and wallet infrastructure.
-          </p>
-          <Cards items={IN_THE_PIPELINE} />
+          <h2 className="font-serif-display text-3xl">From Circle</h2>
+          <Cards items={FROM_CIRCLE} />
         </section>
       </main>
       <SiteFooter />

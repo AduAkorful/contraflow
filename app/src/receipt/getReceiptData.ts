@@ -9,6 +9,8 @@ import type { ReceiptData, ReceiptInvoiceRow } from "../../components/receipt/Re
 import { formatUnits, parseUnits } from "viem";
 import { formatUsdcDisplay } from "../attest/amount";
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { arcPublicClient } from "../chain/operatorEnv";
+import { getInvoice } from "../chain/readInvoices";
 
 const USDC_DECIMALS = 6;
 
@@ -44,6 +46,8 @@ async function fromDatabase(txHash: string): Promise<ReceiptData | null> {
     invoiceId: inv.invoiceRef,
     beforeUsdc: addUsdcAmounts(inv.remainingUsdc ?? "0.00", settlement.wNetUsdc),
     afterUsdc: inv.remainingUsdc ?? "0.00",
+    debtor: inv.debtor,
+    creditor: inv.creditor,
   }));
 
   const grossCancelledUsdc = formatUsdcDisplay(parseUnits(settlement.wNetUsdc, USDC_DECIMALS) * BigInt(settlement.cycleLength));
@@ -84,22 +88,38 @@ async function fromBlockscout(txHash: string): Promise<ReceiptData | null> {
 
   const fee = await fetchTransactionFee(txHash);
 
+  // The netting event carries no parties; read them from the Registry, and leave them out rather than
+  // fail the receipt if the read doesn't work.
+  const client = arcPublicClient();
+  async function partiesOf(id: string): Promise<{ debtor: string; creditor: string } | null> {
+    try {
+      const invoice = await getInvoice(client, registry, id as `0x${string}`);
+      return invoice ? { debtor: invoice.debtor, creditor: invoice.creditor } : null;
+    } catch {
+      return null;
+    }
+  }
+
   let wNetBaseUnits = 0n;
-  const rows: ReceiptInvoiceRow[] = nettedLogs.map((log) => {
-    const id = paramValue(log.parameters, "id");
-    const wNet = paramValue(log.parameters, "wNet");
-    const remainingAfter = paramValue(log.parameters, "remainingAfter");
-    const wNetBig = BigInt(typeof wNet === "string" ? wNet : "0");
-    const remainingBig = BigInt(typeof remainingAfter === "string" ? remainingAfter : "0");
-    wNetBaseUnits = wNetBig;
-    const ref = typeof id === "string" ? id : "unknown";
-    return {
-      label: shortRef(ref),
-      invoiceId: ref,
-      beforeUsdc: formatUsdcDisplay(remainingBig + wNetBig),
-      afterUsdc: formatUsdcDisplay(remainingBig),
-    };
-  });
+  const rows: ReceiptInvoiceRow[] = await Promise.all(
+    nettedLogs.map(async (log) => {
+      const id = paramValue(log.parameters, "id");
+      const wNet = paramValue(log.parameters, "wNet");
+      const remainingAfter = paramValue(log.parameters, "remainingAfter");
+      const wNetBig = BigInt(typeof wNet === "string" ? wNet : "0");
+      const remainingBig = BigInt(typeof remainingAfter === "string" ? remainingAfter : "0");
+      wNetBaseUnits = wNetBig;
+      const ref = typeof id === "string" ? id : "unknown";
+      const parties = typeof id === "string" ? await partiesOf(id) : null;
+      return {
+        label: shortRef(ref),
+        invoiceId: ref,
+        beforeUsdc: formatUsdcDisplay(remainingBig + wNetBig),
+        afterUsdc: formatUsdcDisplay(remainingBig),
+        ...(parties ?? {}),
+      };
+    }),
+  );
 
   const grossCancelledUsdc = formatUsdcDisplay(wNetBaseUnits * BigInt(rows.length));
 

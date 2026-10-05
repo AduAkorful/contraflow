@@ -22,6 +22,13 @@ export function formatUsdc(value: string | bigint): string {
   return `${formatUsdcNumber(decimal)} USDC`;
 }
 
+/// Six-decimal base units of a plain decimal string, or null when it isn't one.
+export function usdcBaseUnits(decimal: string): bigint | null {
+  const match = PLAIN_DECIMAL.exec(decimal.trim());
+  if (!match || (match[2] ?? "").length > 6) return null;
+  return BigInt(match[1]!) * 1_000_000n + BigInt((match[2] ?? "").padEnd(6, "0") || "0");
+}
+
 /// Exact sum of decimal USDC strings (at most six decimals each), returned as a decimal string.
 export function sumUsdc(values: readonly string[]): string {
   let total = 0n;

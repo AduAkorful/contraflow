@@ -1,6 +1,6 @@
 /// Signed session token — a plain HMAC-SHA256-signed cookie payload, not a database row or a
-/// JWT library. Nothing about a session needs to be queried, listed, or revoked by an admin, so
-/// either would be pure overhead.
+/// JWT library. Nothing about a session needs to be queried or listed, so either would be pure
+/// overhead. The one thing a session needs is sign-out: see `revocation.ts`.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 

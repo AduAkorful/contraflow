@@ -12,6 +12,12 @@ const CONTACT_CARDS = [
     cta: "Open the repo",
   },
   {
+    title: "API access",
+    body: "Platforms such as ERPs, accounting apps and marketplaces can record obligations and apply certificates for their customers. Keys are issued by hand. Ask for one in the repository and say which platform you build.",
+    link: "https://github.com/AduAkorful/contraflow",
+    cta: "Request an API key",
+  },
+  {
     title: "Verify it yourself",
     body: "Every settlement and certificate is on the Arc explorer, and any certificate can be checked against the ledger in your browser.",
     link: "/app/verify",
@@ -21,7 +27,7 @@ const CONTACT_CARDS = [
 
 export default function ContactPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
@@ -32,9 +38,9 @@ export default function ContactPage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-12">
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {CONTACT_CARDS.map((c) => (
-              <div key={c.title} className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
+              <div key={c.title} className="rounded-card border border-border-subtle bg-surface-1 p-6 text-center">
                 <h3 className="font-medium">{c.title}</h3>
                 <p className="mt-2 text-sm text-muted">{c.body}</p>
                 <a

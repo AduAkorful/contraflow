@@ -35,7 +35,7 @@ export function ReviewAndSign({
   const verb = viewerRole === null ? "Invoice amount" : viewerRole === "debtor" ? "You owe" : "You are owed";
 
   return (
-    <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+    <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
       <p className="text-xs uppercase tracking-wide text-muted">Invoice terms</p>
       <p className="mt-3 heading-2">
         {verb} <span className="text-gold"><Money value={formatUsdcAmount(invoice.amount)} /></span>

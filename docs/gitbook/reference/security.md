@@ -80,7 +80,7 @@ random tokens, but the token is a handle, not the access control: reads always c
 | Control | Detail |
 |---|---|
 | Sign-in | EIP-4361 messages built and verified server-side with viem. The domain comes from server configuration, never a request header. Nonces are single-use in Upstash. |
-| Session | An HMAC-signed cookie holding only the address: HttpOnly, `SameSite=Lax`, `Secure` in production, 24 hours. |
+| Session | An HMAC-signed cookie holding only the address: HttpOnly, `SameSite=Lax`, `Secure` in production, 24 hours. Signing out also records a hash of the cookie as revoked until it would have expired, so a copy of it stops working. If that record can't be read, the session counts as signed out. |
 | API keys | Random 32 bytes. Only a SHA-256 hash is stored, and the key is shown once. The key decides the network. |
 | API permissions | EIP-712 grants signed by the party, scoped (read / propose / deliver signatures), expiring within a year, revocable. None allows signing. |
 | Idempotency | A reservation row is written before the request runs, so concurrent retries can't both execute. |

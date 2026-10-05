@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { isAddress, type Address } from "viem";
+import { formatAddress } from "../../../src/format/address";
 import { usePrivy } from "@privy-io/react-auth";
 import { ReviewAndSign } from "../../../components/attest/ReviewAndSign";
+import { ComposerFrame } from "../../../components/ui/ComposerFrame";
+import { Field, SuffixInput, inputClass } from "../../../components/ui/Field";
+import { Segmented } from "../../../components/ui/Segmented";
 import { invoiceAttestationTypedData, type InvoiceAttestation } from "../../../src/attest/signAttestation";
 import { encodeAttestLink } from "../../../src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../src/attest/document";
@@ -20,9 +24,16 @@ function dateToUnixSeconds(dateStr: string): bigint {
   return BigInt(Math.floor(new Date(`${dateStr}T00:00:00Z`).getTime() / 1000));
 }
 
-function shortAddr(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+const ROLE_OPTIONS = [
+  { value: "creditor", label: "They owe me" },
+  { value: "debtor", label: "I owe them" },
+] as const;
+
+const NEXT_STEPS = [
+  { title: "You sign", body: "One signature in your wallet. It's free: no transaction and no gas." },
+  { title: "Your counterparty signs", body: "They open your link, check the terms, sign and register the invoice on Arc. Registering is the only step that costs gas, paid from their wallet." },
+  { title: "It's on Arc", body: "A registered invoice can be netted against other registered invoices that form a loop." },
+] as const;
 
 export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const { address, isConnected, connector } = useAccount();
@@ -139,9 +150,10 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
 
   if (phase === "done" && link) {
     return (
+      <ComposerFrame step={2} next={NEXT_STEPS}>
       <div className="animate-card-entrance rounded-card border border-gold/30 bg-gold/[0.06] p-6 text-center">
         <p className="text-sm text-muted">Share this link with your counterparty:</p>
-        <div className="mt-4 break-all rounded-lg border border-white/10 bg-black/30 p-3 text-xs font-mono">
+        <div className="mt-4 break-all rounded-lg border border-border-subtle bg-surface-1 p-3 text-xs font-mono">
           {link}
         </div>
         <button
@@ -160,41 +172,44 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
         </p>
         <p className="mt-4 text-xs text-muted">Nothing is registered on Arc until they sign too.</p>
       </div>
+      </ComposerFrame>
     );
   }
 
-  if (phase === "review" && invoice) {
+  if ((phase === "review" || phase === "signing") && invoice) {
     return (
+      <ComposerFrame step={1} next={NEXT_STEPS}>
       <ReviewAndSign invoice={invoice} viewerRole={role} description={invoiceDocument?.description}>
         <div className="flex flex-col items-center gap-3">
           <button
             onClick={handleSign}
-            disabled={phase !== "review"}
-            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02]"
+            disabled={phase === "signing"}
+            className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
-            Sign &amp; generate link
+            {phase === "signing" ? "Sign in your wallet..." : "Sign & generate link"}
           </button>
           <button onClick={() => setPhase("compose")} className="text-xs text-muted hover:underline">
             ← Back to edit
           </button>
-          {error && <p className="text-center text-xs text-red-300">{error}</p>}
+          {error && <p role="alert" className="text-center text-xs text-danger">{error}</p>}
         </div>
       </ReviewAndSign>
+      </ComposerFrame>
     );
   }
 
   if (!isConnected || address?.toLowerCase() !== signerAddress.toLowerCase()) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-card border border-border-subtle bg-surface-1 p-6 text-center">
         {isConnected ? (
           <p className="text-sm text-muted">
-            Your connected wallet ({shortAddr(address ?? "")}) doesn&apos;t match the address you
-            signed in with ({shortAddr(signerAddress)}). Switch accounts in your wallet, or connect
+            Your connected wallet ({formatAddress(address ?? "")}) doesn&apos;t match the address you
+            signed in with ({formatAddress(signerAddress)}). Switch accounts in your wallet, or connect
             the right one below.
           </p>
         ) : (
           <p className="text-sm text-muted">
-            You&apos;re signed in as {shortAddr(signerAddress)}, but your wallet isn&apos;t connected
+            You&apos;re signed in as {formatAddress(signerAddress)}, but your wallet isn&apos;t connected
             in this tab. Reconnect it to continue.
           </p>
         )}
@@ -209,81 +224,72 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+    <ComposerFrame step={0} next={NEXT_STEPS}>
+      <div className="flex flex-col gap-5">
+        <Segmented label="Who owes whom" value={role} options={ROLE_OPTIONS} onChange={setRole} />
+
+        <Field label="Counterparty address">
+          {(p) => (
+            <input
+              {...p}
+              value={counterparty}
+              onChange={(e) => setCounterparty(e.target.value)}
+              placeholder="0x..."
+              spellCheck={false}
+              className={`${inputClass} font-mono`}
+            />
+          )}
+        </Field>
+
+        <Field label="Amount" hint="Up to 6 decimal places.">
+          {(p) => (
+            <SuffixInput
+              {...p}
+              suffix="USDC"
+              value={amountUsd}
+              onChange={(e) => setAmountUsd(e.target.value)}
+              placeholder="1000.00"
+              inputMode="decimal"
+            />
+          )}
+        </Field>
+
+        <Field label="Maturity date">
+          {(p) => <input {...p} type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} className={inputClass} />}
+        </Field>
+
+        <Field label="What's this for?" hint="Hashed and signed as part of this invoice. Your counterparty sees it before they sign too.">
+          {(p) => (
+            <textarea
+              {...p}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Invoice #, PO #, or a short description of what this is for"
+              rows={2}
+              className={`${inputClass} resize-none`}
+            />
+          )}
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input type="checkbox" className="accent-gold" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
+          Allow this invoice to be netted before its maturity date
+        </label>
+
         <button
-          onClick={() => setRole("creditor")}
-          className={`flex-1 rounded-pill border px-4 py-2 text-sm ${role === "creditor" ? "border-gold bg-gold/10 text-gold" : "border-white/15 text-muted"}`}
+          onClick={handleContinueToReview}
+          className="mt-1 rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02]"
         >
-          They owe me
+          Continue to review
         </button>
-        <button
-          onClick={() => setRole("debtor")}
-          className={`flex-1 rounded-pill border px-4 py-2 text-sm ${role === "debtor" ? "border-gold bg-gold/10 text-gold" : "border-white/15 text-muted"}`}
-        >
-          I owe them
-        </button>
+
+        {grantNote && <p className="text-center text-xs text-muted">{grantNote}</p>}
+        {error && (
+          <p role="alert" className="text-center text-xs text-danger">
+            {error}
+          </p>
+        )}
       </div>
-
-      <label className="text-xs uppercase tracking-wide text-muted">
-        Counterparty address
-        <input
-          value={counterparty}
-          onChange={(e) => setCounterparty(e.target.value)}
-          placeholder="0x..."
-          className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.02] px-4 py-2.5 text-sm font-mono outline-none focus:border-gold/50"
-        />
-      </label>
-
-      <label className="text-xs uppercase tracking-wide text-muted">
-        Amount (USDC)
-        <input
-          value={amountUsd}
-          onChange={(e) => setAmountUsd(e.target.value)}
-          placeholder="1000.00"
-          inputMode="decimal"
-          className="mt-1 w-full rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
-        />
-      </label>
-
-      <label className="text-xs uppercase tracking-wide text-muted">
-        Maturity date
-        <input
-          type="date"
-          value={maturityDate}
-          onChange={(e) => setMaturityDate(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
-        />
-      </label>
-
-      <label className="text-xs uppercase tracking-wide text-muted">
-        What&apos;s this for?
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Invoice #, PO #, or a short description of what this is for"
-          rows={2}
-          className="mt-1 w-full resize-none rounded-lg border border-border-input bg-surface-1 px-4 py-2.5 text-sm focus:border-focus"
-        />
-      </label>
-      <p className="-mt-2 text-xs text-muted">
-        Hashed and signed as part of this invoice — your counterparty sees it before they sign too.
-      </p>
-
-      <label className="flex items-center gap-2 text-sm text-muted">
-        <input type="checkbox" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
-        Allow this invoice to be netted before its maturity date
-      </label>
-
-      <button
-        onClick={handleContinueToReview}
-        className="mt-2 rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02]"
-      >
-        Continue to review
-      </button>
-
-      {grantNote && <p className="text-center text-xs text-muted">{grantNote}</p>}
-      {error && <p className="text-center text-xs text-red-300">{error}</p>}
-    </div>
+    </ComposerFrame>
   );
 }

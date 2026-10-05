@@ -54,7 +54,6 @@ export default async function AppLandingPage({ searchParams }: { searchParams: P
           </Link>
         </div>
       </section>
-      {stats}
     </>
   );
 }

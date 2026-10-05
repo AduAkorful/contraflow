@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroExample } from "./hero-example";
 
 export function Hero() {
   return (
@@ -8,7 +9,7 @@ export function Hero() {
         className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-gradient-to-b from-gold/15 via-gold/0 to-transparent"
       />
 
-      <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-6 pb-20 pt-16 text-center">
+      <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-6 pb-20 pt-12 text-center">
         <span className="mb-6 inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
           ★ BUILT ON ARC
         </span>
@@ -31,13 +32,15 @@ export function Hero() {
           </Link>
           <Link
             href="/features"
-            className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium transition-colors hover:border-white/30"
+            className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium transition-colors hover:bg-surface-2"
           >
             Explore Features
           </Link>
         </div>
 
-        <p className="mt-16 text-xs uppercase tracking-wide text-muted">
+        <HeroExample />
+
+        <p className="mt-12 text-xs uppercase tracking-wide text-muted">
           $0 protocol fee · gas priced in USDC · permissionless settlement
         </p>
       </div>

@@ -121,7 +121,7 @@ sequenceDiagram
 ```
 
 The session holds only the wallet address. Every action takes the caller's address from the session, never from a
-request field.
+request field. Signing out revokes the cookie server-side, so a copy of it stops working.
 
 ### Invoice on Arc
 

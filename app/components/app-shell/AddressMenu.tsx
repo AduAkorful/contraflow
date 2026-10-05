@@ -14,6 +14,7 @@ export function AddressMenu({ address }: { address: string }) {
   const { logout } = usePrivy();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const full = checksumAddress(address);
   const explorer = explorerAddressUrl(ARC_TESTNET_CHAIN_ID, full);
@@ -45,7 +46,12 @@ export function AddressMenu({ address }: { address: string }) {
   }
 
   async function handleSignOut() {
-    await signOut();
+    setSignOutError(null);
+    const result = await signOut();
+    if (!result.ok) {
+      setSignOutError(result.error);
+      return;
+    }
     await logout();
     setOpen(false);
     router.refresh();
@@ -80,6 +86,11 @@ export function AddressMenu({ address }: { address: string }) {
           <button role="menuitem" type="button" onClick={handleSignOut} className={item}>
             Sign out
           </button>
+          {signOutError && (
+            <p role="alert" className="px-3 py-2 text-xs text-danger">
+              {signOutError}
+            </p>
+          )}
         </div>
       )}
     </div>

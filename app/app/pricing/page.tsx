@@ -16,7 +16,7 @@ const COST_NOTES = [
 
 export default function PricingPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-4xl px-6 pb-4 pt-10 text-center">

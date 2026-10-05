@@ -1,20 +1,26 @@
 /// The canonical settlement receipt: block, transaction hash, and before/after amountRemaining
-/// for every invoice a settle() call extinguished — the on-chain evidence a cycle really
+/// for every invoice a settle() call netted — the onchain evidence a cycle really
 /// cleared, not just a UI claim that it did. Shared, not demo-specific: `/app/receipt/[txHash]`
 /// renders the same component against the same shape, so "the demo's receipt" and "the real
 /// receipt" are never two different designs.
 ///
-/// Layout: header block -> dashed separator -> itemized rows -> totals.
+/// Layout: header -> what happened in one sentence -> one row per invoice (who owes whom,
+/// before, netted, after, status) -> totals.
 
+import { Address } from "../ui/Address";
 import { Money } from "../ui/Money";
 import { EurcQuote } from "../quote/EurcQuote";
 import { parseUnits } from "viem";
+import { NETTING_STATUS_LABEL, nettingStatus } from "../../src/format/netting";
 
 export interface ReceiptInvoiceRow {
   label: string;
   invoiceId: string;
   beforeUsdc: string;
   afterUsdc: string;
+  /// Present when the parties could be read; the demo supplies a readable `label` instead.
+  debtor?: string;
+  creditor?: string;
 }
 
 export interface ReceiptData {
@@ -38,12 +44,35 @@ function shortHash(hash: string): string {
   return `${hash.slice(0, 10)}…${hash.slice(-8)}`;
 }
 
-export function Receipt({ data }: { data: ReceiptData }) {
+function Parties({ row }: { row: ReceiptInvoiceRow }) {
+  if (row.debtor && row.creditor) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-2">
+        <Address address={row.debtor} className="text-foreground" />
+        <span aria-label="owes" className="text-faint">→</span>
+        <Address address={row.creditor} className="text-foreground" />
+      </span>
+    );
+  }
+  return <span className="text-foreground">{row.label}</span>;
+}
+
+function Figure({ label, children, emphasis }: { label: string; children: React.ReactNode; emphasis?: boolean }) {
   return (
-    <div className="animate-card-entrance rounded-card border border-gold/30 bg-gold/[0.06] p-6 sm:p-8">
+    <div>
+      <dt className="text-xs text-faint">{label}</dt>
+      <dd className={`mt-0.5 tabular-nums ${emphasis ? "text-foreground" : "text-muted"}`}>{children}</dd>
+    </div>
+  );
+}
+
+export function Receipt({ data }: { data: ReceiptData }) {
+  const count = data.invoices.length;
+  return (
+    <div className="rounded-card border border-border-subtle bg-surface-1 p-6 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-1.5 rounded-pill border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-medium text-gold">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
             <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
               <path
                 d="M3 8.5 L6.5 12 L13 4"
@@ -69,44 +98,51 @@ export function Receipt({ data }: { data: ReceiptData }) {
         </div>
       </div>
 
-      <div className="mt-6 border-t border-dashed border-white/15 pt-6">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Invoices cancelled</p>
-        <div className="mt-3 divide-y divide-white/10">
-          {data.invoices.map((row) => (
-            <div key={row.invoiceId} className="py-3 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-foreground/90">{row.label}</span>
-                <span className="flex items-baseline gap-2 tabular-nums">
-                  <Money value={row.beforeUsdc} className="text-muted line-through" />
-                  <Money value={row.afterUsdc} className="text-gold" />
-                </span>
-              </div>
-              {hasRemaining(row.afterUsdc) && <EurcQuote invoiceId={row.invoiceId} className="mt-2 text-right" />}
-            </div>
-          ))}
-        </div>
-      </div>
+      <p className="mt-5 text-sm text-muted">
+        <Money value={data.wNetUsdc} className="text-foreground" /> netted from each of {count} invoices in one
+        transaction. <Money value={data.cashMovedUsdc} className="text-foreground" /> moved between the parties.
+      </p>
 
-      <div className="mt-6 border-t border-dashed border-white/15 pt-6">
-        <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted">Cancelled</dt>
-            <dd className="mt-1 figure text-xl"><Money value={data.grossCancelledUsdc} /></dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted">Cash moved</dt>
-            <dd className="mt-1 figure text-xl"><Money value={data.cashMovedUsdc} /></dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted">Multiplier</dt>
-            <dd className="mt-1 figure text-xl">{data.multiplierLabel}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted">Gas paid</dt>
-            <dd className="mt-1 figure text-xl">{data.gasPaidUsdc === null ? "Unknown" : <Money value={data.gasPaidUsdc} />}</dd>
-          </div>
-        </dl>
-      </div>
+      <ul className="mt-6 divide-y divide-border-subtle border-y border-border-subtle">
+        {data.invoices.map((row) => {
+          const status = nettingStatus(row.beforeUsdc, row.afterUsdc);
+          return (
+            <li key={row.invoiceId} className="py-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Parties row={row} />
+                <span className="rounded-md border border-border-input px-2 py-0.5 text-xs text-muted">{NETTING_STATUS_LABEL[status]}</span>
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-4">
+                <Figure label="Before">
+                  <Money value={row.beforeUsdc} />
+                </Figure>
+                <Figure label="Netted">
+                  <Money value={data.wNetUsdc} />
+                </Figure>
+                <Figure label="Remaining" emphasis>
+                  <Money value={row.afterUsdc} />
+                </Figure>
+              </dl>
+              {hasRemaining(row.afterUsdc) && <EurcQuote invoiceId={row.invoiceId} className="mt-3" />}
+            </li>
+          );
+        })}
+      </ul>
+
+      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-faint">Netted in total</dt>
+          <dd className="mt-1 figure text-lg"><Money value={data.grossCancelledUsdc} /></dd>
+        </div>
+        <div>
+          <dt className="text-xs text-faint">USDC moved</dt>
+          <dd className="mt-1 figure text-lg"><Money value={data.cashMovedUsdc} /></dd>
+        </div>
+        <div>
+          <dt className="text-xs text-faint">Gas paid</dt>
+          <dd className="mt-1 figure text-lg">{data.gasPaidUsdc === null ? "Unknown" : <Money value={data.gasPaidUsdc} />}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

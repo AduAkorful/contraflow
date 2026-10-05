@@ -10,13 +10,15 @@ import { TopBar } from "./TopBar";
 export function AppShell({
   address,
   balanceEnabled,
+  docsUrl,
   children,
 }: {
   address: string | null;
   balanceEnabled: boolean;
+  docsUrl?: string | null;
   children: React.ReactNode;
 }) {
-  const items = appNavItems({ balance: balanceEnabled });
+  const items = appNavItems({ balance: balanceEnabled, docsUrl });
   const signedOutItems = items.filter((i) => ["/app/history", "/app/verify", "/app/demo"].includes(i.href));
 
   return (

@@ -3,7 +3,7 @@ import { SiteNav } from "../components/site-nav";
 
 export default function NotFound() {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-bg">
+    <div className="relative flex min-h-screen flex-col overflow-x-clip bg-bg">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(100deg,transparent_0px,transparent_60px,rgba(245,190,9,0.06)_60px,rgba(245,190,9,0.06)_62px)]"

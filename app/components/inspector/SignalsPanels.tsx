@@ -5,6 +5,7 @@
 /// public addresses, and nothing here should read as an accusation against a real counterparty.
 
 import type { ReactNode } from "react";
+import { Address as AddressText } from "../ui/Address";
 import type { AddressSignals, CycleSignals } from "../../src/inspector/signals";
 import {
   describeAccountType,
@@ -12,8 +13,6 @@ import {
   describeFirstFunder,
   describeFirstSeen,
   describeOutsideActivity,
-  displayAddress,
-  shortAddress,
 } from "../../src/inspector/format";
 
 const EXPLAINER =
@@ -22,7 +21,7 @@ const EXPLAINER =
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 py-2 sm:flex-row sm:justify-between sm:gap-6">
-      <dt className="text-xs text-muted">{label}</dt>
+      <dt className="text-xs text-faint">{label}</dt>
       <dd className="text-sm text-foreground/85 sm:text-right">{children}</dd>
     </div>
   );
@@ -30,7 +29,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function AddressRows({ signals }: { signals: AddressSignals }) {
   return (
-    <dl className="divide-y divide-white/5">
+    <dl className="divide-y divide-border-subtle">
       <Row label="First seen onchain">{describeFirstSeen(signals)}</Row>
       <Row label="Transactions outside Contraflow">{describeOutsideActivity(signals)}</Row>
       <Row label="First funded by">{describeFirstFunder(signals)}</Row>
@@ -41,7 +40,7 @@ function AddressRows({ signals }: { signals: AddressSignals }) {
 
 function PanelShell({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="animate-card-entrance mt-8 rounded-card border border-white/10 bg-white/[0.02] p-5 sm:p-6">
+    <section className="mt-8 rounded-card border border-border-subtle bg-surface-1 p-5 sm:p-6">
       <h2 className="text-sm font-medium">{title}</h2>
       <p className="mt-1 text-xs leading-relaxed text-muted">{EXPLAINER}</p>
       <div className="mt-4">{children}</div>
@@ -52,7 +51,7 @@ function PanelShell({ title, children }: { title: string; children: ReactNode })
 export function SignalsLoading({ title }: { title: string }) {
   return (
     <section
-      className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-5 sm:p-6"
+      className="mt-8 rounded-card border border-border-subtle bg-surface-1 p-5 sm:p-6"
       aria-busy="true"
       aria-label={`${title}, loading`}
     >
@@ -71,7 +70,7 @@ export function SignalsLoading({ title }: { title: string }) {
 
 export function SignalsUnavailable({ title, message }: { title: string; message: string }) {
   return (
-    <section className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-5 sm:p-6">
+    <section className="mt-8 rounded-card border border-border-subtle bg-surface-1 p-5 sm:p-6">
       <h2 className="text-sm font-medium">{title}</h2>
       <p className="mt-2 text-sm text-muted">{message}</p>
     </section>
@@ -98,7 +97,7 @@ export function CycleSignalsPanel({ signals }: { signals: CycleSignals }) {
           long ago for this view to look up.
         </p>
       )}
-      <dl className="divide-y divide-white/5">
+      <dl className="divide-y divide-border-subtle">
         {facts.map((fact) => (
           <Row key={fact.label} label={fact.label}>
             {fact.value}
@@ -109,11 +108,9 @@ export function CycleSignalsPanel({ signals }: { signals: CycleSignals }) {
 
       <div className="mt-6 space-y-3">
         {signals.parties.map((party) => (
-          <details key={party.address} className="group rounded-lg border border-white/5 px-4 py-2">
+          <details key={party.address} className="group rounded-lg border border-border-subtle px-4 py-2">
             <summary className="cursor-pointer list-none py-1 text-sm">
-              <span className="font-mono text-foreground/90" title={displayAddress(party.address)}>
-                {shortAddress(party.address)}
-              </span>
+              <AddressText address={party.address} link={false} copy={false} className="text-foreground/90" />
               <span className="ml-2 text-xs text-muted group-open:hidden">Show details</span>
             </summary>
             <AddressRows signals={party} />

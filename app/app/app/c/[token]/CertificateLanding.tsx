@@ -205,7 +205,7 @@ export function CertificateLanding({ token }: { token: string }) {
         you, as yours are from them.
       </p>
 
-      <div className="mt-8 animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+      <div className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
         <p className="text-xs uppercase tracking-wide text-muted">The loop</p>
         <ol className="mt-3 flex flex-wrap items-center gap-2 font-mono text-sm">
           {view.certificate.entries.map((e, i) => (

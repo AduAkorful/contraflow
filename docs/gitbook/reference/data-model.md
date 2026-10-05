@@ -213,7 +213,7 @@ of the API tables is readable outside the server.
 
 ## Upstash Redis
 
-Nothing in Redis is permanent. Losing it would cancel sign-ins in progress and reset caches and rate-limit windows, but lose no data. Sessions are signed cookies, not Redis entries.
+Nothing in Redis is permanent. Losing it would cancel sign-ins in progress and reset caches and rate-limit windows, but lose no data. Sessions are signed cookies, not Redis entries. The one exception is sign-out: a hash of each signed-out cookie is kept until the cookie would have expired (24 hours at most), and losing those entries would let a copied, signed-out cookie work again until then.
 
 | Key | Holds | Lifetime |
 |---|---|---|

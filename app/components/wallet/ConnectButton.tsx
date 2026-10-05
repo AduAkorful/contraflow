@@ -74,7 +74,11 @@ export function ConnectButton({
   }
 
   async function handleSignOut() {
-    await signOut();
+    const result = await signOut();
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     await logout();
     setSessionAddress(null);
     setPhase("idle");
@@ -96,6 +100,11 @@ export function ConnectButton({
             Sign out
           </button>
         </div>
+        {error && (
+          <p role="alert" className="max-w-xs text-center text-xs text-danger">
+            {error}
+          </p>
+        )}
       </div>
     );
   }

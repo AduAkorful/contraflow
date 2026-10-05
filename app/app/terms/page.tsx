@@ -82,7 +82,7 @@ const SECTIONS = [
 
 export default function TermsPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg">
+    <div className="relative min-h-screen overflow-x-clip bg-bg">
       <SiteNav />
       <main className="relative z-10">
         <section className="mx-auto max-w-3xl px-6 pb-8 pt-10">

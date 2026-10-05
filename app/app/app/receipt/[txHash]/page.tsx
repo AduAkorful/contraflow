@@ -22,7 +22,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ txHash
             <CycleSignals txHash={txHash} />
           </>
         ) : (
-          <div className="rounded-card border border-white/10 bg-white/[0.02] p-8 text-center">
+          <div className="rounded-card border border-border-subtle bg-surface-1 p-8 text-center">
             <h1 className="heading-2">No settlement found</h1>
             <p className="mt-3 text-sm text-muted">
               <span className="break-all font-mono">{txHash.length > 80 ? `${txHash.slice(0, 80)}…` : txHash}</span>{" "}

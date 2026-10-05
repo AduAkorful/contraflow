@@ -6,7 +6,8 @@ Sign in with the wallet you already use, or with your email, and sign a one-time
 you control the wallet. That starts a session. Which invoices and obligations are yours is always
 taken from that session, never from anything typed into a form.
 
-The first time a new address signs in, it gets a small one-time grant of gas so it can submit its
+Signing in costs nothing: it is a signature, not a transaction. The first time a new address proposes an
+invoice, registers one or applies a netting certificate, it gets a small one-time grant of gas so it can submit its
 first transaction. Every transaction after that is sent from your own wallet.
 
 ## Invoices on Arc

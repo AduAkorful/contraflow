@@ -103,6 +103,7 @@ export function ObligationsList({
       {obligations.length > 0 && (
         <div>
           <h2 className="text-xs uppercase tracking-wide text-muted">Signed obligations</h2>
+          <p className="mt-1 text-xs text-muted">Closing an obligation stops it from being netted in any certificate. It can&apos;t be undone.</p>
           <div className="mt-3 divide-y divide-white/10 rounded-card border border-white/10 bg-white/[0.02]">
             {obligations.map((o) => (
               <div key={o.obligationId} className="flex flex-wrap items-center justify-between gap-3 p-4">

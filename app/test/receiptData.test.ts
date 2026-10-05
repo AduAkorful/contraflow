@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
 
-const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn() }));
-const { getSettlement, getInvoicesForSettlement, fetchTransactionFee, fetchTransactionLogs } = mocks;
+const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn(), getInvoice: vi.fn() }));
+const { getSettlement, getInvoicesForSettlement, fetchTransactionFee, fetchTransactionLogs, getInvoice } = mocks;
+vi.mock("../src/chain/operatorEnv", () => ({ arcPublicClient: () => ({}) }));
+vi.mock("../src/chain/readInvoices", () => ({ getInvoice: mocks.getInvoice }));
 vi.mock("../src/db/invoices", () => ({ getSettlement: mocks.getSettlement, getInvoicesForSettlement: mocks.getInvoicesForSettlement }));
 vi.mock("../src/blockscout/client", () => ({
   fetchTransactionFee: mocks.fetchTransactionFee,
@@ -46,6 +48,22 @@ describe("receipt data fallback", () => {
     expect(getSettlement).not.toHaveBeenCalled();
     expect(fetchTransactionLogs).not.toHaveBeenCalled();
     expect(fetchTransactionFee).not.toHaveBeenCalled();
+  });
+
+  it("adds the invoice parties from the Registry when it falls back to explorer events", async () => {
+    getInvoice.mockResolvedValue({ debtor: "0x00000000000000000000000000000000000000d1", creditor: "0x00000000000000000000000000000000000000c1" });
+    const result = await getReceiptData(txHash);
+    expect(result?.invoices[0]).toMatchObject({
+      debtor: "0x00000000000000000000000000000000000000d1",
+      creditor: "0x00000000000000000000000000000000000000c1",
+    });
+  });
+
+  it("still returns the receipt, without parties, when the Registry read fails", async () => {
+    getInvoice.mockRejectedValue(new Error("rpc down"));
+    const result = await getReceiptData(txHash);
+    expect(result?.invoices).toHaveLength(1);
+    expect(result?.invoices[0]?.debtor).toBeUndefined();
   });
 
   it("falls back to authenticated Registry and Settler events when the DB read throws", async () => {

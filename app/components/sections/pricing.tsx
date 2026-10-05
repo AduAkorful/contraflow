@@ -19,25 +19,24 @@ export function Pricing() {
         </p>
       </div>
 
-      <div className="mx-auto mt-12 max-w-2xl overflow-x-auto rounded-card border border-white/10">
-        <table className="w-full min-w-[420px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-white/10 text-left">
-              <th className="p-4 font-medium text-muted">Action</th>
-              <th className="p-4 font-medium text-gold">Typical gas cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {GAS_COSTS.map((row) => (
-              <tr key={row.call} className="border-b border-white/5">
-                <td className="p-4">{row.call}</td>
-                <td className="p-4 text-gold">{row.cost}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="border-t border-white/10 p-4 text-xs text-muted">
-          Gas costs vary with network conditions — figures above are typical, not guaranteed.
+      <div className="mx-auto mt-12 max-w-2xl rounded-card border border-border-subtle bg-surface-1">
+        <div className="flex justify-between gap-4 border-b border-border-subtle px-5 py-3 text-xs font-medium text-faint">
+          <span>Action</span>
+          <span>Typical gas cost</span>
+        </div>
+        <dl>
+          {GAS_COSTS.map((row) => (
+            <div
+              key={row.call}
+              className="flex flex-col gap-0.5 border-b border-border-subtle px-5 py-4 text-sm last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            >
+              <dt>{row.call}</dt>
+              <dd className="font-medium tabular-nums text-gold">{row.cost}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="border-t border-border-subtle px-5 py-4 text-xs text-muted">
+          Gas costs vary with network conditions. Figures above are typical, not guaranteed.
         </p>
       </div>
     </section>

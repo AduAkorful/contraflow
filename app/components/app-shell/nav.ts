@@ -4,11 +4,13 @@ export interface NavItem {
   /// Paths that belong to this item without being under its href (e.g. a certificate link opens
   /// from the Obligations area).
   alsoActiveFor?: readonly string[];
+  /// Opens another site (the docs) in a new tab; never marked active.
+  external?: boolean;
 }
 
 /// Sidebar and mobile menu, in one place. Balance is only offered when the feature is on; the
 /// page decides that on the server and passes the flag in.
-export function appNavItems(options: { balance: boolean }): NavItem[] {
+export function appNavItems(options: { balance: boolean; docsUrl?: string | null }): NavItem[] {
   return [
     { label: "Overview", href: "/app" },
     { label: "Propose invoice", href: "/app/attest" },
@@ -17,10 +19,12 @@ export function appNavItems(options: { balance: boolean }): NavItem[] {
     ...(options.balance ? [{ label: "Balance", href: "/app/balance" }] : []),
     { label: "Verify", href: "/app/verify" },
     { label: "Demo", href: "/app/demo" },
+    ...(options.docsUrl ? [{ label: "Docs", href: options.docsUrl, external: true }] : []),
   ];
 }
 
 export function isNavActive(item: NavItem, pathname: string): boolean {
+  if (item.external) return false;
   if (item.href === "/app") return pathname === "/app";
   const prefixes = [item.href, ...(item.alsoActiveFor ?? [])];
   return prefixes.some((prefix) =>

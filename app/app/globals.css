@@ -141,6 +141,34 @@ body {
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
+/* The home hero draws its example loop once. Each edge draws in turn (--loop-delay), then its head appears. */
+@keyframes loop-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes loop-head {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-loop-draw {
+  stroke-dasharray: 1;
+  animation: loop-draw 0.7s ease-out var(--loop-delay, 0s) both;
+}
+
+.animate-loop-head {
+  animation: loop-head 0.2s ease-out calc(var(--loop-delay, 0s) + 0.6s) both;
+}
+
 .animate-check-draw {
   stroke-dasharray: 32;
   stroke-dashoffset: 32;
@@ -155,6 +183,7 @@ body {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
