@@ -1,7 +1,7 @@
 /// Runs the webhook pipeline once, if no other run holds the lock. Safe to call often: with
 /// nothing to do it's two small queries.
 
-import { neonWebhookStore } from "../db/webhooks";
+import { postgresWebhookStore } from "../db/webhooks";
 import { redis } from "../upstash/client";
 import { deliverDue, fanOutChanges, fetchPoster } from "./webhookPipeline";
 
@@ -19,8 +19,8 @@ export async function runWebhookPipeline(): Promise<{
   if (!locked) return { ran: false };
   try {
     const now = new Date();
-    const events = await fanOutChanges(neonWebhookStore, now);
-    const { delivered, failed, suppressed } = await deliverDue(neonWebhookStore, now, fetchPoster);
+    const events = await fanOutChanges(postgresWebhookStore, now);
+    const { delivered, failed, suppressed } = await deliverDue(postgresWebhookStore, now, fetchPoster);
     return { ran: true, events, delivered, failed, suppressed };
   } finally {
     await redis().del(LOCK_KEY).catch(() => {

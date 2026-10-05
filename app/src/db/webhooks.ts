@@ -1,4 +1,4 @@
-/// Neon implementation of the webhook pipeline's store. Claims use `FOR UPDATE SKIP LOCKED` inside a
+/// Postgres implementation of the webhook pipeline's store. Claims use `FOR UPDATE SKIP LOCKED` inside a
 /// single statement, so overlapping runs never take the same change or event.
 
 import { getAddress, isAddress, type Address, type Hex } from "viem";
@@ -8,7 +8,7 @@ import { sql, withDbRetry } from "./client";
 /// How long a claimed event stays leased before another run may retry it.
 const LEASE = "5 minutes";
 
-export const neonWebhookStore: WebhookStore = {
+export const postgresWebhookStore: WebhookStore = {
   async claimChanges(limit) {
     const rows = (await withDbRetry(
       () => sql()`UPDATE netting_changes SET claimed_at = now()

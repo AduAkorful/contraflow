@@ -1,9 +1,8 @@
 /// Read/write helpers for the `invoices`/`settlements` tables. Every write is an upsert keyed by
 /// the on-chain identifier (`invoice_ref` / `settle_tx_hash`), so calling these twice for the
 /// same event (a demo run's own write path, then reconciliation finding the same event again
-/// later) never duplicates a row. Every call goes through `withDbRetry` — not precautionary:
-/// Neon's HTTP driver can hit genuine, intermittent `ETIMEDOUT`/`ENETUNREACH` connecting to its
-/// pooler, with the identical query succeeding seconds before and after a failure.
+/// later) never duplicates a row. Every call goes through `withDbRetry`, which retries only a failure to
+/// reach the database; the previous provider's connections failed intermittently that way.
 
 import { sql, withDbRetry } from "./client";
 

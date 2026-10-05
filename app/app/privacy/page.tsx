@@ -42,7 +42,7 @@ const SECTIONS = [
   {
     title: "Service providers",
     body: [
-      "Contraflow runs on Vercel (hosting), Neon (database), Upstash (rate limits and caching) and Privy (sign-in), and reads public chain data from the Arc explorer. EURC quotes come from Circle; Contraflow's server asks for them with an invoice's amount and nothing about you. Each processes data only to provide its part of the service.",
+      "Contraflow runs on Vercel (hosting), Supabase (database), Upstash (rate limits and caching) and Privy (sign-in), and reads public chain data from the Arc explorer. EURC quotes come from Circle; Contraflow's server asks for them with an invoice's amount and nothing about you. Each processes data only to provide its part of the service.",
       "When you bring USDC from another chain, your browser talks to Circle directly: it sends your wallet address to read your Gateway balance, and your wallet sends Circle the transfers you sign. Contraflow's servers aren't involved.",
     ],
   },

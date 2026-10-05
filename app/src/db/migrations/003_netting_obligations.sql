@@ -1,4 +1,4 @@
--- Run once against Neon:
+-- Run against the database with:
 --   node --env-file=.env.local scripts/migrate.mjs
 --
 -- Mode B obligations. Both tables are party-only: read and written only through session-gated

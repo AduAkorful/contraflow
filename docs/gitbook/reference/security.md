@@ -16,7 +16,7 @@ graph TD
   end
   subgraph Contraflow["Contraflow (trusted to operate honestly, see below)"]
     APP[Next.js app and services]
-    DB[(Neon)]
+    DB[(Postgres)]
     RD[(Upstash)]
     OP[Operator key: starter grants, demo, upgrades]
   end
@@ -71,6 +71,7 @@ graph TD
 | Obligations and proposals | Their two parties, or a tenant holding a party's `read` permission |
 | Certificates | Each party sees its own obligations in full and every other entry as a hash only |
 | Onchain invoice cache, stats, inspector | Public, since it's public onchain anyway |
+| The database itself | Only the app's own connection. Row-level security is on for every table with no policies, and the database's public API roles have no privileges, so the hosting provider's Data API can't read any table. |
 
 Anyone else gets "Not found", never "Forbidden", so a request can't confirm that a row exists. Short links are
 random tokens, but the token is a handle, not the access control: reads always check the signed-in party.
@@ -109,8 +110,8 @@ random tokens, but the token is a handle, not the access control: reads always c
 - **Moving USDC between chains.** Bringing USDC from another chain runs between the user's wallet and Circle
   Gateway, in the browser. Contraflow's server never sees a signature or holds the funds, and the page only ever
   sends USDC to the signed-in address. What you trust there is Circle and your own wallet.
-- **Service providers.** Availability depends on Vercel, Neon, Upstash, Privy (sign-in) and the Arc explorer.
-  None of them can sign for a party. Neon's invoice tables are a cache the chain can rebuild, but offchain
+- **Service providers.** Availability depends on Vercel, Supabase, Upstash, Privy (sign-in) and the Arc explorer.
+  None of them can sign for a party. The invoice tables are a cache the chain can rebuild, but offchain
   obligations and certificates exist only there and in the certificate files parties download, since
   the chain holds only blinded commitments.
 

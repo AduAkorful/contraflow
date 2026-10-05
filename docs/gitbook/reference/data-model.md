@@ -1,6 +1,6 @@
 # Data model
 
-Contraflow keeps data in three places: Arc (the source of truth for everything onchain), Neon Postgres, and
+Contraflow keeps data in three places: Arc (the source of truth for everything onchain), Supabase Postgres, and
 Upstash Redis. The Postgres schema is created by the SQL migrations in `app/src/db/migrations/`, which can safely
 be run more than once. Addresses and hex values are stored lowercase.
 

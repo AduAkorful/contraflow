@@ -1,10 +1,10 @@
-/// The production wiring for the certificate service: Neon, the app's ledger on Arc, the real
+/// The production wiring for the certificate service: Postgres, the app's ledger on Arc, the real
 /// clock, the configured compliance provider and the shared rate limiter.
 
 import { createArcPublicClient } from "../chain/client";
 import { defaultComplianceProvider } from "../compliance";
 import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
-import { neonCertificateStore } from "../db/certificates";
+import { postgresCertificateStore } from "../db/certificates";
 import { appLedgerDomain } from "../netting/domain";
 import { checkRateLimit } from "../ratelimit/limiter";
 import { createCertificateService, type CertificateService } from "./certificates";
@@ -19,7 +19,7 @@ let cached: CertificateService | undefined;
 
 export function certificateService(): CertificateService {
   cached ??= createCertificateService({
-    store: neonCertificateStore,
+    store: postgresCertificateStore,
     client: createArcPublicClient(ARC_TESTNET_CHAIN_ID),
     domain: appLedgerDomain(),
     now: () => BigInt(Math.floor(Date.now() / 1000)),

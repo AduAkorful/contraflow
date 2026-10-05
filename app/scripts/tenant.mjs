@@ -8,7 +8,7 @@
 //   node --env-file=.env.local scripts/tenant.mjs list
 // A new key is printed once and never stored; only its SHA-256 hash is. The key format must stay
 // identical to `src/api/keys.ts` (`cfk_<mode>_` + 32 random bytes, base64url).
-import { neon } from "@neondatabase/serverless";
+import { createDb } from "../src/db/postgres.ts";
 import { createHash, randomBytes } from "node:crypto";
 
 const MAX_ACTIVE_KEYS = 2;
@@ -16,7 +16,7 @@ const DISPLAY_PREFIX_CHARS = 13;
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("Missing DATABASE_URL — run with --env-file=.env.local");
-const sql = neon(url);
+const sql = createDb(url);
 const [command, ...args] = process.argv.slice(2);
 
 async function create(name) {
@@ -97,4 +97,8 @@ if (!commands[command]) {
   console.error("Commands: create, issue-key, revoke-key, set-webhook, roll-webhook-secret, list");
   process.exit(1);
 }
-await commands[command]();
+try {
+  await commands[command]();
+} finally {
+  await sql.end();
+}

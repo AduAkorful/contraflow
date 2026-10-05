@@ -67,7 +67,7 @@ describe("receipt data fallback", () => {
   });
 
   it("falls back to authenticated Registry and Settler events when the DB read throws", async () => {
-    getSettlement.mockRejectedValueOnce(new Error("Neon unavailable"));
+    getSettlement.mockRejectedValueOnce(new Error("database unavailable"));
     const result = await getReceiptData(txHash);
     expect(result?.invoices).toHaveLength(1);
     expect(result?.wNetUsdc).toBe("1.00");

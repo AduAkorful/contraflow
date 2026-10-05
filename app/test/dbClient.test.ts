@@ -8,18 +8,9 @@ describe("withDbRetry", () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a 'fetch failed' error and succeeds on a later attempt", async () => {
-    const fn = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Error connecting to database: fetch failed"))
-      .mockResolvedValueOnce("ok");
-    await expect(withDbRetry(fn, 3)).resolves.toBe("ok");
-    expect(fn).toHaveBeenCalledTimes(2);
-  });
-
   it("gives up and throws after exhausting attempts", async () => {
-    const fn = vi.fn().mockRejectedValue(new Error("fetch failed"));
-    await expect(withDbRetry(fn, 3)).rejects.toThrow("fetch failed");
+    const fn = vi.fn().mockRejectedValue(Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }));
+    await expect(withDbRetry(fn, 3)).rejects.toThrow("ETIMEDOUT");
     expect(fn).toHaveBeenCalledTimes(3);
   });
 

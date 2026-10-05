@@ -36,7 +36,7 @@ App variables, from `app/.env.example`. `NEXT_PUBLIC_*` values reach the browser
 
 | Variable | Needed for | Notes |
 |---|---|---|
-| `DATABASE_URL` | Everything that reads or writes Neon | Pull from Vercel rather than typing it |
+| `DATABASE_URL` | Everything that reads or writes the database | Supabase's shared pooler in transaction mode (port 6543, user `postgres.<project-ref>`), from the dashboard's Connect dialog. Set it explicitly in Vercel (Production and Preview); the Marketplace integration's `POSTGRES_*` names aren't read. Never the project's anon or service_role key. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Sign-in nonces, rate limits, caches, locks | Paste without surrounding quotes: a quoted value silently broke sign-in once |
 | `SESSION_SECRET` | Signing session cookies | 32 random bytes, hex. Rotating it logs everyone out. |
 | `NEXT_PUBLIC_APP_DOMAIN` | Sign-in domain binding | The exact host serving the app (`localhost:3000` locally). Required. |
@@ -46,7 +46,6 @@ App variables, from `app/.env.example`. `NEXT_PUBLIC_*` values reach the browser
 | `CONTRAFLOW_OPERATOR_PK` | `/app/demo`, starter gas grants, identifying operator activity in stats | A funded testnet key. Never a mainnet key. Without it, stats report unavailable rather than count the demo as usage. |
 | `STARTER_GAS_GRANT_AMOUNT_USDC` | Starter grant size | Defaults to `0.05` |
 | `CRON_SECRET` | `/api/cron/webhooks` | Vercel Cron sends it as a bearer token |
-| `CIRCLE_API_KEY` | The settlement pipeline's Circle calls | The web app doesn't read it. Callers of `runSettlementPipeline` pass Circle credentials explicitly. |
 
 Contract deploys use `contracts/.env`: `ARC_TESTNET_RPC`, `DEPLOYER_PK`, `OWNER_ADDRESS`.
 
@@ -60,8 +59,20 @@ node --env-file=app/.env.local app/scripts/migrate.mjs          # all, in order
 node --env-file=app/.env.local app/scripts/migrate.mjs 006      # only files starting 006
 ```
 
-The runner splits statements on `;` but keeps `$$ … $$` function bodies whole. It uses Neon's HTTP driver, which
-fails transiently here (`fetch failed`, `ETIMEDOUT`); re-run on failure.
+The runner splits statements on `;` but keeps `$$ … $$` function bodies whole and applies them one at a time
+through the same adapter the app uses. If a run can't reach the database (`ETIMEDOUT`), re-run it.
+
+Migration `011_supabase_lockdown.sql` turns on row-level security for every table and removes all access for
+Supabase's `anon` and `authenticated` roles, so the project's public Data API can never read these tables. Every
+new table needs `ENABLE ROW LEVEL SECURITY` in its own migration; `test/db.integration.test.ts` fails if one
+is missing. Also switch the Data API off in the project's settings. The app doesn't use it.
+
+The database connection verifies Supabase's TLS certificate against the root pinned in `src/db/postgres.ts`
+("Supabase Root 2021 CA", valid to 2031-04-26, SHA-256 `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`).
+Compare that fingerprint with the certificate in the dashboard's Database settings before replacing it.
+
+To run the database integration tests, point `TEST_DATABASE_URL` at a scratch database with migrations
+001–011 applied (never the app's own) and run `pnpm vitest run test/db.integration.test.ts`.
 
 | # | Adds |
 |---|---|
@@ -143,10 +154,13 @@ crashes.
 
 ## Runbooks
 
-### Neon errors (`fetch failed`, `ETIMEDOUT`)
+### Database unreachable (`ETIMEDOUT`, `ECONNREFUSED`, "timeout exceeded when trying to connect")
 
-Neon's HTTP driver fails transiently from some networks. App code retries through `withDbRetry`. For scripts,
-re-run them; migrations and tenant commands are safe to repeat.
+App code retries a failure to *reach* the database through `withDbRetry`, and never retries an error that
+happened mid-statement, because that statement may already have committed. For scripts, re-run them; migrations
+and tenant commands are safe to repeat. A `Tenant or user not found` error from the pooler means the host and
+user don't belong to the same project: copy both from the Connect dialog. A free-tier project that has paused
+after inactivity also answers with a connection error until it's restored from the dashboard.
 
 ### Upstash unreachable
 

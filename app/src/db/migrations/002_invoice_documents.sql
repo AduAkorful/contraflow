@@ -1,4 +1,4 @@
--- Run once against Neon:
+-- Run against the database with:
 --   node --env-file=.env.local scripts/migrate.mjs
 --
 -- Deliberately not a foreign key to invoices(invoice_ref) — the document is created and hashed

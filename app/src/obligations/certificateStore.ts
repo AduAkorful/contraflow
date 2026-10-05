@@ -1,5 +1,5 @@
 /// What the certificate service needs from storage. `src/db/certificates.ts` implements it on
-/// Neon; the tests implement it in memory with the same semantics. Addresses and hex are
+/// Postgres; the tests implement it in memory with the same semantics. Addresses and hex are
 /// lowercase in and out.
 
 import type { Address } from "viem";

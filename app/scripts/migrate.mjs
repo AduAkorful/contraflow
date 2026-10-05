@@ -1,7 +1,7 @@
 // One-shot migration runner — applies every `.sql` file in src/db/migrations/, in filename order,
 // or only files starting with the given prefix. Every migration is written to be re-runnable.
 // Usage: node --env-file=.env.local scripts/migrate.mjs [prefix]
-import { neon } from "@neondatabase/serverless";
+import { createDb } from "../src/db/postgres.ts";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,7 +10,7 @@ const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/db/m
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("Missing DATABASE_URL — run with --env-file=.env.local");
-const sql = neon(url);
+const sql = createDb(url);
 
 const only = process.argv[2];
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql") && (!only || f.startsWith(only))).sort();
@@ -48,3 +48,4 @@ for (const file of files) {
   }
 }
 console.log(`Applied ${files.length} migration(s).`);
+await sql.end();

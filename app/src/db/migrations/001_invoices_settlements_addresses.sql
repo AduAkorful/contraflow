@@ -1,4 +1,4 @@
--- Run once against Neon:
+-- Run against the database with:
 --   node --env-file=.env.local scripts/migrate.mjs
 
 CREATE TABLE IF NOT EXISTS invoices (

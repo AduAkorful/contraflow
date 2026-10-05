@@ -1,4 +1,4 @@
-/// Neon implementation of `CertificateStore` (`netting_certificates`, `_entries`, `_signatures`).
+/// Postgres implementation of `CertificateStore` (`netting_certificates`, `_entries`, `_signatures`).
 /// A plain data-access layer: who may call what is decided in `src/obligations/certificates.ts`.
 ///
 /// Concurrency rests on two things. The partial unique index `netting_certificate_entries_lock`
@@ -87,7 +87,7 @@ function dbErrorCode(error: unknown): { code?: string; constraint?: string } {
   return (error ?? {}) as { code?: string; constraint?: string };
 }
 
-export const neonCertificateStore: CertificateStore = {
+export const postgresCertificateStore: CertificateStore = {
   async listNettableObligationsForParties({ chainId, ledger, parties, currency, afterObligationId, now, limit }): Promise<ObligationRow[]> {
     return withDbRetry(async () => {
       const rows = (await sql()`

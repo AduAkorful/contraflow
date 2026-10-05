@@ -23,7 +23,7 @@ graph TD
   end
 
   subgraph Data
-    NEON[(Neon Postgres)]
+    DBS[(Supabase Postgres)]
     UP[(Upstash Redis)]
   end
 
@@ -50,11 +50,11 @@ graph TD
   CRON --> WH
   SA --> WH
   API --> WH
-  SVC --> NEON
+  SVC --> DBS
   SVC --> UP
   SVC --> ARC
   SVC --> BS
-  WH --> NEON
+  WH --> DBS
   WH -->|signed POST| TENANT[Tenant webhook URL]
   ARC --- REG
   ARC --- SET
@@ -74,7 +74,7 @@ Everything server-side lives in `app/src/`. Pages and Server Actions are in `app
 | `obligations` | Server-side obligation and certificate services: proposals, loop search, certificate collection, ledger sync | `service.ts`, `loopSearch.ts`, `proposeLoop.ts`, `certificates.ts` |
 | `api` | REST API v1: keys, party permissions, handlers, HTTP layer, webhooks | `auth.ts`, `permissions.ts`, `handlers.ts`, `http.ts`, `webhookPipeline.ts` |
 | `siwe`, `session` | Sign-in with Ethereum and the signed session cookie | `message.ts`, `verifySignIn.ts`, `nonce.ts`, `cookie.ts` |
-| `db` | Data access for Neon, with transient-failure retries | `client.ts`, `invoices.ts`, `obligations.ts`, `certificates.ts`, `tenants.ts`, `webhooks.ts` |
+| `db` | Data access for Postgres, with retries when the database can't be reached | `client.ts`, `invoices.ts`, `obligations.ts`, `certificates.ts`, `tenants.ts`, `webhooks.ts` |
 | `blockscout` | Explorer client and invoice reconciliation | `client.ts`, `reconcile.ts` |
 | `stats` | Protocol stats counted from contract events | `indexer.ts`, `aggregate.ts`, `load.ts` |
 | `inspector` | Onchain facts about the parties to an invoice or loop | `signals.ts`, `load.ts` |
@@ -172,7 +172,7 @@ for every party named in the event. Revoked, expired or suspended access suppres
 | Store | Holds | Notes |
 |---|---|---|
 | Arc | Invoices, settlements, obligation commitments, applied certificates | The source of truth for everything onchain |
-| Neon Postgres | A cache of onchain invoices, invoice descriptions, obligations, certificates, API tenants and webhooks | Reconciled against the chain; see [Data model](data-model.md) |
+| Supabase Postgres | A cache of onchain invoices, invoice descriptions, obligations, certificates, API tenants and webhooks | Reconciled against the chain; see [Data model](data-model.md) |
 | Upstash Redis | Sign-in nonces, rate-limit counters, short-lived caches (stats, inspector), locks | Nothing permanent |
 | Blockscout | Read-only: contract logs, transactions, token transfers | Used for reconciliation, stats and the inspector |
 

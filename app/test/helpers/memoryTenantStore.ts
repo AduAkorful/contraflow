@@ -1,4 +1,4 @@
-/// In-memory `TenantStore` for API tests, with the same uniqueness and revocation rules as Neon.
+/// In-memory `TenantStore` for API tests, with the same uniqueness and revocation rules as the database.
 
 import type { Hex } from "viem";
 import type { NewPermission, StoredKey, StoredPermission, TenantStore } from "../../src/api/auth";

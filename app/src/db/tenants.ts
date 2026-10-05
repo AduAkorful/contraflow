@@ -1,4 +1,4 @@
-/// Neon implementation of the API's `TenantStore`. Access control lives in `src/api/auth.ts`;
+/// Postgres implementation of the API's `TenantStore`. Access control lives in `src/api/auth.ts`;
 /// this is data access only. Addresses and hex are stored lowercase.
 
 import { getAddress, type Address, type Hex } from "viem";
@@ -28,7 +28,7 @@ function toPermission(row: PermissionDbRow): StoredPermission {
   };
 }
 
-export const neonTenantStore: TenantStore = {
+export const postgresTenantStore: TenantStore = {
   async findKey(hash) {
     const rows = (await withDbRetry(
       () => sql()`SELECT k.tenant_id, k.mode, k.revoked_at, t.status
@@ -48,7 +48,7 @@ export const neonTenantStore: TenantStore = {
   async savePermission(p: NewPermission, idempotency?: IdempotencyContext) {
     if (idempotency) {
       // The permission and its replayable HTTP result commit in one statement. If the process
-      // dies after Neon commits, the next same-key request sees the completed result instead of
+      // dies after the database commits, the next same-key request sees the completed result instead of
       // rerunning validation/insertion and returning a misleading duplicate_nonce conflict.
       const rows = (await withDbRetry(
         () => sql()`WITH reservation AS MATERIALIZED (
@@ -109,7 +109,7 @@ export const neonTenantStore: TenantStore = {
       () => sql()`SELECT permission_id, tenant_id, chain_id, party, scopes, expires_at, revoked_at
                   FROM tenant_permissions
                   WHERE tenant_id = ${tenantId.toLowerCase()} AND chain_id = ${String(chainId)} AND party = ${party.toLowerCase()}`,
-    )) as PermissionDbRow[];
+    )) as unknown as PermissionDbRow[];
     return rows.map(toPermission);
   },
 

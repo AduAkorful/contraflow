@@ -126,11 +126,10 @@ export async function registerCycleInvoiceStep(
 
     // Write-through to the database — deliberately isolated from this action's own
     // success/failure: a DB write failing here must never turn a real, already-broadcast,
-    // already-paid-for chain write into a reported failure. This matters concretely: Neon's HTTP
-    // driver has a known intermittent "TypeError: fetch failed" (a documented connection-drop
-    // issue, not specific to this app — github.com/neondatabase/serverless/issues/146/127), so
-    // putting the DB write inside the same try/catch as the chain call would let a transient DB
-    // hiccup after a *successful* register() report the whole step as failed. Reconciliation
+    // already-paid-for chain write into a reported failure. This matters concretely: a database
+    // connection can drop at any time, so putting the DB write inside the same try/catch as the chain
+    // call would let a transient DB hiccup after a *successful* register() report the whole step as
+    // failed. Reconciliation
     // (src/blockscout/reconcile.ts) exists precisely to backfill a write this call misses, so
     // swallowing the failure here (logged, not silent) is the correct tradeoff, not a shortcut.
     try {

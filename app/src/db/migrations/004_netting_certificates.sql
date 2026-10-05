@@ -1,4 +1,4 @@
--- Run once against Neon:
+-- Run against the database with:
 --   node --env-file=.env.local scripts/migrate.mjs
 --
 -- Mode B netting certificates. Party-only, like 003: read and written only through
