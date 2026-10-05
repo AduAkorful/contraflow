@@ -4,7 +4,7 @@
 /// (`before = remainingAfter + wNet`), same formula `app/app/app/demo/actions.ts` already uses.
 
 import { getSettlement, getInvoicesForSettlement } from "../db/invoices";
-import { fetchTransactionFee, fetchTransactionLogs, paramValue } from "../blockscout/client";
+import { BlockscoutNotFoundError, fetchTransactionFee, fetchTransactionLogs, paramValue } from "../blockscout/client";
 import type { ReceiptData, ReceiptInvoiceRow } from "../../components/receipt/Receipt";
 import { formatUnits, parseUnits } from "viem";
 import { formatUsdcDisplay } from "../attest/amount";
@@ -66,7 +66,13 @@ async function fromDatabase(txHash: string): Promise<ReceiptData | null> {
 }
 
 async function fromBlockscout(txHash: string): Promise<ReceiptData | null> {
-  const logs = await fetchTransactionLogs(txHash);
+  let logs: Awaited<ReturnType<typeof fetchTransactionLogs>>;
+  try {
+    logs = await fetchTransactionLogs(txHash);
+  } catch (e) {
+    if (e instanceof BlockscoutNotFoundError) return null;
+    throw e;
+  }
   const { registry, settler } = addressesForChain(ARC_TESTNET_CHAIN_ID);
   const nettedLogs = logs.filter((l) =>
     (l.address ?? "").toLowerCase() === registry.toLowerCase() && l.methodCall?.startsWith("InvoiceNetted") === true,

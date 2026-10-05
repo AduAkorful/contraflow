@@ -97,6 +97,15 @@ export async function fetchContractLogs(contractAddress: string): Promise<Decode
   return (await fetchContractLogsBounded(contractAddress)).logs;
 }
 
+/// The explorer answered 404: it doesn't know this transaction (never existed, or not indexed yet).
+/// Distinct from a failed request so callers can say "not found" instead of erroring.
+export class BlockscoutNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BlockscoutNotFoundError";
+  }
+}
+
 export interface TransactionFeeInfo {
   blockNumber: number;
   gasPaidWei: string;
@@ -113,6 +122,7 @@ export async function fetchTransactionFee(txHash: string): Promise<TransactionFe
 /// fallback so a single tx hash lookup never needs a full contract log scan.
 export async function fetchTransactionLogs(txHash: string): Promise<DecodedLog[]> {
   const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/transactions/${txHash}/logs`);
+  if (res.status === 404) throw new BlockscoutNotFoundError(`Blockscout has no transaction ${txHash}`);
   if (!res.ok) throw new Error(`Blockscout transaction logs fetch failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { items: RawLogItem[] };
   return data.items

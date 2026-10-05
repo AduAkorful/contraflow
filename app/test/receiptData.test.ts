@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
 
-const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn(), getInvoice: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn(), getInvoice: vi.fn(), BlockscoutNotFoundError: class BlockscoutNotFoundError extends Error {} }));
 const { getSettlement, getInvoicesForSettlement, fetchTransactionFee, fetchTransactionLogs, getInvoice } = mocks;
 vi.mock("../src/chain/operatorEnv", () => ({ arcPublicClient: () => ({}) }));
 vi.mock("../src/chain/readInvoices", () => ({ getInvoice: mocks.getInvoice }));
 vi.mock("../src/db/invoices", () => ({ getSettlement: mocks.getSettlement, getInvoicesForSettlement: mocks.getInvoicesForSettlement }));
 vi.mock("../src/blockscout/client", () => ({
+  BlockscoutNotFoundError: mocks.BlockscoutNotFoundError,
   fetchTransactionFee: mocks.fetchTransactionFee,
   fetchTransactionLogs: mocks.fetchTransactionLogs,
   paramValue: (parameters: Array<{ name: string; value: string | string[] }>, name: string) => parameters.find((p) => p.name === name)?.value,
@@ -41,6 +42,17 @@ describe("receipt data fallback", () => {
     getInvoicesForSettlement.mockResolvedValue([]);
     fetchTransactionLogs.mockResolvedValue(validReceiptEvents());
     fetchTransactionFee.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123" });
+  });
+
+  it("answers no settlement when the explorer doesn't know the transaction", async () => {
+    fetchTransactionLogs.mockRejectedValue(new mocks.BlockscoutNotFoundError("no such transaction"));
+    expect(await getReceiptData(txHash)).toBeNull();
+    expect(fetchTransactionFee).not.toHaveBeenCalled();
+  });
+
+  it("still surfaces other explorer failures", async () => {
+    fetchTransactionLogs.mockRejectedValue(new Error("Blockscout transaction logs fetch failed: 500"));
+    await expect(getReceiptData(txHash)).rejects.toThrow("500");
   });
 
   it.each(["bad", "0x1234", `0x${"zz".repeat(32)}`, `${txHash}00`, ""])("answers no settlement for %j without touching the database or explorer", async (input) => {
