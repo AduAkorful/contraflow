@@ -9,8 +9,10 @@ export interface NavItem {
 }
 
 /// Sidebar and mobile menu, in one place. Balance is only offered when the feature is on; the
-/// page decides that on the server and passes the flag in.
-export function appNavItems(options: { balance: boolean; docsUrl?: string | null }): NavItem[] {
+/// page decides that on the server and passes the flag in. Docs always appears: in-app `/docs`
+/// until GitBook is published, then the published URL.
+export function appNavItems(options: { balance: boolean; docs?: { href: string; external: boolean } }): NavItem[] {
+  const docs = options.docs ?? { href: "/docs", external: false };
   return [
     { label: "Overview", href: "/app" },
     { label: "Send invoice", href: "/app/attest", alsoActiveFor: ["/app/i/"] },
@@ -19,7 +21,7 @@ export function appNavItems(options: { balance: boolean; docsUrl?: string | null
     ...(options.balance ? [{ label: "Balance", href: "/app/balance" }] : []),
     { label: "Verify", href: "/app/verify" },
     { label: "Demo", href: "/app/demo" },
-    ...(options.docsUrl ? [{ label: "Docs", href: options.docsUrl, external: true }] : []),
+    { label: "Docs", href: docs.href, external: docs.external },
   ];
 }
 

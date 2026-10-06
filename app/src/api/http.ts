@@ -1,5 +1,6 @@
 /// Turns a handler into a Next.js route handler: API key auth, a per-tenant rate limit that fails
-/// closed, `Idempotency-Key` replay for POSTs, and JSON with bigints as decimal strings.
+/// closed, `Idempotency-Key` replay for POSTs, and JSON with bigints as decimal strings. Typed-data
+/// `chainId` is a JSON number (see `typedDataResponse`); other integers stay strings.
 
 import { createHash } from "node:crypto";
 import { after } from "next/server";
@@ -7,19 +8,25 @@ import { checkRateLimit } from "../ratelimit/limiter";
 import { ApiError, authenticate, type ApiCaller } from "./auth";
 import type { ApiDeps, ApiRequest, ApiResponse } from "./handlers";
 import { apiDeps, idempotency } from "./deps";
+import { jsonSafe } from "./json";
 import { runWebhookPipelineQuietly } from "./webhookRunner";
 
 type Handler = (caller: ApiCaller, req: ApiRequest, deps: ApiDeps) => Promise<ApiResponse>;
 type RouteContext = { params: Promise<Record<string, string>> };
-type RouteOptions = { recoverStaleIdempotency?: boolean };
+type RouteOptions = {
+  /// Only POST /permissions may reclaim an expired lease and re-run: its insert is atomic with
+  /// the idempotency row. Other routes look up an existing effect instead.
+  recoverStaleIdempotency?: boolean;
+  /// When a key is still `in_progress`, return the existing effect if this finds it. Never
+  /// re-executes the mutation.
+  recoverFromEffect?: (caller: ApiCaller, req: ApiRequest, deps: ApiDeps) => Promise<ApiResponse | null>;
+};
+
+export type { Handler };
+export { jsonSafe };
 
 const TENANT_LIMIT = { max: 600, windowSeconds: 60 };
 const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
-
-/// Bigints become decimal strings; everything else passes through.
-export function jsonSafe(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
-}
 
 function reply(status: number, body: unknown): Response {
   if (status === 204) return new Response(null, { status });
@@ -69,7 +76,22 @@ async function run(handler: Handler, request: Request, context: RouteContext, op
   const requestHash = createHash("sha256").update(`${request.method} ${new URL(request.url).pathname}\n${raw}`).digest("hex");
   const claim = await idempotency.claim(caller.tenantId, key, requestHash, options.recoverStaleIdempotency === true);
   if (claim.kind === "conflict") throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was used for a different request.");
-  if (claim.kind === "in_progress") throw new ApiError(409, "idempotency_in_progress", "A request with this Idempotency-Key is pending and hasn't been reconciled. Keep the same key and contact support before creating a new request.");
+  if (claim.kind === "in_progress") {
+    if (options.recoverFromEffect) {
+      try {
+        const recovered = await options.recoverFromEffect(caller, req, apiDeps());
+        if (recovered) {
+          const safe = jsonSafe(recovered.body);
+          await idempotency.completeFromEffect(caller.tenantId, key, requestHash, recovered.status, safe);
+          return reply(recovered.status, safe);
+        }
+      } catch {
+        // The original request may still be running; a parse error here must not look like a
+        // finished refusal.
+      }
+    }
+    throw new ApiError(409, "idempotency_in_progress", "A request with this Idempotency-Key is pending and hasn't been reconciled. Keep the same key and contact support before creating a new request.");
+  }
   if (claim.kind === "replay") return reply(claim.status, claim.body);
   req.idempotency = { key, requestHash, leaseToken: claim.leaseToken };
 

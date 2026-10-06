@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import type { Address, Hex } from "viem";
@@ -13,7 +13,15 @@ import { settleLoopSentence } from "../../src/settle/copy";
 
 type Phase = "loading" | "none" | "incomplete" | "loop" | "settling" | "pending" | "reverted" | "done";
 
-export function SettleLoopCard({ sessionAddress, onLoopIds }: { sessionAddress: string; onLoopIds?: (ids: string[]) => void }) {
+export function SettleLoopCard({
+  sessionAddress,
+  onLoopIds,
+  embedded = false,
+}: {
+  sessionAddress: string;
+  onLoopIds?: (ids: string[]) => void;
+  embedded?: boolean;
+}) {
   const router = useRouter();
   const { connector } = useAccount();
   const publicClient = usePublicClient();
@@ -140,56 +148,61 @@ export function SettleLoopCard({ sessionAddress, onLoopIds }: { sessionAddress: 
     }
   }
 
+  function Frame({ children, highlight = false }: { children: ReactNode; highlight?: boolean }) {
+    if (embedded) return <div className="px-5 py-4">{children}</div>;
+    return (
+      <section className={`rounded-card border px-5 py-4 ${highlight ? "border-gold/30 bg-gold/[0.06]" : "border-border-subtle bg-surface-1"}`}>
+        <h2 className="text-sm font-semibold">Ready to net</h2>
+        {children}
+      </section>
+    );
+  }
+
   if (phase === "loading") {
     return (
-      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
-        <h2 className="text-sm font-semibold">Ready to net</h2>
-        <p className="mt-2 text-sm text-muted">Checking for loops…</p>
-      </section>
+      <Frame>
+        <p className={embedded ? "text-sm text-muted" : "mt-2 text-sm text-muted"}>Checking for loops…</p>
+      </Frame>
     );
   }
 
   if (phase === "none") {
     return (
-      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
-        <h2 className="text-sm font-semibold">Ready to net</h2>
-        <p className="mt-2 text-sm text-muted">No loop to net yet</p>
-      </section>
+      <Frame>
+        <p className={embedded ? "text-sm text-muted" : "mt-2 text-sm text-muted"}>No loop to net yet</p>
+      </Frame>
     );
   }
 
   if (phase === "incomplete" && !loop) {
     return (
-      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
-        <h2 className="text-sm font-semibold">Ready to net</h2>
-        <p className="mt-2 text-sm text-muted">{error ?? "Couldn't check for loops right now"}</p>
-      </section>
+      <Frame>
+        <p className={embedded ? "text-sm text-muted" : "mt-2 text-sm text-muted"}>{error ?? "Couldn't check for loops right now"}</p>
+      </Frame>
     );
   }
 
   if (phase === "pending" || phase === "reverted") {
     return (
-      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
-        <h2 className="text-sm font-semibold">Ready to net</h2>
-        <p className="mt-2 text-sm font-medium">{phase === "pending" ? "Settlement status needs checking" : "Settlement reverted"}</p>
+      <Frame>
+        <p className={embedded ? "text-sm font-medium" : "mt-2 text-sm font-medium"}>
+          {phase === "pending" ? "Settlement status needs checking" : "Settlement reverted"}
+        </p>
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
         {txHash && (
           <a href={`/app/receipt/${txHash}`} className="mt-3 inline-block text-sm text-gold hover:underline">
             Open transaction →
           </a>
         )}
-      </section>
+      </Frame>
     );
   }
 
   if (!loop) return null;
 
   return (
-    <section className="rounded-card border border-gold/30 bg-gold/[0.06] px-5 py-4">
-      <h2 className="text-sm font-semibold">Ready to net</h2>
-      <p className="mt-2 text-sm text-muted">
-        {settleLoopSentence(loop.invoiceIds.length, loop.wNet)}
-      </p>
+    <Frame highlight>
+      <p className={embedded ? "text-sm text-muted" : "mt-2 text-sm text-muted"}>{settleLoopSentence(loop.invoiceIds.length, loop.wNet)}</p>
       <p className="mt-2 text-xs text-muted">
         Anyone in the loop can settle. Network fee about <Money value="0.004" />, paid from your account.
       </p>
@@ -202,6 +215,6 @@ export function SettleLoopCard({ sessionAddress, onLoopIds }: { sessionAddress: 
         {phase === "settling" ? "Settling…" : "Settle"}
       </button>
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
-    </section>
+    </Frame>
   );
 }

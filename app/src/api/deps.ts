@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { createArcPublicClient } from "../chain/client";
 import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
-import { claimIdempotency, completeIdempotency, postgresTenantStore, tagProposalTenant } from "../db/tenants";
+import { claimIdempotency, completeIdempotency, completeIdempotencyFromEffect, postgresTenantStore, tagProposalTenant } from "../db/tenants";
 import { appLedgerDomain } from "../netting/domain";
 import { certificateService } from "../obligations/certificateDefaults";
 import * as obligations from "../obligations/service";
@@ -29,4 +29,5 @@ export function apiDeps(): ApiDeps {
 export const idempotency = {
   claim: claimIdempotency,
   complete: completeIdempotency,
+  completeFromEffect: completeIdempotencyFromEffect,
 };

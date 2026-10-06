@@ -10,16 +10,16 @@ import { TopBar } from "./TopBar";
 export function AppShell({
   address,
   balanceEnabled,
-  docsUrl,
+  docs,
   children,
 }: {
   address: string | null;
   balanceEnabled: boolean;
-  docsUrl?: string | null;
+  docs?: { href: string; external: boolean };
   children: React.ReactNode;
 }) {
-  const items = appNavItems({ balance: balanceEnabled, docsUrl });
-  const signedOutItems = items.filter((i) => ["/app/history", "/app/verify", "/app/demo"].includes(i.href));
+  const items = appNavItems({ balance: balanceEnabled, docs });
+  const signedOutItems = items.filter((i) => ["/app/history", "/app/verify", "/app/demo"].includes(i.href) || i.label === "Docs");
 
   return (
     <div className={`min-h-screen bg-bg ${address ? "lg:grid lg:grid-cols-[232px_minmax(0,1fr)]" : ""}`}>

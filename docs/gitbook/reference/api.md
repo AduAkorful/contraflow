@@ -76,8 +76,8 @@ Send `Idempotency-Key: <1–255 characters>` on every `POST`:
 | First request with the key | Runs normally; the response (including a 4xx) is stored |
 | Same key, same method, path and body | The stored response, unchanged |
 | Same key, different request | `409 idempotency_conflict` |
-| Same key while the first request is still running | `409 idempotency_in_progress` |
-| The first request failed with a 5xx | The key is released, so retry with the same key |
+| Same key while the first request is still pending | If the effect already exists (the proposal by document hash, the accepted obligation, the stored signature, or the reported apply transaction), that result is returned and stored. Otherwise `409 idempotency_in_progress`. This lookup never re-runs the mutation. |
+| The first request failed with a 5xx | The key stays reserved. Retry with the same key. If the effect landed, you get that result; otherwise `409 idempotency_in_progress`. Do not mint a new key. |
 
 ## Rate limits
 
@@ -123,7 +123,7 @@ Builds the EIP-712 payload a party signs to grant you scopes.
 ```json
 {
   "typedData": {
-    "domain": { "name": "Contraflow API", "version": "1", "chainId": "5042002" },
+    "domain": { "name": "Contraflow API", "version": "1", "chainId": 5042002 },
     "types": {
       "ContraflowTenantPermission": [
         { "name": "party", "type": "address" },
@@ -141,13 +141,12 @@ Builds the EIP-712 payload a party signs to grant you scopes.
       "expiresAt": "1790000000",
       "nonce": "0x5e1f…"
     }
-  }
+  },
+  "digest": "0x…"
 }
 ```
 
-The `domain` has no `verifyingContract`: a permission is offchain only. **Signing tip:** most signing libraries
-need `chainId`, `expiresAt` and the other integer fields as numbers or bigints, not strings. Convert them before
-signing, or the digest will differ.
+`domain.chainId` is a JSON number so viem (and `cast hash-typed-data`) hash the payload as returned. Other integers stay decimal strings. `digest` is the EIP-712 hash of this typed data; compare it after signing. A string `chainId` hashes to a different digest. The `domain` has no `verifyingContract`: a permission is offchain only.
 
 ### POST `/permissions`
 
@@ -228,7 +227,8 @@ Scope: `propose` (as `party`, the proposer).
     "document": { "…": "as submitted" },
     "proposerSignature": "0x…",
     "expiresAt": "2026-10-26T13:29:01.000Z",
-    "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": "5042002", "verifyingContract": "0x2F59…2ef7" }, "types": { "NettingObligation": ["…"] }, "primaryType": "NettingObligation", "message": { "…": "…" } }
+    "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042002, "verifyingContract": "0x2F59…2ef7" }, "types": { "NettingObligation": ["…"] }, "primaryType": "NettingObligation", "message": { "…": "…" } },
+    "digest": "0x…"
   }
 }
 ```
@@ -318,7 +318,8 @@ Scope: `read`. Returns the party's view and the typed data it signs.
     "appliedTxHash": null,
     "view": { "format": "contraflow-netting-certificate/1", "…": "the party's view; see Offchain netting" }
   },
-  "typedData": { "domain": { "name": "ContraflowNettingLedger", "…": "…" }, "primaryType": "NettingCertificate", "message": { "…": "…" } }
+  "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042002, "verifyingContract": "0x2F59…2ef7" }, "primaryType": "NettingCertificate", "message": { "…": "…" } },
+  "digest": "0x…"
 }
 ```
 

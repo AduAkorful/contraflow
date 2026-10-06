@@ -3,7 +3,7 @@
   "info": {
     "title": "Contraflow API",
     "version": "1.0.0",
-    "description": "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. Amounts are integer strings in the currency's minor units; all integers in JSON are decimal strings."
+    "description": "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. Amounts are integer strings in the currency's minor units. In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers stay decimal strings."
   },
   "servers": [
     {

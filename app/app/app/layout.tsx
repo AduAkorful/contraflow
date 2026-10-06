@@ -2,7 +2,7 @@ import { AppShell } from "../../components/app-shell/AppShell";
 import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
 import { getSession } from "../../src/session/getSession";
-import { docsUrl } from "../../src/site/docsUrl";
+import { docsNavLink } from "../../src/site/docsUrl";
 import { Providers } from "./providers";
 
 /// `PrivyProvider` validates its `appId` synchronously on init and throws on an invalid one — a
@@ -15,7 +15,7 @@ export default async function AppSectionLayout({ children }: { children: React.R
   const session = await getSession();
   return (
     <Providers sessionAddress={session?.address ?? null}>
-      <AppShell address={session?.address ?? null} balanceEnabled={unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)} docsUrl={docsUrl()}>
+      <AppShell address={session?.address ?? null} balanceEnabled={unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)} docs={docsNavLink()}>
         {children}
       </AppShell>
     </Providers>

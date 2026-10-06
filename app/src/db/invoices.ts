@@ -121,11 +121,14 @@ export async function upsertSettlement(input: SettlementRow): Promise<void> {
   });
 }
 
+/// Cached invoices for an address, matched case-insensitively. A fast read for the overview:
+/// no explorer call, so it can lag the chain until `/app/history` reconciles.
 export async function getInvoicesForAddress(address: string): Promise<InvoiceRow[]> {
   return withDbRetry(async () => {
     const db = sql();
     const rows = await db`
-      SELECT * FROM invoices WHERE debtor = ${address} OR creditor = ${address} ORDER BY created_at DESC
+      SELECT * FROM invoices WHERE lower(debtor) = lower(${address}) OR lower(creditor) = lower(${address})
+      ORDER BY created_at DESC
     `;
     return (rows as Record<string, unknown>[]).map(toInvoiceRow);
   });

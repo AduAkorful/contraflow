@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { displayDate, displayMinorAmount } from "../../../components/netting/format";
 import type { CertificateSummary } from "../../../src/obligations/certificates";
+import { loopBannerTarget } from "../../../src/obligations/loopBanner";
 import { findNettingLoop } from "./actions";
 
 const STATUS_TEXT: Record<CertificateSummary["status"], string> = {
@@ -18,16 +19,6 @@ function nextStep(c: CertificateSummary): string | null {
   if (c.status === "collecting") return c.youSigned ? `${c.signedCount} of ${c.parties} signed` : "Waiting for your signature";
   if (c.status === "ready") return "Anyone in the loop can apply it";
   return null;
-}
-
-function loopBannerTarget(certificates: CertificateSummary[], foundToken: string | null): string | null {
-  const open = certificates.filter((c) => c.status === "collecting" || c.status === "ready");
-  const unsigned = open.find((c) => c.status === "collecting" && !c.youSigned);
-  if (unsigned) return unsigned.token;
-  const ready = open.find((c) => c.status === "ready");
-  if (ready) return ready.token;
-  if (open[0]) return open[0].token;
-  return foundToken;
 }
 
 export function CertificatesPanel({ certificates }: { certificates: CertificateSummary[] }) {

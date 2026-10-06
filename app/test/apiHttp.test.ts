@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   complete: vi.fn(),
+  completeFromEffect: vi.fn(),
   checkRateLimit: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("../src/api/deps", () => ({
   apiDeps: () => ({ store: {} }),
-  idempotency: { claim: mocks.claim, complete: mocks.complete },
+  idempotency: { claim: mocks.claim, complete: mocks.complete, completeFromEffect: mocks.completeFromEffect },
 }));
 vi.mock("../src/ratelimit/limiter", () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock("../src/api/auth", () => ({
@@ -37,6 +38,7 @@ describe("API idempotency failure handling", () => {
     vi.clearAllMocks();
     mocks.claim.mockResolvedValue({ kind: "new", leaseToken: "lease-1" });
     mocks.complete.mockResolvedValue(undefined);
+    mocks.completeFromEffect.mockResolvedValue(undefined);
     mocks.checkRateLimit.mockResolvedValue({ allowed: true });
   });
 
@@ -90,5 +92,28 @@ describe("API idempotency failure handling", () => {
       },
     });
     expect(mocks.complete).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 while a key is in progress if no effect is found", async () => {
+    mocks.claim.mockResolvedValue({ kind: "in_progress" });
+    const handler = route(async () => ({ status: 201, body: { ok: true } }), {
+      recoverFromEffect: async () => null,
+    });
+    const response = await handler(post(), { params: Promise.resolve({}) });
+    expect(response.status).toBe(409);
+    expect(mocks.completeFromEffect).not.toHaveBeenCalled();
+  });
+
+  it("replays an existing effect without re-running the handler", async () => {
+    mocks.claim.mockResolvedValue({ kind: "in_progress" });
+    const run = vi.fn(async () => ({ status: 201, body: { ok: true } }));
+    const handler = route(run, {
+      recoverFromEffect: async () => ({ status: 201, body: { proposal: { token: "tok123" } } }),
+    });
+    const response = await handler(post(), { params: Promise.resolve({}) });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ proposal: { token: "tok123" } });
+    expect(run).not.toHaveBeenCalled();
+    expect(mocks.completeFromEffect).toHaveBeenCalled();
   });
 });

@@ -1,3 +1,5 @@
+import { NetworkNotice } from "../network/NetworkNotice";
+
 const GAS_COSTS = [
   { call: "Record an offchain obligation", cost: "No gas" },
   { call: "Apply a netting certificate (3 obligations)", cost: "~$0.0042" },
@@ -19,7 +21,9 @@ export function Pricing() {
         </p>
       </div>
 
-      <div className="mx-auto mt-12 max-w-2xl rounded-card border border-border-subtle bg-surface-1">
+      <NetworkNotice className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted" />
+
+      <div className="mx-auto mt-4 max-w-2xl rounded-card border border-border-subtle bg-surface-1">
         <div className="flex justify-between gap-4 border-b border-border-subtle px-5 py-3 text-xs font-medium text-faint">
           <span>Action</span>
           <span>Typical gas cost</span>

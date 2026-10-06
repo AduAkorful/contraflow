@@ -1,4 +1,7 @@
-import { createObligationProposal } from "../../../../../src/api/handlers";
+import {
+  createObligationProposal,
+  recoverCreateObligationProposal,
+} from "../../../../../src/api/handlers";
 import { route } from "../../../../../src/api/http";
 
-export const POST = route(createObligationProposal);
+export const POST = route(createObligationProposal, { recoverFromEffect: recoverCreateObligationProposal });

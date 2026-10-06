@@ -1,5 +1,6 @@
 import { SiteNav } from "../../components/site-nav";
 import { SiteFooter } from "../../components/site-footer";
+import { docsNavLink } from "../../src/site/docsUrl";
 
 export const metadata = { title: "Integrations" };
 
@@ -84,6 +85,17 @@ export default function IntegrationsPage() {
         <section className="mx-auto max-w-6xl px-6 py-12">
           <h2 className="font-serif-display text-3xl">From Circle</h2>
           <Cards items={FROM_CIRCLE} />
+        </section>
+
+        <section className="mx-auto max-w-6xl px-6 py-12">
+          <h2 className="font-serif-display text-3xl">API</h2>
+          <p className="mt-4 max-w-xl text-muted">
+            Offchain obligations can be recorded through the API. Contraflow never signs for tenants:
+            parties grant scoped permissions, and tenants submit the signatures those parties made.
+          </p>
+          <a href={docsNavLink().href} className="mt-4 inline-block text-sm text-gold hover:underline">
+            Docs →
+          </a>
         </section>
       </main>
       <SiteFooter />

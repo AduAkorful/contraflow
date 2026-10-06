@@ -19,6 +19,8 @@ export interface ChainAddresses {
 
 export const ARC_TESTNET_CHAIN_ID = 5042002;
 export const ARC_MAINNET_CHAIN_ID = 5042;
+/// The chain this app instance talks to. Testnet until a mainnet deploy is recorded and selected.
+export const APP_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
 
 /// `registryDeployBlock` is read directly from the deploy broadcast's transaction receipts, not
 /// hand-typed. This is a fresh deployment, not an upgrade of any prior one — a previous testnet

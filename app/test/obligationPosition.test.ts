@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Address } from "viem";
 import {
+  invoiceUsdcPosition,
+  invoiceUsdcPositionLine,
   obligationPositionByCurrency,
   obligationPositionLine,
   obligationStatusLabel,
 } from "../src/obligations/position";
 import type { ObligationSummary } from "../src/obligations/service";
+import type { InvoiceRow } from "../src/db/invoices";
 
 const A = "0x1111111111111111111111111111111111111111" as Address;
 
@@ -54,5 +57,38 @@ describe("obligation status label", () => {
       /^Netted · .+ remaining$/,
     );
     expect(obligationStatusLabel({ status: "closed", remaining: "0", amount: "50000", currency: "USD" })).toBe("Closed");
+  });
+});
+
+describe("invoice USDC position", () => {
+  const me = "0x1111111111111111111111111111111111111111";
+  const them = "0x2222222222222222222222222222222222222222";
+
+  function invoice(partial: Partial<InvoiceRow> & Pick<InvoiceRow, "amountUsdc" | "debtor" | "creditor">): InvoiceRow {
+    return {
+      invoiceRef: partial.invoiceRef ?? "ref",
+      maturity: "1",
+      earlyNetConsent: true,
+      status: partial.status ?? "registered",
+      registerTxHash: "0x",
+      settleTxHash: null,
+      wNetUsdc: null,
+      remainingUsdc: partial.remainingUsdc ?? null,
+      ...partial,
+    };
+  }
+
+  it("sums remaining from cached invoices", () => {
+    const pos = invoiceUsdcPosition(
+      [
+        invoice({ amountUsdc: "1000.00", debtor: me, creditor: them }),
+        invoice({ amountUsdc: "400.00", debtor: them, creditor: me, status: "settled", remainingUsdc: "250.00" }),
+        invoice({ amountUsdc: "50.00", debtor: me, creditor: them, status: "settled", remainingUsdc: "0.00" }),
+      ],
+      me,
+    );
+    expect(pos).toEqual({ currency: "USDC", youOwe: 1_000_000_000n, owedToYou: 250_000_000n });
+    expect(invoiceUsdcPositionLine(pos!)).toMatch(/You owe 1,000\.00 USDC/);
+    expect(invoiceUsdcPositionLine(pos!)).toMatch(/Net −750\.00 USDC/);
   });
 });

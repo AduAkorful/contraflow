@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { docsUrl } from "../src/site/docsUrl";
+import { docsNavLink, docsUrl } from "../src/site/docsUrl";
 import { appNavItems, isNavActive } from "../components/app-shell/nav";
 
 describe("docsUrl", () => {
@@ -14,13 +14,20 @@ describe("docsUrl", () => {
 });
 
 describe("app nav Docs entry", () => {
-  it("is absent without a docs URL and external with one", () => {
-    expect(appNavItems({ balance: true }).map((i) => i.label)).not.toContain("Docs");
-    const docs = appNavItems({ balance: true, docsUrl: "https://docs.contraflow.example/" }).find((i) => i.label === "Docs");
-    expect(docs).toMatchObject({ href: "https://docs.contraflow.example/", external: true });
+  it("defaults to the in-app docs page", () => {
+    const docs = appNavItems({ balance: true }).find((i) => i.label === "Docs");
+    expect(docs).toMatchObject({ href: "/docs", external: false });
+    expect(docsNavLink(undefined)).toEqual({ href: "/docs", external: false });
   });
-  it("is never marked active", () => {
-    const docs = appNavItems({ balance: false, docsUrl: "https://docs.contraflow.example/" }).find((i) => i.label === "Docs")!;
-    expect(isNavActive(docs, "/app")).toBe(false);
+  it("opens the published URL in a new tab when set", () => {
+    const docs = appNavItems({ balance: true, docs: { href: "https://docs.contraflow.example/", external: true } }).find(
+      (i) => i.label === "Docs",
+    );
+    expect(docs).toMatchObject({ href: "https://docs.contraflow.example/", external: true });
+    expect(isNavActive(docs!, "/app")).toBe(false);
+    expect(docsNavLink("https://docs.contraflow.example/")).toEqual({
+      href: "https://docs.contraflow.example/",
+      external: true,
+    });
   });
 });

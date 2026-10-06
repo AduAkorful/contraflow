@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { docsUrl } from "../src/site/docsUrl";
+import { docsNavLink } from "../src/site/docsUrl";
+import { NetworkNotice } from "./network/NetworkNotice";
 
-const DOCS_URL = docsUrl();
+const DOCS = docsNavLink();
 
 type PrimaryLink = { label: string; href: string; external?: boolean };
 
@@ -31,7 +32,7 @@ const PRIMARY_LINKS: PrimaryLink[] = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
   { label: "Integrations", href: "/integrations" },
-  ...(DOCS_URL ? [{ label: "Docs", href: DOCS_URL, external: true }] : []),
+  { label: "Docs", href: DOCS.href, external: DOCS.external },
   { label: "Contact", href: "/contact" },
 ];
 
@@ -49,6 +50,7 @@ export function SiteNav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-border-subtle/60 bg-bg/85 backdrop-blur">
+      <NetworkNotice className="border-b border-border-subtle/60 bg-surface-1 px-6 py-2 text-center text-xs text-muted" />
       <div className="mx-auto max-w-6xl px-6 py-4">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex shrink-0 items-center gap-2 text-lg font-medium tracking-tight">

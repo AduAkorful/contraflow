@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { docsUrl } from "../src/site/docsUrl";
+import { docsNavLink } from "../src/site/docsUrl";
 
-const DOCS_URL = docsUrl();
+const DOCS = docsNavLink();
 
 const COLUMNS = [
   {
@@ -11,7 +11,7 @@ const COLUMNS = [
       { label: "Pricing", href: "/pricing" },
       { label: "Integrations", href: "/integrations" },
       { label: "Verify a certificate", href: "/app/verify" },
-      ...(DOCS_URL ? [{ label: "Docs", href: DOCS_URL, external: true }] : []),
+      { label: "Docs", href: DOCS.href, external: DOCS.external },
     ],
   },
   {

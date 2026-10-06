@@ -198,3 +198,21 @@ export async function completeIdempotency(
                   AND status_code = 0 AND lease_token = ${leaseToken}`,
   );
 }
+
+/// Records a response found by looking up the mutation's effect, without holding the lease. Only
+/// for in-progress keys whose request hash still matches; a different body stays a conflict.
+export async function completeIdempotencyFromEffect(
+  tenantId: Hex,
+  key: string,
+  requestHash: string,
+  status: number,
+  body: unknown,
+): Promise<void> {
+  await withDbRetry(
+    () => sql()`UPDATE api_idempotency
+                SET status_code = ${status}, response = ${JSON.stringify(body)}::jsonb,
+                    lease_token = NULL, lease_expires_at = NULL
+                WHERE tenant_id = ${tenantId.toLowerCase()} AND idem_key = ${key}
+                  AND request_hash = ${requestHash} AND status_code = 0`,
+  );
+}

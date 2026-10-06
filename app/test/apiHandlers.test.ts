@@ -31,6 +31,7 @@ function deps(overrides: Partial<ApiDeps> = {}) {
   const obligations = {
     createProposal: vi.fn(async () => ({ ok: true as const, token: "tok123" })),
     getProposal: vi.fn(),
+    getProposalForObligation: vi.fn(async () => ({ ok: false as const, error: "Not found." })),
     acceptProposal: vi.fn(async () => ({ ok: true as const })),
     withdrawProposal: vi.fn(async () => ({ ok: true as const })),
     listMine: vi.fn(async () => ({ ok: true as const, proposals: [], obligations: [] })),
@@ -172,9 +173,38 @@ describe("proposals", () => {
     const res = await handlers.createObligationProposal(caller, req({ body: { party: obligation.debtor, obligation: {}, document: {}, proposerRole: "debtor", proposerSignature: "0x" } }), d);
     expect(res.status).toBe(201);
     expect(d.tagProposal).toHaveBeenCalledWith("tok123", TENANT);
-    const typed = (res.body as { proposal: { typedData: { primaryType: string; message: { amount: bigint } } } }).proposal.typedData;
-    expect(typed.primaryType).toBe("NettingObligation");
-    expect(typed.message.amount).toBe(100n);
+    const typed = (res.body as { proposal: { typedData: { domain: { chainId: number }; primaryType: string; message: { amount: string } }; digest: string } }).proposal;
+    expect(typed.typedData.primaryType).toBe("NettingObligation");
+    expect(typed.typedData.domain.chainId).toBe(TESTNET);
+    expect(typed.typedData.message.amount).toBe("100");
+    expect(typed.digest).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it("recovers a create from the stored proposal instead of inserting again", async () => {
+    const { loop } = await signedLoop({ domain, amounts: [100n, 100n] });
+    const { obligation } = loop[0]!;
+    const view = {
+      token: "tok123",
+      state: "open",
+      viewerRole: "proposer",
+      proposerRole: "debtor",
+      domain: { chainId: domain.chainId.toString(), verifyingContract: domain.verifyingContract },
+      obligation: serializeObligation(obligation),
+      document: {},
+      proposerSignature: "0x",
+      expiresAt: "2026-10-26T00:00:00.000Z",
+    };
+    const { d, store, obligations } = deps();
+    obligations.getProposalForObligation.mockResolvedValue({ ok: true, proposal: view } as never);
+    await grant(store, SCOPE.propose, obligation.debtor);
+    const recovered = await handlers.recoverCreateObligationProposal(
+      caller,
+      req({ body: { party: obligation.debtor, obligation } }),
+      d,
+    );
+    expect(recovered?.status).toBe(201);
+    expect((recovered?.body as { proposal: { token: string } }).proposal.token).toBe("tok123");
+    expect(obligations.createProposal).not.toHaveBeenCalled();
   });
 });
 
@@ -215,5 +245,38 @@ describe("apply transaction", () => {
 describe("jsonSafe", () => {
   it("turns bigints into decimal strings, deeply", () => {
     expect(jsonSafe({ a: 1n, b: [2n, { c: 3n }], d: "x" })).toEqual({ a: "1", b: ["2", { c: "3" }], d: "x" });
+  });
+});
+
+describe("typed-data responses", () => {
+  it("emits chainId as a number and a digest viem hashes to", async () => {
+    const { hashTypedData } = await import("viem");
+    const { permissionTypedData } = await import("../src/api/permissions");
+    const res = await handlers.permissionPayload(
+      caller,
+      req({
+        query: new URLSearchParams({
+          party,
+          scopes: "7",
+          expiresAt: (NOW + 60n).toString(),
+          nonce: `0x${"33".repeat(32)}`,
+        }),
+      }),
+    );
+    const body = res.body as { typedData: { domain: { chainId: number }; types: object; primaryType: string; message: object }; digest: `0x${string}` };
+    expect(body.typedData.domain.chainId).toBe(TESTNET);
+    expect(typeof body.typedData.domain.chainId).toBe("number");
+    expect(hashTypedData(body.typedData as never)).toBe(body.digest);
+    const original = permissionTypedData(TESTNET, {
+      party,
+      tenantId: TENANT,
+      scopes: 7,
+      expiresAt: NOW + 60n,
+      nonce: `0x${"33".repeat(32)}`,
+    });
+    expect(hashTypedData({ ...body.typedData, domain: { ...body.typedData.domain, chainId: String(TESTNET) } } as never)).not.toBe(
+      body.digest,
+    );
+    expect(hashTypedData(original)).toBe(body.digest);
   });
 });

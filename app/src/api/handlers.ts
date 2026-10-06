@@ -9,6 +9,7 @@ import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
 import { certificateTypedData } from "../netting/certificate";
 import { obligationTypedData } from "../netting/obligation";
 import { parseCertificateView, parseObligationJson } from "../netting/serialize";
+import { typedDataResponse } from "./typedDataJson";
 import type { LedgerDomain } from "../netting/types";
 import type { ChainReader } from "../netting/signature";
 import type { CertificateService } from "../obligations/certificates";
@@ -22,7 +23,10 @@ export interface ApiDeps {
   domain: LedgerDomain;
   nowSeconds(): bigint;
   newId(): string;
-  obligations: Pick<typeof obligationService, "createProposal" | "getProposal" | "acceptProposal" | "withdrawProposal" | "listMine">;
+  obligations: Pick<
+    typeof obligationService,
+    "createProposal" | "getProposal" | "getProposalForObligation" | "acceptProposal" | "withdrawProposal" | "listMine"
+  >;
   certificates: Pick<
     CertificateService,
     "listCertificates" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
@@ -86,7 +90,7 @@ export async function permissionPayload(caller: ApiCaller, req: ApiRequest): Pro
   if (!expiresAt || !/^\d+$/.test(expiresAt)) throw new ApiError(422, "invalid_request", "expiresAt must be a unix timestamp.");
   if (!nonce || !isHex(nonce) || nonce.length !== 66) throw new ApiError(422, "invalid_request", "nonce must be 32 bytes of hex.");
   const permission: TenantPermission = { party, tenantId: caller.tenantId, scopes, expiresAt: BigInt(expiresAt), nonce };
-  return { status: 200, body: { typedData: permissionTypedData(caller.chainId, permission) } };
+  return { status: 200, body: typedDataResponse(permissionTypedData(caller.chainId, permission)) };
 }
 
 export async function createPermission(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
@@ -127,7 +131,50 @@ export async function revokePermission(caller: ApiCaller, req: ApiRequest, deps:
 function proposalWithPayload(proposal: obligationService.ProposalView) {
   const domain: LedgerDomain = { chainId: BigInt(proposal.domain.chainId), verifyingContract: proposal.domain.verifyingContract };
   const obligation = parseObligationJson(proposal.obligation);
-  return { ...proposal, typedData: obligationTypedData(obligation, domain) };
+  const envelope = typedDataResponse(obligationTypedData(obligation, domain));
+  return { ...proposal, typedData: envelope.typedData, digest: envelope.digest };
+}
+
+/// If a create already stored the proposal, return that 201 instead of re-inserting.
+export async function recoverCreateObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse | null> {
+  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
+  const found = await deps.obligations.getProposalForObligation(party, field(req.body, "obligation"));
+  if (!found.ok) return null;
+  return { status: 201, body: { proposal: proposalWithPayload(found.proposal) } };
+}
+
+export async function recoverAcceptObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse | null> {
+  const party = await actingParty(caller, field(req.body, "party"), "deliverSignatures", deps);
+  const { proposal } = unwrap(await deps.obligations.getProposal(party, req.params.token));
+  if (proposal.state !== "accepted") return null;
+  return { status: 200, body: { accepted: true } };
+}
+
+export async function recoverFindLoop(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse | null> {
+  const party = await actingParty(caller, req.params.address, "propose", deps);
+  const { certificates } = unwrap(await deps.certificates.listCertificates(party));
+  const open = certificates.find((c) => c.status === "collecting" || c.status === "ready");
+  if (!open) return null;
+  return {
+    status: 200,
+    body: { outcome: { found: true, token: open.token, currency: open.currency, wNet: open.wNet, parties: open.parties } },
+  };
+}
+
+export async function recoverSignCertificate(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse | null> {
+  const party = await actingParty(caller, field(req.body, "party"), "deliverSignatures", deps);
+  const { certificate } = unwrap(await deps.certificates.getCertificateView(party, req.params.token));
+  if (!certificate.youSigned) return null;
+  return { status: 200, body: { signed: true } };
+}
+
+export async function recoverReportTransaction(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse | null> {
+  const party = await actingParty(caller, field(req.body, "party"), "read", deps);
+  const txHash = field(req.body, "txHash");
+  if (typeof txHash !== "string") return null;
+  const { certificate } = unwrap(await deps.certificates.getCertificateView(party, req.params.token));
+  if (!certificate.appliedTxHash || certificate.appliedTxHash.toLowerCase() !== txHash.toLowerCase()) return null;
+  return { status: 200, body: { status: certificate.status } };
 }
 
 export async function createObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
@@ -187,11 +234,13 @@ async function certificateFor(party: Address, token: string | undefined, deps: A
 export async function getCertificate(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const party = await actingParty(caller, req.query.get("party"), "read", deps);
   const { certificate, view } = await certificateFor(party, req.params.token, deps);
+  const envelope = typedDataResponse(certificateTypedData(view.certificate, view.domain));
   return {
     status: 200,
     body: {
       certificate: { ...certificate, view: JSON.parse(certificate.view) },
-      typedData: certificateTypedData(view.certificate, view.domain),
+      typedData: envelope.typedData,
+      digest: envelope.digest,
     },
   };
 }

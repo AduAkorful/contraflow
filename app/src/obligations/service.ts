@@ -11,6 +11,7 @@ import {
   acceptProposalWithObligation,
   DuplicateObligationError,
   getObligationById,
+  getProposalByObligationId,
   getProposalByToken,
   insertProposal,
   listObligationsForParty,
@@ -183,6 +184,20 @@ export async function getProposal(session: Address, token: unknown): Promise<Res
       expiresAt: row.expiresAt.toISOString(),
     },
   };
+}
+
+/// A proposal for this obligation id, for one of its two parties only. Used to recover a create
+/// that stored the row but never wrote the HTTP result.
+export async function getProposalForObligation(session: Address, obligationInput: unknown): Promise<Result<{ proposal: ProposalView }>> {
+  let obligation;
+  try {
+    obligation = parseObligationJson(obligationInput);
+  } catch {
+    return { ok: false, error: "Invalid obligation." };
+  }
+  const row = await getProposalByObligationId(obligationId(obligation, appLedgerDomain()));
+  if (!row) return { ok: false, error: NOT_FOUND };
+  return getProposal(session, row.token);
 }
 
 /// The counterparty's signature completes the obligation. The stored proposal is re-validated
