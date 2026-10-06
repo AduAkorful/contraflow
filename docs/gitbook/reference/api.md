@@ -372,7 +372,7 @@ or
 { "outcome": { "found": false, "reason": "no-loop", "message": "…" } }
 ```
 
-`reason` is `no-candidates`, `no-loop`, `too-many-parties` or `out-of-sync`.
+`reason` is `no-candidates`, `no-loop`, `too-many-parties`, `search-incomplete` or `out-of-sync`.
 
 ## Certificates
 
