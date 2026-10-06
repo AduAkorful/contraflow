@@ -47,7 +47,7 @@ export function WalletHost({
   }
 
   return (
-    <WalletProviders sessionAddress={sessionAddress} autoStartLogin={pendingSignIn}>
+    <WalletProviders sessionAddress={sessionAddress} initialMenuOpen={pendingSignIn}>
       {children}
     </WalletProviders>
   );

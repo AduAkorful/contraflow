@@ -14,7 +14,7 @@ describe("robots and sitemap", () => {
     expect(rule?.disallow).toEqual(expect.arrayContaining(["/app/", "/api/"]));
     const urls = sitemap().map((entry) => entry.url);
     expect(urls).toContain(`https://${HOST}/`);
-    expect(urls).toContain(`https://${HOST}/docs`);
+    expect(urls).not.toContain(`https://${HOST}/docs`);
     expect(urls).toContain(`https://${HOST}/app/demo`);
     expect(urls).toContain(`https://${HOST}/app/verify`);
     expect(urls.some((url) => url.includes("/app/history"))).toBe(false);
@@ -31,5 +31,10 @@ describe("public redirects", () => {
   it("sends /demo to the product demo", async () => {
     const redirects = await nextConfig.redirects!();
     expect(redirects).toContainEqual({ source: "/demo", destination: "/app/demo", permanent: false });
+    expect(redirects).toContainEqual({
+      source: "/docs",
+      destination: "https://aduakorful.gitbook.io/contraflow-docs",
+      permanent: false,
+    });
   });
 });

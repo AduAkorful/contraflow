@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getAddress, type Address, type Hex } from "viem";
 import {
   getEmbeddedConnectedWallet,
   useCreateWallet,
   useLogin,
+  useLoginWithEmail,
   useWallets,
   type ConnectedWallet,
   type LinkedAccountWithMetadata,
@@ -57,12 +58,13 @@ async function waitForEmbedded(read: () => ConnectedWallet[]): Promise<Connected
 /// must be registered once, or each mounted Sign in button would complete SIWE in parallel.
 export function SignInProvider({
   children,
-  autoStartLogin = false,
+  initialMenuOpen = false,
 }: {
   children: React.ReactNode;
-  autoStartLogin?: boolean;
+  initialMenuOpen?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { setAddress: setSessionAddress } = useSession();
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
@@ -80,6 +82,7 @@ export function SignInProvider({
 
   const [phase, setPhase] = useState<SignInPhase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(initialMenuOpen);
   const [identity, setIdentity] = useState<SignInIdentity | null>(null);
   const [sessionAddress, setLocalSession] = useState<string | null>(null);
 
@@ -163,7 +166,9 @@ export function SignInProvider({
           setSessionAddress(existing.address);
           setIdentity({ address: existing.address, email: emailOf(params.user), kind: pick.kind });
           setPhase("signed-in");
-          router.refresh();
+          setMenuOpen(false);
+          if (pathname.startsWith("/app")) router.refresh();
+          else router.push("/app");
           return;
         }
 
@@ -190,7 +195,9 @@ export function SignInProvider({
         setSessionAddress(result.address);
         setIdentity({ address: result.address, email: emailOf(params.user), kind: pick.kind });
         setPhase("signed-in");
-        router.refresh();
+        setMenuOpen(false);
+        if (pathname.startsWith("/app")) router.refresh();
+        else router.push("/app");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to sign in.");
         setPhase("error");
@@ -199,7 +206,7 @@ export function SignInProvider({
         pendingRef.current = false;
       }
     },
-    [router, setSessionAddress],
+    [pathname, router, setSessionAddress],
   );
 
   const completeRef = useRef(complete);
@@ -220,18 +227,79 @@ export function SignInProvider({
     },
   });
 
-  const start = useCallback(() => {
+  const { sendCode, loginWithCode } = useLoginWithEmail({
+    onComplete: (params) => {
+      if (!pendingRef.current) return;
+      void completeRef.current({
+        user: params.user,
+        loginMethod: params.loginMethod,
+        loginAccount: params.loginAccount,
+      });
+    },
+    onError: () => {
+      pendingRef.current = false;
+      setPhase("error");
+    },
+  });
+
+  const openMenu = useCallback(() => {
+    setError(null);
+    setMenuOpen(true);
+  }, []);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  const sendEmailCode = useCallback(
+    async (email: string) => {
+      setError(null);
+      pendingRef.current = true;
+      setPhase("connecting");
+      try {
+        await sendCode({ email });
+        setPhase("idle");
+        return null;
+      } catch (err) {
+        pendingRef.current = false;
+        const message = err instanceof Error ? err.message : "Couldn't send the code.";
+        setError(message);
+        setPhase("error");
+        return message;
+      }
+    },
+    [sendCode],
+  );
+
+  const submitEmailCode = useCallback(
+    async (code: string) => {
+      setError(null);
+      pendingRef.current = true;
+      setPhase("signing");
+      try {
+        await loginWithCode({ code });
+        return null;
+      } catch (err) {
+        pendingRef.current = false;
+        const message = err instanceof Error ? err.message : "That code didn't work.";
+        setError(message);
+        setPhase("error");
+        return message;
+      }
+    },
+    [loginWithCode],
+  );
+
+  const startWallet = useCallback(() => {
     setError(null);
     pendingRef.current = true;
     setPhase("connecting");
-    login();
+    setMenuOpen(false);
+    login({ loginMethods: ["wallet"] });
   }, [login]);
 
   useEffect(() => {
-    if (!autoStartLogin || startedAuto.current || phase !== "idle") return;
+    if (!initialMenuOpen || startedAuto.current) return;
     startedAuto.current = true;
-    start();
-  }, [autoStartLogin, phase, start]);
+    setMenuOpen(true);
+  }, [initialMenuOpen]);
 
   const value: SignInApi = {
     phase,
@@ -245,7 +313,13 @@ export function SignInProvider({
           ? connectedButUnsignedHint(identity.kind, identity.email)
           : null,
     signingLabel: signingInLabel(identity?.kind ?? "unknown"),
-    start,
+    start: openMenu,
+    menuOpen,
+    openMenu,
+    closeMenu,
+    sendEmailCode,
+    submitEmailCode,
+    startWallet,
   };
 
   return (

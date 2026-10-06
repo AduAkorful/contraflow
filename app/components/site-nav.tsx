@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { marketingMobileExtraLinks, marketingPrimaryLinks, type MarketingLink } from "./marketing/nav";
 import { NetworkNotice } from "./network/NetworkNotice";
+import { MarketingSignIn } from "./wallet/MarketingSignIn";
 
 function NavLink({ link, className, onClick }: { link: MarketingLink; className: string; onClick?: () => void }) {
   if (link.external) {
@@ -60,13 +61,7 @@ export function SiteNav() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/app"
-              className="shrink-0 whitespace-nowrap px-2 py-2.5 text-sm font-medium text-foreground hover:underline"
-            >
-              Sign in
-            </Link>
-
+            <MarketingSignIn />
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}

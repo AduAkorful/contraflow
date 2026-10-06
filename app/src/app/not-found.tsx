@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
+import { PUBLISHED_DOCS_URL } from "@/src/site/docsUrl";
 
 export const metadata = { title: "Page not found", description: "That page isn't on Contraflow." };
 
@@ -37,9 +38,9 @@ export default function NotFound() {
           <Link href="/app/verify" className="text-gold hover:underline">
             Verify a certificate
           </Link>
-          <Link href="/docs" className="text-gold hover:underline">
+          <a href={PUBLISHED_DOCS_URL} className="text-gold hover:underline">
             Docs
-          </Link>
+          </a>
         </div>
       </main>
     </div>

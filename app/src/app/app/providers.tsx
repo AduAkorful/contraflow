@@ -44,27 +44,24 @@ const PLACEHOLDER_APP_ID = "0000000000000000000000000";
 
 export function Providers({
   children,
-  autoStartLogin = false,
+  initialMenuOpen = false,
 }: {
   children: React.ReactNode;
   sessionAddress: string | null;
-  autoStartLogin?: boolean;
+  initialMenuOpen?: boolean;
 }) {
   return (
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || PLACEHOLDER_APP_ID}
       config={{
-        loginMethodsAndOrder: {
-          primary: ["email"],
-          overflow: ["detected_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
-        },
+        loginMethods: ["email", "wallet"],
         appearance: {
           theme: "dark",
           accentColor: "#f5be09",
           logo: <img src="/logo-mark.png" alt="Contraflow" />,
           landingHeader: "Sign in to Contraflow",
-          loginMessage: "Continue with email. We create a secure account wallet for you. Or use a crypto wallet.",
-          walletList: ["detected_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
+          loginMessage: "Choose a wallet. Nothing is sent onchain.",
+          walletList: ["metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
         },
         defaultChain: arcTestnet,
         supportedChains: privyChains,
@@ -73,7 +70,7 @@ export function Providers({
     >
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <SignInProvider autoStartLogin={autoStartLogin}>{children}</SignInProvider>
+          <SignInProvider initialMenuOpen={initialMenuOpen}>{children}</SignInProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

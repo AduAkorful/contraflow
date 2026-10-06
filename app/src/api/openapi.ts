@@ -218,7 +218,7 @@ export const OPENAPI = {
             },
           },
         },
-        responses: { ...ok({ type: "object", properties: { proposal: { type: "object" } } }, "201"), ...jsonErrors },
+        responses: { ...ok({ $ref: "#/components/schemas/ProposalResponse" }, "201"), ...jsonErrors },
       }),
     },
     "/obligations/proposals/{token}": {
@@ -228,7 +228,7 @@ export const OPENAPI = {
         summary: "Read a proposal",
         description: "Needs the party's `read` scope. Non-parties get 404.",
         parameters: [tokenPath, partyQuery],
-        responses: { ...ok({ type: "object", properties: { proposal: { type: "object" } } }), ...jsonErrors },
+        responses: { ...ok({ $ref: "#/components/schemas/ProposalResponse" }), ...jsonErrors },
       }),
       delete: op({
         operationId: "withdrawObligationProposal",
@@ -290,9 +290,9 @@ export const OPENAPI = {
         operationId: "getCertificate",
         tags: ["Certificates"],
         summary: "Read a certificate",
-        description: "Needs `read`. Returns the party's view plus typed data to sign.",
+        description: "Needs `read`. The summary uses `wNetMinor` and `wNetDisplay`. `view` is the party's `contraflow-netting-certificate/1` file, which keeps the name `wNet`.",
         parameters: [tokenPath, partyQuery],
-        responses: { ...ok({ type: "object" }), ...jsonErrors },
+        responses: { ...ok({ $ref: "#/components/schemas/CertificateRead" }), ...jsonErrors },
       }),
     },
     "/certificates/{token}/signatures": {
@@ -356,7 +356,7 @@ export const OPENAPI = {
         summary: "Export a certificate",
         description: "Needs `read`. The party's `contraflow-netting-certificate/1` view, checkable at /app/verify.",
         parameters: [tokenPath, partyQuery],
-        responses: { ...ok({ type: "object", properties: { fileName: { type: "string" }, certificate: { type: "object" } } }), ...jsonErrors },
+        responses: { ...ok({ $ref: "#/components/schemas/CertificateExport" }), ...jsonErrors },
       }),
     },
     "/webhooks/test": {
@@ -448,23 +448,24 @@ export const OPENAPI = {
           permissions: { type: "array", items: { $ref: "#/components/schemas/StoredPermission" } },
         },
       },
+      TypedData: {
+        type: "object",
+        required: ["domain", "types", "primaryType", "message"],
+        properties: {
+          domain: {
+            type: "object",
+            properties: { chainId: { type: "integer" }, name: { type: "string" }, version: { type: "string" }, verifyingContract: { $ref: "#/components/schemas/Address" } },
+          },
+          types: { type: "object" },
+          primaryType: { type: "string" },
+          message: { type: "object" },
+        },
+      },
       TypedDataEnvelope: {
         type: "object",
         required: ["typedData", "digest"],
         properties: {
-          typedData: {
-            type: "object",
-            required: ["domain", "types", "primaryType", "message"],
-            properties: {
-              domain: {
-                type: "object",
-                properties: { chainId: { type: "integer" }, name: { type: "string" }, version: { type: "string" }, verifyingContract: { $ref: "#/components/schemas/Address" } },
-              },
-              types: { type: "object" },
-              primaryType: { type: "string" },
-              message: { type: "object" },
-            },
-          },
+          typedData: { $ref: "#/components/schemas/TypedData" },
           digest: { $ref: "#/components/schemas/Bytes32" },
         },
       },
@@ -611,6 +612,150 @@ export const OPENAPI = {
               },
             ],
           },
+        },
+      },
+      ProposalResponse: {
+        type: "object",
+        required: ["proposal"],
+        properties: { proposal: { $ref: "#/components/schemas/ProposalRecord" } },
+      },
+      ProposalRecord: {
+        type: "object",
+        required: [
+          "token",
+          "state",
+          "viewerRole",
+          "proposerRole",
+          "domain",
+          "obligation",
+          "document",
+          "proposerSignature",
+          "expiresAt",
+          "typedData",
+          "digest",
+        ],
+        properties: {
+          token: { type: "string" },
+          state: { type: "string", enum: ["open", "accepted", "withdrawn", "expired"] },
+          viewerRole: { type: "string", enum: ["proposer", "counterparty"] },
+          proposerRole: { type: "string", enum: ["debtor", "creditor"] },
+          domain: {
+            type: "object",
+            required: ["chainId", "verifyingContract"],
+            properties: {
+              chainId: { type: "integer" },
+              verifyingContract: { $ref: "#/components/schemas/Address" },
+            },
+          },
+          obligation: { $ref: "#/components/schemas/SignedObligation" },
+          document: { $ref: "#/components/schemas/ObligationDocument" },
+          proposerSignature: { $ref: "#/components/schemas/Hex" },
+          expiresAt: { $ref: "#/components/schemas/UnixSeconds" },
+          typedData: { $ref: "#/components/schemas/TypedData" },
+          digest: { $ref: "#/components/schemas/Bytes32" },
+        },
+      },
+      CertificateFile: {
+        type: "object",
+        description: "A `contraflow-netting-certificate/1` file. Integers stay decimal strings, including `wNet` and `domain.chainId`.",
+        required: ["format", "domain", "currency", "wNet", "certificate", "signatures", "entries"],
+        properties: {
+          format: { type: "string", const: "contraflow-netting-certificate/1" },
+          domain: {
+            type: "object",
+            required: ["chainId", "verifyingContract"],
+            properties: {
+              chainId: { type: "string", description: "Decimal string. A certificate file does not use a JSON number here." },
+              verifyingContract: { $ref: "#/components/schemas/Address" },
+            },
+          },
+          currency: { type: "string" },
+          wNet: { $ref: "#/components/schemas/AmountMinor" },
+          certificate: {
+            type: "object",
+            required: ["certificateId", "contentHash", "deadline", "entries"],
+            properties: {
+              certificateId: { $ref: "#/components/schemas/Bytes32" },
+              contentHash: { $ref: "#/components/schemas/Bytes32" },
+              deadline: { $ref: "#/components/schemas/UnixSeconds" },
+              entries: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["obligationId", "debtor", "creditor", "priorCommitment", "nextCommitment"],
+                  properties: {
+                    obligationId: { $ref: "#/components/schemas/Bytes32" },
+                    debtor: { $ref: "#/components/schemas/Address" },
+                    creditor: { $ref: "#/components/schemas/Address" },
+                    priorCommitment: { $ref: "#/components/schemas/Bytes32" },
+                    nextCommitment: { $ref: "#/components/schemas/Bytes32" },
+                  },
+                },
+              },
+            },
+          },
+          signatures: { type: "array", items: { type: ["string", "null"] } },
+          entries: {
+            type: "array",
+            items: {
+              oneOf: [
+                {
+                  type: "object",
+                  required: ["kind", "entryHash"],
+                  properties: { kind: { type: "string", const: "hash" }, entryHash: { $ref: "#/components/schemas/Bytes32" } },
+                },
+                {
+                  type: "object",
+                  required: ["kind", "document"],
+                  properties: {
+                    kind: { type: "string", const: "full" },
+                    document: {
+                      type: "object",
+                      required: ["obligation", "debtorSignature", "creditorSignature", "remainingBefore", "blindingBefore", "remainingAfter", "blindingAfter"],
+                      properties: {
+                        obligation: { $ref: "#/components/schemas/SignedObligation" },
+                        debtorSignature: { $ref: "#/components/schemas/Hex" },
+                        creditorSignature: { $ref: "#/components/schemas/Hex" },
+                        remainingBefore: { $ref: "#/components/schemas/AmountMinor" },
+                        blindingBefore: { $ref: "#/components/schemas/Bytes32" },
+                        remainingAfter: { $ref: "#/components/schemas/AmountMinor" },
+                        blindingAfter: { $ref: "#/components/schemas/Bytes32" },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      CertificateRead: {
+        type: "object",
+        required: ["certificate", "typedData", "digest"],
+        properties: {
+          certificate: {
+            allOf: [
+              { $ref: "#/components/schemas/CertificateListItem" },
+              {
+                type: "object",
+                required: ["yourIndex", "view"],
+                properties: {
+                  yourIndex: { type: "integer" },
+                  view: { $ref: "#/components/schemas/CertificateFile" },
+                },
+              },
+            ],
+          },
+          typedData: { $ref: "#/components/schemas/TypedData" },
+          digest: { $ref: "#/components/schemas/Bytes32" },
+        },
+      },
+      CertificateExport: {
+        type: "object",
+        required: ["fileName", "certificate"],
+        properties: {
+          fileName: { type: "string" },
+          certificate: { $ref: "#/components/schemas/CertificateFile" },
         },
       },
       ApplyTransaction: {

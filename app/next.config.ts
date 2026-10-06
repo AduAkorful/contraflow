@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { PUBLISHED_DOCS_URL, docsUrl } from "./src/site/docsUrl";
 
 /// Headers every response carries. The CSP is deliberately the non-script subset: pages load Privy,
 /// WalletConnect, Circle Gateway and per-chain RPC endpoints, and an enumerated script-src/connect-src
@@ -16,10 +17,9 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   async redirects() {
-    const docs = process.env.NEXT_PUBLIC_DOCS_URL;
     return [
       { source: "/demo", destination: "/app/demo", permanent: false },
-      ...(docs ? [{ source: "/docs", destination: docs, permanent: false }] : []),
+      { source: "/docs", destination: docsUrl() ?? PUBLISHED_DOCS_URL, permanent: false },
     ];
   },
   async rewrites() {

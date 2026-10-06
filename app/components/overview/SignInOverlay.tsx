@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { NetworkNotice } from "../network/NetworkNotice";
 import { OVERVIEW_ILLUSTRATION_CAPTION } from "./OverviewIllustration";
-import { ConnectButton } from "../wallet/ConnectButton";
 import { useSignIn, useWalletReady } from "../wallet/signInContext";
 
 const STEPS = [
@@ -34,9 +33,7 @@ export function SignInOverlay({ next, autoStart = false }: { next: string | null
     <div className="relative mx-auto w-full max-w-md rounded-card border border-border-subtle bg-surface-1 p-6 text-center shadow-lg sm:p-8">
       <NetworkNotice className="text-sm font-medium text-gold" />
       <h1 className="heading-1 mt-3">Sign in to start netting</h1>
-      <div className="mt-6">
-        <ConnectButton layout="split" />
-      </div>
+      <p className="mt-3 text-sm text-muted">Use Sign in at the top right. Email or a wallet. Nothing is sent onchain.</p>
       <ol className="mt-8 space-y-3 text-left text-sm">
         {STEPS.map((step, index) => (
           <li key={step.title} className="flex gap-3">

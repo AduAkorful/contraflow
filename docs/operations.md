@@ -41,7 +41,7 @@ App variables, from `app/.env.example`. `NEXT_PUBLIC_*` values reach the browser
 | `SESSION_SECRET` | Signing session cookies | 32 random bytes, hex. Rotating it logs everyone out. |
 | `NEXT_PUBLIC_APP_DOMAIN` | Sign-in domain binding | The exact host serving the app (`localhost:3000` locally). Required. |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Sign-in (wallet and email) | Public by design. The 25-character placeholder in `providers.tsx` keeps pages rendering without it. |
-| `NEXT_PUBLIC_DOCS_URL` | Docs link in the site nav, footer and app sidebar | Optional. An https URL, set once the GitBook site is published; empty means no Docs link. Read at build time, so redeploy after changing it. |
+| `NEXT_PUBLIC_DOCS_URL` | Docs link in the site nav, footer and app sidebar, and the `/docs` redirect | Optional https override. Unset, Docs opens `https://aduakorful.gitbook.io/contraflow-docs`. Read at build time, so redeploy after changing it. |
 | `ARC_TESTNET_RPC` | Chain reads and writes | Defaults to the public RPC if unset |
 | `CONTRAFLOW_OPERATOR_PK` | `/app/demo`, starter gas grants, identifying operator activity in stats | A funded testnet key. Never a mainnet key. Without it, stats report unavailable rather than count the demo as usage. |
 | `STARTER_GAS_GRANT_AMOUNT_USDC` | Starter grant size | Defaults to `0.05` |

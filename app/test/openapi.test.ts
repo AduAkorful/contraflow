@@ -22,6 +22,26 @@ describe("OpenAPI document", () => {
     expect(API_INDEX.scope).toMatch(/no invoice/i);
   });
 
+  it("resolves every component ref", () => {
+    const schemas = OPENAPI.components.schemas as Record<string, unknown>;
+    const refs: string[] = [];
+    const walk = (value: unknown) => {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === "object") {
+        for (const [key, child] of Object.entries(value)) {
+          if (key === "$ref" && typeof child === "string") refs.push(child);
+          else walk(child);
+        }
+      }
+    };
+    walk(OPENAPI);
+    for (const ref of refs) {
+      if (!ref.startsWith("#/components/schemas/")) continue;
+      const name = ref.slice("#/components/schemas/".length);
+      expect(schemas, ref).toHaveProperty(name);
+    }
+  });
+
   it("enumerates error codes and webhook types from the handlers", () => {
     const codeEnum = (
       OPENAPI.components.schemas.Error as unknown as { properties: { error: { properties: { code: { enum: readonly string[] } } } } }

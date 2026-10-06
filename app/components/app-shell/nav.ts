@@ -1,3 +1,5 @@
+import { docsNavLink } from "../../src/site/docsUrl";
+
 export interface NavItem {
   label: string;
   href: string;
@@ -9,10 +11,9 @@ export interface NavItem {
 }
 
 /// Sidebar and mobile menu, in one place. Balance is only offered when the feature is on; the
-/// page decides that on the server and passes the flag in. Docs always appears: in-app `/docs`
-/// until GitBook is published, then the published URL.
+/// page decides that on the server and passes the flag in. Docs opens the published site.
 export function appNavItems(options: { balance: boolean; docs?: { href: string; external: boolean } }): NavItem[] {
-  const docs = options.docs ?? { href: "/docs", external: false };
+  const docs = options.docs ?? docsNavLink();
   return [
     { label: "Overview", href: "/app" },
     { label: "Send invoice", href: "/app/attest", alsoActiveFor: ["/app/i/"] },

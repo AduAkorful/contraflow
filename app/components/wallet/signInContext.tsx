@@ -18,13 +18,21 @@ export interface SignInApi {
   sessionAddress: string | null;
   hint: string | null;
   signingLabel: string;
+  /// Opens the header sign-in panel. Does not start a method.
   start: () => void;
+  menuOpen: boolean;
+  openMenu: () => void;
+  closeMenu: () => void;
+  /// Resolves to an error message, or null when the code was sent.
+  sendEmailCode: (email: string) => Promise<string | null>;
+  submitEmailCode: (code: string) => Promise<string | null>;
+  startWallet: () => void;
 }
 
 const SignInContext = createContext<SignInApi | null>(null);
 const WalletReadyContext = createContext(false);
 
-export function idleSignInApi(start: () => void, phase: SignInPhase = "idle"): SignInApi {
+export function idleSignInApi(openMenu: () => void, phase: SignInPhase = "idle"): SignInApi {
   return {
     phase,
     error: null,
@@ -32,7 +40,13 @@ export function idleSignInApi(start: () => void, phase: SignInPhase = "idle"): S
     sessionAddress: null,
     hint: null,
     signingLabel: signingInLabel("unknown"),
-    start,
+    start: openMenu,
+    menuOpen: false,
+    openMenu,
+    closeMenu: () => undefined,
+    sendEmailCode: async () => "Sign-in is still loading.",
+    submitEmailCode: async () => "Sign-in is still loading.",
+    startWallet: openMenu,
   };
 }
 
