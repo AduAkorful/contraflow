@@ -1,7 +1,12 @@
-import { MarketingPage } from "../../components/marketing/MarketingPage";
-import { LegalDoc } from "../../components/marketing/LegalDoc";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { LegalDoc } from "@/components/marketing/LegalDoc";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Privacy Policy" };
+export const metadata = pageMeta(
+  "/privacy",
+  "Privacy Policy",
+  "What Contraflow stores, who can read it, and what Arc records in public.",
+);
 
 const SECTIONS = [
   {

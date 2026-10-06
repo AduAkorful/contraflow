@@ -149,6 +149,7 @@ erDiagram
     text tenant_id PK "32 random bytes"
     text name
     text status "active, suspended"
+    text owner_address "signed-in creator, or null"
   }
   tenant_api_keys {
     text key_hash PK "SHA-256 of the key"
@@ -217,7 +218,9 @@ erDiagram
 status change). The webhook pipeline turns each change into events for tenants with `read` permission from a party
 it touches, then rechecks current permission before every send. `webhook_events.status` can be `pending`,
 `delivered`, `failed` or `suppressed`; a suppressed event is terminal and was withheld after access changed. None
-of the API tables is readable outside the server.
+of the API tables is readable outside the server. `tenants.owner_address` (migration 013) is the signed-in
+address that created a self-serve tenant, unique when set. Operator-created tenants leave it null. A key's secret
+is never stored.
 
 ## Upstash Redis
 

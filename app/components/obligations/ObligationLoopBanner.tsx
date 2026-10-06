@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { findNettingLoop } from "../../app/app/obligations/actions";
+import { findNettingLoop } from "../../src/app/app/obligations/actions";
 import type { CertificateSummary } from "../../src/obligations/certificates";
 import { loopBannerTarget } from "../../src/obligations/loopBanner";
 

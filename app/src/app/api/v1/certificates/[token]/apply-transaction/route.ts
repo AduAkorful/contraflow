@@ -1,4 +1,4 @@
-import { applyTransaction } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { applyTransaction } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const GET = route(applyTransaction);
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({ GET: applyTransaction });

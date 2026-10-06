@@ -5,21 +5,23 @@
 /// to Arc. Nothing is sent to Contraflow's server.
 
 import { useState } from "react";
-import { usePublicClient } from "wagmi";
 import {
   describeCheck,
   groupChecks,
   statusMark,
   verificationPassedHeadline,
-} from "../../../components/netting/checks";
-import { displayMinorAmount } from "../../../components/netting/format";
-import { parseCertificateView } from "../../../src/netting/serialize";
-import type { ChainReader } from "../../../src/netting/signature";
-import { verifyCertificateView, type VerificationResult } from "../../../src/netting/verify";
-import type { CertificateView } from "../../../src/netting/types";
+} from "@/components/netting/checks";
+import { displayMinorAmount } from "@/components/netting/format";
+import { parseCertificateView } from "@/src/netting/serialize";
+import type { ChainReader } from "@/src/netting/signature";
+import { verifyCertificateView, type VerificationResult } from "@/src/netting/verify";
+import type { CertificateView } from "@/src/netting/types";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
+import { createArcPublicClient } from "@/src/chain/client";
+
+const publicClient = createArcPublicClient(APP_CHAIN_ID);
 
 export function VerifyCertificate() {
-  const publicClient = usePublicClient();
   const [text, setText] = useState("");
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [view, setView] = useState<CertificateView | null>(null);

@@ -2,6 +2,7 @@
 /// single statement, so overlapping runs never take the same change or event.
 
 import { getAddress, isAddress, type Address, type Hex } from "viem";
+import { randomUUID } from "node:crypto";
 import type { ChangeContext, DueEvent, PendingChange, WebhookStore } from "../api/webhookPipeline";
 import { sql, withDbRetry } from "./client";
 
@@ -106,7 +107,13 @@ export const postgresWebhookStore: WebhookStore = {
     let chainId: string;
     let parties: string[];
     try {
-      const body = JSON.parse(event.body) as { chainId?: unknown; data?: { parties?: unknown } };
+      const body = JSON.parse(event.body) as { type?: unknown; chainId?: unknown; data?: { parties?: unknown } };
+      if (body.type === "webhook.test") {
+        const tenantRows = (await withDbRetry(
+          () => sql()`SELECT status FROM tenants WHERE tenant_id = ${event.tenantId.toLowerCase()}`,
+        )) as { status: string }[];
+        return tenantRows[0]?.status === "active";
+      }
       if (typeof body.chainId !== "string" || !/^\d+$/.test(body.chainId) || !Array.isArray(body.data?.parties)) return false;
       if (body.data.parties.length === 0 || body.data.parties.some((party) => typeof party !== "string" || !isAddress(party))) {
         return false;
@@ -145,3 +152,20 @@ export const postgresWebhookStore: WebhookStore = {
     );
   },
 };
+
+export async function enqueueWebhookTest(tenantId: Hex, chainId: number): Promise<{ eventId: string } | { error: "no_endpoint" }> {
+  const endpoints = (await withDbRetry(
+    () => sql()`SELECT tenant_id FROM webhook_endpoints WHERE tenant_id = ${tenantId.toLowerCase()}`,
+  )) as { tenant_id: string }[];
+  if (endpoints.length === 0) return { error: "no_endpoint" };
+  const eventId = `evt_test_${randomUUID().replaceAll("-", "").slice(0, 24)}`;
+  const body = JSON.stringify({
+    id: eventId,
+    type: "webhook.test",
+    created: Math.floor(Date.now() / 1000),
+    chainId: String(chainId),
+    data: { ok: true },
+  });
+  await postgresWebhookStore.insertEvent({ eventId, tenantId, type: "webhook.test", body });
+  return { eventId };
+}

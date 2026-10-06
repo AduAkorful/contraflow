@@ -64,7 +64,7 @@ graph TD
 
 ## Modules
 
-Everything server-side lives in `app/src/`. Pages and Server Actions are in `app/app/`.
+Everything server-side lives in `app/src/` (domain modules: `attest`, `api`, `session`, …). Pages and Server Actions are in `app/src/app/` (Next.js `src/app`). The inner `app/` folder under the router is the public `/app` URL, not a third package.
 
 | Module | Role | Key files |
 |---|---|---|

@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HistoryTable } from "../../../components/history/HistoryTable";
-import { SettleLoopCard } from "../../../components/settle/SettleLoopCard";
+import dynamic from "next/dynamic";
+import { HistoryTable } from "@/components/history/HistoryTable";
 import { lookupAddressHistory, lookupAddressSignals, type AddressSignalsResult, type HistoryInvoiceView } from "./actions";
 import {
   AddressSignalsPanel,
   SignalsLoading,
   SignalsUnavailable,
-} from "../../../components/inspector/SignalsPanels";
+} from "@/components/inspector/SignalsPanels";
 
 const SIGNALS_TITLE = "Onchain signals";
+const SettleLoopCard = dynamic(() => import("@/components/settle/SettleLoopCard").then((m) => m.SettleLoopCard), {
+  ssr: false,
+});
 
 
 /// `initialAddress` is the `?address=` link, or else the signed-in address. It is looked up on arrival

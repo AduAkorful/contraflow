@@ -7,8 +7,8 @@ import type { Address, Hex } from "viem";
 import { Money } from "../ui/Money";
 import { prepareWalletContext } from "../../src/attest/walletContext";
 import { contraflowSettlerAbi } from "../../src/contracts/abi/index";
-import { requestGrant } from "../../app/app/attest/actions";
-import { findSettleableLoop, recordSettlement, type FindSettleableLoopResult, type InvoiceLoopView } from "../../app/app/settle/actions";
+import { requestGrant } from "../../src/app/app/attest/actions";
+import { findSettleableLoop, recordSettlement, type FindSettleableLoopResult, type InvoiceLoopView } from "../../src/app/app/settle/actions";
 import { settleLoopSentence } from "../../src/settle/copy";
 
 type Phase = "loading" | "none" | "incomplete" | "loop" | "settling" | "pending" | "reverted" | "done";

@@ -1,4 +1,10 @@
-import { createPermission } from "../../../../src/api/handlers";
-import { route } from "../../../../src/api/http";
+import {
+  createPermission,
+  listPermissions,
+} from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const POST = route(createPermission, { recoverStaleIdempotency: true });
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({
+  GET: listPermissions,
+  POST: { handler: createPermission, options: { recoverStaleIdempotency: true } },
+});

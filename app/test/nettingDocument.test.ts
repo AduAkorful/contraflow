@@ -3,6 +3,7 @@ import { numberToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { randomBlinding } from "../src/netting/commitment";
 import {
+  buildObligationDocument,
   canonicalizeObligationDocument,
   hashObligationDocument,
   maturityDateToUnixSeconds,
@@ -65,6 +66,30 @@ describe("canonical obligation document", () => {
     );
     // Computed independently: `cast keccak '<the canonical string above>'`.
     expect(hashObligationDocument(DOC)).toBe("0xb59a4a60e4c91912945825b3e037b0034d71f899eeab1247967e9e3a423208ff");
+  });
+
+  it("publishes three fixed hashes tenants can recompute (USD, EUR, JPY)", () => {
+    const freight = buildObligationDocument({
+      description: "Freight invoice 88",
+      debtor: alice,
+      creditor: bob,
+      currency: "EUR",
+      amount: "100.00",
+      maturity: "2027-01-15",
+      earlyNetConsent: false,
+    });
+    const yen = buildObligationDocument({
+      description: "Yen retainer",
+      debtor: alice,
+      creditor: bob,
+      currency: "JPY",
+      amount: "25000",
+      maturity: "2026-12-01",
+      earlyNetConsent: true,
+    });
+    expect(hashObligationDocument(DOC)).toBe("0xb59a4a60e4c91912945825b3e037b0034d71f899eeab1247967e9e3a423208ff");
+    expect(hashObligationDocument(freight)).toBe("0xee54b80d177f5ae0950334b743022ebc67f677c2375d7913d8a8d2e639814da4");
+    expect(hashObligationDocument(yen)).toBe("0x074efe5c0950a65575be0fe7082ef13ed953b34bb612961d74d16f1d95c89571");
   });
 });
 

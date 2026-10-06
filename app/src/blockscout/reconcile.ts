@@ -1,5 +1,5 @@
 /// Reconciles a single address's invoice history against the Registry contract's on-chain log
-/// history, backfilling anything the write path in `app/app/app/demo/actions.ts` missed — a write
+/// history, backfilling anything the write path in `app/src/app/app/demo/actions.ts` missed — a write
 /// that succeeded on-chain but crashed before the database write landed, or a `register()` call
 /// made directly against the contract (permissionless) without ever going through this app.
 

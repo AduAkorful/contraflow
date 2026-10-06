@@ -4,7 +4,7 @@
 /// history row never calls Circle. There's deliberately no way to act on the quote from here.
 
 import { useState } from "react";
-import { quoteInvoiceRemainingInEurc } from "../../app/app/quote/actions";
+import { quoteInvoiceRemainingInEurc } from "../../src/app/app/quote/actions";
 import { eurcQuoteEnabled, formatQuoteTime, roundDecimalString, type EurcQuoteResult } from "../../src/kits/quoteFormat";
 
 const FAILURE_COPY: Record<Exclude<EurcQuoteResult, { ok: true }>["reason"], string> = {

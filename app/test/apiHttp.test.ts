@@ -22,8 +22,8 @@ vi.mock("../src/api/auth", () => ({
   },
 }));
 
-import { ApiError } from "../src/api/auth";
-import { route } from "../src/api/http";
+import { ApiError, authenticate } from "../src/api/auth";
+import { apiMethods, route } from "../src/api/http";
 
 function post(): Request {
   return new Request("https://app.test/api/v1/permissions", {
@@ -39,7 +39,7 @@ describe("API idempotency failure handling", () => {
     mocks.claim.mockResolvedValue({ kind: "new", leaseToken: "lease-1" });
     mocks.complete.mockResolvedValue(undefined);
     mocks.completeFromEffect.mockResolvedValue(undefined);
-    mocks.checkRateLimit.mockResolvedValue({ allowed: true });
+    mocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 599, count: 1, reset: 1_800_000_060 });
   });
 
   it("retains the reservation after an ambiguous unexpected failure", async () => {
@@ -115,5 +115,39 @@ describe("API idempotency failure handling", () => {
     expect(await response.json()).toEqual({ proposal: { token: "tok123" } });
     expect(run).not.toHaveBeenCalled();
     expect(mocks.completeFromEffect).toHaveBeenCalled();
+  });
+});
+
+describe("API response headers", () => {
+  it("echoes X-Request-Id and sends RateLimit headers on success", async () => {
+    const handler = route(async () => ({ status: 200, body: { ok: true } }));
+    const request = new Request("https://app.test/api/v1/tenant", {
+      headers: { authorization: "Bearer x", "x-request-id": "req-abc" },
+    });
+    const response = await handler(request, { params: Promise.resolve({}) });
+    expect(response.headers.get("X-Request-Id")).toBe("req-abc");
+    expect(response.headers.get("RateLimit-Limit")).toBe("600");
+    expect(response.headers.get("RateLimit-Remaining")).toBe("599");
+    expect(response.headers.get("RateLimit-Reset")).toBe("1800000060");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("sends WWW-Authenticate on 401", async () => {
+    vi.mocked(authenticate).mockRejectedValueOnce(new ApiError(401, "unauthorized", "Missing or invalid API key."));
+    const handler = route(async () => ({ status: 200, body: {} }));
+    const response = await handler(new Request("https://app.test/api/v1/tenant"), { params: Promise.resolve({}) });
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="Contraflow API"');
+  });
+
+  it("answers JSON 405 with Allow for the wrong method", async () => {
+    const methods = apiMethods({ GET: async () => ({ status: 200, body: { ok: true } }) });
+    const response = await methods.POST(new Request("https://app.test/api/v1/tenant", { method: "POST" }), {
+      params: Promise.resolve({}),
+    });
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error.code).toBe("method_not_allowed");
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain("GET");
   });
 });

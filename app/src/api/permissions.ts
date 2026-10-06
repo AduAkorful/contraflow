@@ -57,13 +57,11 @@ export function hasScope(scopes: number, scope: ScopeName): boolean {
 
 export type PermissionResult = { ok: true; permission: TenantPermission } | { ok: false; error: string };
 
-/// Parses untrusted input and checks the grant fully, including the signature against the chain.
-/// A signature that can't be checked counts as a failure, as everywhere else in Mode B.
-export async function validatePermission(
+/// Field checks shared by GET /permissions/typed-data (no signature yet) and POST /permissions.
+export function parsePermissionGrant(
   input: unknown,
-  signature: unknown,
-  ctx: { chainId: number; tenantId: Hex; nowSeconds: bigint; client: ChainReader },
-): Promise<PermissionResult> {
+  ctx: { tenantId: Hex; nowSeconds: bigint },
+): PermissionResult {
   if (typeof input !== "object" || input === null) return { ok: false, error: "Permission must be an object." };
   const raw = input as Record<string, unknown>;
 
@@ -88,15 +86,31 @@ export async function validatePermission(
   if (typeof raw.nonce !== "string" || !isHex(raw.nonce) || raw.nonce.length !== 66) {
     return { ok: false, error: "nonce must be 32 bytes of hex." };
   }
+
+  return {
+    ok: true,
+    permission: {
+      party: getAddress(raw.party),
+      tenantId: ctx.tenantId,
+      scopes,
+      expiresAt,
+      nonce: raw.nonce as Hex,
+    },
+  };
+}
+
+/// Parses untrusted input and checks the grant fully, including the signature against the chain.
+/// A signature that can't be checked counts as a failure, as everywhere else in Mode B.
+export async function validatePermission(
+  input: unknown,
+  signature: unknown,
+  ctx: { chainId: number; tenantId: Hex; nowSeconds: bigint; client: ChainReader },
+): Promise<PermissionResult> {
+  const parsed = parsePermissionGrant(input, ctx);
+  if (!parsed.ok) return parsed;
   if (typeof signature !== "string" || !isHex(signature)) return { ok: false, error: "signature must be hex." };
 
-  const permission: TenantPermission = {
-    party: getAddress(raw.party),
-    tenantId: ctx.tenantId,
-    scopes,
-    expiresAt,
-    nonce: raw.nonce as Hex,
-  };
+  const { permission } = parsed;
   const check = await checkSignature(permission.party, permissionDigest(ctx.chainId, permission), signature, ctx.client);
   if (check.status !== "pass") return { ok: false, error: `The permission isn't signed by ${permission.party}.` };
   return { ok: true, permission };

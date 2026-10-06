@@ -8,6 +8,8 @@ export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   count: number;
+  /// Unix seconds when this window closes (inclusive of the last second).
+  reset: number;
 }
 
 /// Increments a fixed-window counter and returns its new value — the one primitive both
@@ -31,5 +33,12 @@ export async function incrementWindowCounter(key: string, windowSeconds: number)
 /// route name) — this function only adds the time window, not an identity of its own.
 export async function checkRateLimit(key: string, maxRequests: number, windowSeconds: number): Promise<RateLimitResult> {
   const count = await incrementWindowCounter(key, windowSeconds);
-  return { allowed: count <= maxRequests, remaining: Math.max(0, maxRequests - count), count };
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / windowSeconds) * windowSeconds;
+  return {
+    allowed: count <= maxRequests,
+    remaining: Math.max(0, maxRequests - count),
+    count,
+    reset: windowStart + windowSeconds,
+  };
 }

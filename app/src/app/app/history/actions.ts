@@ -3,12 +3,12 @@
 /// Server Action behind `/app/history`. Address lookup, deliberately not session-gated — this
 /// path is meant to work for an auditor checking a counterparty without signing in at all.
 
-import { reconcileAddress } from "../../../src/blockscout/reconcile";
+import { reconcileAddress } from "@/src/blockscout/reconcile";
 import { isAddress } from "viem";
-import { getAddressSignals } from "../../../src/inspector/load";
-import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "../../../src/inspector/requestGuard";
-import type { AddressSignals } from "../../../src/inspector/signals";
-import { guardPublicRead } from "../../../src/ratelimit/publicReadGuard";
+import { getAddressSignals } from "@/src/inspector/load";
+import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "@/src/inspector/requestGuard";
+import type { AddressSignals } from "@/src/inspector/signals";
+import { guardPublicRead } from "@/src/ratelimit/publicReadGuard";
 
 export interface HistoryInvoiceView {
   invoiceRef: string;

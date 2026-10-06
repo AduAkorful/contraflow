@@ -44,6 +44,11 @@ describe("authenticate", () => {
     await expect(authenticate(`Bearer ${key}`, store)).resolves.toEqual({ tenantId: TENANT, mode: "test", chainId: TESTNET });
   });
 
+  it("accepts a case-insensitive Bearer scheme", async () => {
+    const store = memoryStore({ [hash]: { tenantId: TENANT, mode: "test", revoked: false, tenantActive: true } });
+    await expect(authenticate(`bearer ${key}`, store)).resolves.toEqual({ tenantId: TENANT, mode: "test", chainId: TESTNET });
+  });
+
   it("rejects missing, malformed, unknown, revoked and suspended keys the same way", async () => {
     const cases: [string | null, Record<string, StoredKey>][] = [
       [null, {}],

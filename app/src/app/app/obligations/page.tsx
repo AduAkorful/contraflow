@@ -1,13 +1,18 @@
 import Link from "next/link";
-import { SignInGate } from "../../../components/wallet/SignInGate";
-import { SessionBound } from "../../../components/session/SessionProvider";
-import { getSession } from "../../../src/session/getSession";
-import { listMine } from "../../../src/obligations/service";
-import { certificateService } from "../../../src/obligations/certificateDefaults";
+import { SignInGate } from "@/components/wallet/SignInGate";
+import { SessionBound } from "@/components/session/SessionProvider";
+import { getSession } from "@/src/session/getSession";
+import { listMine } from "@/src/obligations/service";
+import { certificateService } from "@/src/obligations/certificateDefaults";
 import { CertificatesPanel } from "./CertificatesPanel";
 import { ObligationsList } from "./ObligationsList";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Offchain obligations" };
+export const metadata = pageMeta(
+  "/app/obligations",
+  "Offchain obligations",
+  "Debts in any currency, shown to the two parties, netted with a certificate everyone in the loop signs.",
+);
 
 
 export default async function ObligationsPage() {

@@ -28,7 +28,7 @@ beforeAll(() => {
 const { createSessionToken } = await import("../src/session/cookie");
 const { isSessionRevoked, revokeSession } = await import("../src/session/revocation");
 const { getSession, SESSION_COOKIE_NAME } = await import("../src/session/getSession");
-const { signOut } = await import("../app/app/siwe/actions");
+const { signOut } = await import("../src/app/app/siwe/actions");
 
 beforeEach(() => {
   set.mockReset();

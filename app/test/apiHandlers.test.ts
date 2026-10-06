@@ -34,10 +34,10 @@ function deps(overrides: Partial<ApiDeps> = {}) {
     getProposalForObligation: vi.fn(async () => ({ ok: false as const, error: "Not found." })),
     acceptProposal: vi.fn(async () => ({ ok: true as const })),
     withdrawProposal: vi.fn(async () => ({ ok: true as const })),
-    listMine: vi.fn(async () => ({ ok: true as const, proposals: [], obligations: [] })),
+    listMine: vi.fn(async () => ({ ok: true as const, proposals: [] as { token: string }[], obligations: [] as { obligationId: string }[] })),
   };
   const certificates = {
-    listCertificates: vi.fn(async () => ({ ok: true as const, certificates: [] })),
+    listCertificates: vi.fn(async () => ({ ok: true as const, certificates: [] as { token: string }[] })),
     findAndProposeLoop: vi.fn(async () => ({ ok: true as const, outcome: { kind: "none" } })),
     getCertificateView: vi.fn(),
     submitCertificateSignature: vi.fn(async () => ({ ok: true as const })),
@@ -53,6 +53,7 @@ function deps(overrides: Partial<ApiDeps> = {}) {
     obligations,
     certificates,
     tagProposal: vi.fn(async () => {}),
+    enqueueWebhookTest: vi.fn(async () => ({ eventId: "evt_test_1" })),
     ...overrides,
   } as unknown as ApiDeps;
   return { d, store, obligations, certificates };
@@ -262,6 +263,7 @@ describe("typed-data responses", () => {
           nonce: `0x${"33".repeat(32)}`,
         }),
       }),
+      deps().d,
     );
     const body = res.body as { typedData: { domain: { chainId: number }; types: object; primaryType: string; message: object }; digest: `0x${string}` };
     expect(body.typedData.domain.chainId).toBe(TESTNET);
@@ -278,5 +280,70 @@ describe("typed-data responses", () => {
       body.digest,
     );
     expect(hashTypedData(original)).toBe(body.digest);
+  });
+
+  it("rejects typed-data scopes that are not a permission bitmask", async () => {
+    await expect(
+      handlers.permissionPayload(
+        caller,
+        req({ query: new URLSearchParams({ party, scopes: "8", expiresAt: (NOW + 60n).toString(), nonce: `0x${"33".repeat(32)}` }) }),
+        deps().d,
+      ),
+    ).rejects.toMatchObject({ status: 422, code: "invalid_request" });
+  });
+});
+
+describe("tenant and webhook helpers", () => {
+  it("returns this tenant without a party permission", async () => {
+    const { d } = deps();
+    expect(await handlers.getTenant(caller, req(), d)).toMatchObject({
+      status: 200,
+      body: { tenantId: TENANT, name: "test", mode: "test", chainId: String(TESTNET), webhookConfigured: false },
+    });
+  });
+
+  it("lists stored permissions, optionally filtered by party", async () => {
+    const { d, store } = deps();
+    await grant(store, SCOPE.read);
+    const all = await handlers.listPermissions(caller, req(), d);
+    expect((all.body as { permissions: { party: string }[] }).permissions).toHaveLength(1);
+    const none = await handlers.listPermissions(
+      caller,
+      req({ query: new URLSearchParams({ party: "0x0000000000000000000000000000000000000001" }) }),
+      d,
+    );
+    expect((none.body as { permissions: unknown[] }).permissions).toEqual([]);
+  });
+
+  it("enqueues a test webhook, or 422 when none is registered", async () => {
+    const { d } = deps();
+    expect(await handlers.testWebhook(caller, req(), d)).toEqual({
+      status: 202,
+      body: { eventId: "evt_test_1", type: "webhook.test" },
+    });
+    const missing = deps({ enqueueWebhookTest: async () => ({ error: "no_endpoint" as const }) });
+    await expect(handlers.testWebhook(caller, req(), missing.d)).rejects.toMatchObject({ status: 422, code: "no_webhook" });
+  });
+});
+
+describe("obligation list pagination", () => {
+  it("returns nextCursor when more items remain", async () => {
+    const { d, store, obligations, certificates } = deps();
+    await grant(store, SCOPE.read);
+    obligations.listMine.mockResolvedValue({
+      ok: true as const,
+      proposals: [{ token: "a" }, { token: "b" }],
+      obligations: [],
+    });
+    certificates.listCertificates.mockResolvedValue({ ok: true as const, certificates: [] });
+    const res = await handlers.listPartyObligations(
+      caller,
+      req({ params: { address: party }, query: new URLSearchParams({ limit: "1" }) }),
+      d,
+    );
+    expect(res.status).toBe(200);
+    const body = res.body as { proposals: { token: string }[]; nextCursor: string | null };
+    expect(body.proposals).toEqual([{ token: "a" }]);
+    expect(typeof body.nextCursor).toBe("string");
   });
 });

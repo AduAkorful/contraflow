@@ -1,4 +1,4 @@
-import { exportCertificate } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { exportCertificate } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const GET = route(exportCertificate);
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({ GET: exportCertificate });

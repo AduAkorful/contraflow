@@ -25,7 +25,7 @@ vi.mock("../src/chain/operatorEnv", () => ({ arcPublicClient: () => ({}) }));
 vi.mock("../src/receipt/getReceiptData", () => ({ getReceiptData }));
 vi.mock("../src/db/invoices", () => ({ upsertSettledInvoice, upsertSettlement }));
 
-const { findSettleableLoop, recordSettlement } = await import("../app/app/settle/actions");
+const { findSettleableLoop, recordSettlement } = await import("../src/app/app/settle/actions");
 
 const ME = "0x0000000000000000000000000000000000000001";
 const HASH = `0x${"ab".repeat(32)}`;

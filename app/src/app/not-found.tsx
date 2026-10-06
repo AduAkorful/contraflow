@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { SiteNav } from "../components/site-nav";
+import { SiteNav } from "@/components/site-nav";
 
-export const metadata = { title: "Page not found" };
+export const metadata = { title: "Page not found", description: "That page isn't on Contraflow." };
 
 export default function NotFound() {
   return (

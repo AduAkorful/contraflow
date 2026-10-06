@@ -1,4 +1,6 @@
-import { recoverSignCertificate, signCertificate } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { recoverSignCertificate, signCertificate } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const POST = route(signCertificate, { recoverFromEffect: recoverSignCertificate });
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({
+  POST: { handler: signCertificate, options: { recoverFromEffect: recoverSignCertificate } },
+});

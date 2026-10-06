@@ -8,27 +8,27 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, usePublicClient, useWriteContract, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address, type Hex } from "viem";
-import { ConnectButton } from "../../../../components/wallet/ConnectButton";
-import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
-import { SessionBound, useSession } from "../../../../components/session/SessionProvider";
-import { Address as AddressText } from "../../../../components/ui/Address";
-import { displayDate, displayMinorAmount, shortAddr } from "../../../../components/netting/format";
-import { groupChecks, statusMark, type CheckGroup } from "../../../../components/netting/checks";
-import { checkAsParty } from "../../../../components/netting/partyChecks";
-import { arcTestnet } from "../../../../src/chain/client";
-import { contraflowNettingLedgerAbi } from "../../../../src/contracts/abi/index";
-import { certificateTypedData } from "../../../../src/netting/certificate";
-import { resolveCertificateCheckStage } from "../../../../src/netting/certificateStage";
-import { parseCertificateView } from "../../../../src/netting/serialize";
-import type { ChainReader } from "../../../../src/netting/signature";
-import type { CertificateView, EntryDocument } from "../../../../src/netting/types";
-import type { PartyCertificate } from "../../../../src/obligations/certificates";
-import { certificateSigningConfirmation } from "../../../../src/format/signing";
-import { signingInLabel } from "../../../../src/session/signInCopy";
-import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
+import { ConnectButton } from "@/components/wallet/ConnectButton";
+import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
+import { SessionBound, useSession } from "@/components/session/SessionProvider";
+import { Address as AddressText } from "@/components/ui/Address";
+import { displayDate, displayMinorAmount, shortAddr } from "@/components/netting/format";
+import { groupChecks, statusMark, type CheckGroup } from "@/components/netting/checks";
+import { checkAsParty } from "@/components/netting/partyChecks";
+import { arcTestnet } from "@/src/chain/client";
+import { contraflowNettingLedgerAbi } from "@/src/contracts/abi/index";
+import { certificateTypedData } from "@/src/netting/certificate";
+import { resolveCertificateCheckStage } from "@/src/netting/certificateStage";
+import { parseCertificateView } from "@/src/netting/serialize";
+import type { ChainReader } from "@/src/netting/signature";
+import type { CertificateView, EntryDocument } from "@/src/netting/types";
+import type { PartyCertificate } from "@/src/obligations/certificates";
+import { certificateSigningConfirmation } from "@/src/format/signing";
+import { signingInLabel } from "@/src/session/signInCopy";
+import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
 import { requestGrant } from "../../attest/actions";
-import { prepareWalletContext } from "../../../../src/attest/walletContext";
+import { prepareWalletContext } from "@/src/attest/walletContext";
 import {
   declineCertificate,
   exportCertificate,

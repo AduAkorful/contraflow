@@ -1,4 +1,4 @@
-import { permissionPayload } from "../../../../../src/api/handlers";
-import { route } from "../../../../../src/api/http";
+import { permissionPayload } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const GET = route(permissionPayload);
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({ GET: permissionPayload });

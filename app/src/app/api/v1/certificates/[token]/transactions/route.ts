@@ -1,4 +1,6 @@
-import { recoverReportTransaction, reportTransaction } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { recoverReportTransaction, reportTransaction } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const POST = route(reportTransaction, { recoverFromEffect: recoverReportTransaction });
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({
+  POST: { handler: reportTransaction, options: { recoverFromEffect: recoverReportTransaction } },
+});

@@ -1,5 +1,5 @@
 import { isAddress } from "viem";
-import { getSession } from "../../../src/session/getSession";
+import { getSession } from "@/src/session/getSession";
 import { HistoryClient } from "./HistoryClient";
 
 /// `?address=` makes a lookup a shareable link. Without one, a signed-in visitor lands on their own

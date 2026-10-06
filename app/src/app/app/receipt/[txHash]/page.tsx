@@ -1,8 +1,11 @@
-import { Receipt } from "../../../../components/receipt/Receipt";
-import { getReceiptData } from "../../../../src/receipt/getReceiptData";
+import { Receipt } from "@/components/receipt/Receipt";
+import { getReceiptData } from "@/src/receipt/getReceiptData";
 import { CycleSignals } from "./CycleSignals";
 
-export const metadata = { title: "Settlement receipt" };
+export const metadata = {
+  title: "Settlement receipt",
+  description: "What a settlement changed: who owed whom, what netted, and what is still open.",
+};
 
 
 /// DB-first, Blockscout-fallback receipt page. Works for any settle() tx hash on this

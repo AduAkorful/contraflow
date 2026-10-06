@@ -24,6 +24,12 @@ export interface CanonicalObligationDocument {
   earlyNetConsent: boolean;
 }
 
+/// The fields a tenant (or either party) collects, before hashing. Sets `format` so callers don't
+/// have to remember the tag; canonicalisation still lowercases addresses and trims the description.
+export function buildObligationDocument(fields: Omit<CanonicalObligationDocument, "format">): CanonicalObligationDocument {
+  return { format: OBLIGATION_DOCUMENT_FORMAT, ...fields };
+}
+
 /// Changing this output changes every documentHash: it's a security boundary both parties must
 /// derive identically. Change it only together with a new `format` version.
 export function canonicalizeObligationDocument(doc: CanonicalObligationDocument): string {

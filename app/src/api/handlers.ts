@@ -4,7 +4,7 @@
 /// checks against the chain, row locks, ledger reconciliation) applies unchanged. Nothing here
 /// signs anything: the API only ever accepts signatures the parties made.
 
-import { encodeFunctionData, getAddress, isAddress, isHex, type Address, type Hex } from "viem";
+import { encodeFunctionData, getAddress, isAddress, type Address, type Hex } from "viem";
 import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
 import { certificateTypedData } from "../netting/certificate";
 import { obligationTypedData } from "../netting/obligation";
@@ -15,7 +15,8 @@ import type { ChainReader } from "../netting/signature";
 import type { CertificateService } from "../obligations/certificates";
 import type * as obligationService from "../obligations/service";
 import { ApiError, requirePartyScope, type ApiCaller, type IdempotencyContext, type TenantStore } from "./auth";
-import { permissionTypedData, validatePermission, type TenantPermission } from "./permissions";
+import { permissionTypedData, parsePermissionGrant, validatePermission } from "./permissions";
+import { paginatePartyLists, parsePageCursor, parsePageLimit } from "./pagination";
 
 export interface ApiDeps {
   store: TenantStore;
@@ -32,6 +33,7 @@ export interface ApiDeps {
     "listCertificates" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
+  enqueueWebhookTest(tenantId: Hex, chainId: number): Promise<{ eventId: string } | { error: "no_endpoint" }>;
 }
 
 export interface ApiRequest {
@@ -82,15 +84,20 @@ async function actingParty(caller: ApiCaller, value: unknown, scope: Parameters<
 
 // Permissions
 
-export async function permissionPayload(caller: ApiCaller, req: ApiRequest): Promise<ApiResponse> {
-  const party = partyFrom(req.query.get("party"));
-  const scopes = Number(req.query.get("scopes"));
-  const expiresAt = req.query.get("expiresAt");
-  const nonce = req.query.get("nonce");
-  if (!expiresAt || !/^\d+$/.test(expiresAt)) throw new ApiError(422, "invalid_request", "expiresAt must be a unix timestamp.");
-  if (!nonce || !isHex(nonce) || nonce.length !== 66) throw new ApiError(422, "invalid_request", "nonce must be 32 bytes of hex.");
-  const permission: TenantPermission = { party, tenantId: caller.tenantId, scopes, expiresAt: BigInt(expiresAt), nonce };
-  return { status: 200, body: typedDataResponse(permissionTypedData(caller.chainId, permission)) };
+export async function permissionPayload(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const scopesRaw = req.query.get("scopes");
+  const parsed = parsePermissionGrant(
+    {
+      party: req.query.get("party"),
+      tenantId: caller.tenantId,
+      scopes: scopesRaw !== null && /^-?\d+$/.test(scopesRaw) ? Number(scopesRaw) : Number.NaN,
+      expiresAt: req.query.get("expiresAt"),
+      nonce: req.query.get("nonce"),
+    },
+    { tenantId: caller.tenantId, nowSeconds: deps.nowSeconds() },
+  );
+  if (!parsed.ok) throw new ApiError(422, "invalid_request", parsed.error);
+  return { status: 200, body: typedDataResponse(permissionTypedData(caller.chainId, parsed.permission)) };
 }
 
 export async function createPermission(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
@@ -124,6 +131,46 @@ export async function revokePermission(caller: ApiCaller, req: ApiRequest, deps:
   const revoked = await deps.store.revokePermission(caller.tenantId, req.params.permissionId ?? "");
   if (!revoked) throw new ApiError(404, "not_found", "Not found.");
   return { status: 204, body: null };
+}
+
+export async function listPermissions(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const partyParam = req.query.get("party");
+  const party = partyParam ? partyFrom(partyParam) : undefined;
+  const permissions = await deps.store.listPermissions(caller.tenantId, caller.chainId, party);
+  return {
+    status: 200,
+    body: {
+      permissions: permissions.map((p) => ({
+        permissionId: p.permissionId,
+        party: p.party,
+        scopes: p.scopes,
+        expiresAt: p.expiresAt,
+        revoked: p.revoked,
+      })),
+    },
+  };
+}
+
+export async function getTenant(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const tenant = await deps.store.getTenant(caller.tenantId);
+  if (!tenant) throw new ApiError(404, "not_found", "Not found.");
+  return {
+    status: 200,
+    body: {
+      tenantId: caller.tenantId,
+      name: tenant.name,
+      status: tenant.status,
+      mode: caller.mode,
+      chainId: String(caller.chainId),
+      webhookConfigured: tenant.webhookConfigured,
+    },
+  };
+}
+
+export async function testWebhook(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const result = await deps.enqueueWebhookTest(caller.tenantId, caller.chainId);
+  if ("error" in result) throw new ApiError(422, "no_webhook", "No webhook endpoint is registered for this tenant.");
+  return { status: 202, body: { eventId: result.eventId, type: "webhook.test" } };
 }
 
 // Obligations
@@ -212,10 +259,21 @@ export async function withdrawObligationProposal(caller: ApiCaller, req: ApiRequ
 
 export async function listPartyObligations(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const party = await actingParty(caller, req.params.address, "read", deps);
+  const limit = parsePageLimit(req.query);
+  const cursor = parsePageCursor(req.query);
   // Certificates first: listing them brings any the ledger has applied up to date.
   const { certificates } = unwrap(await deps.certificates.listCertificates(party));
   const { proposals, obligations } = unwrap(await deps.obligations.listMine(party));
-  return { status: 200, body: { proposals, obligations, certificates } };
+  const page = paginatePartyLists(proposals, obligations, certificates, limit, cursor);
+  return {
+    status: 200,
+    body: {
+      proposals: page.proposals,
+      obligations: page.obligations,
+      certificates: page.certificates,
+      nextCursor: page.nextCursor,
+    },
+  };
 }
 
 export async function findLoop(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {

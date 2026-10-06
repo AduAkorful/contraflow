@@ -1,8 +1,13 @@
-import { SignInGate } from "../../../../components/wallet/SignInGate";
-import { getSession } from "../../../../src/session/getSession";
+import { SignInGate } from "@/components/wallet/SignInGate";
+import { getSession } from "@/src/session/getSession";
 import { ComposeObligation } from "./ComposeObligation";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Record a debt" };
+export const metadata = pageMeta(
+  "/app/obligations/new",
+  "Record a debt",
+  "Write an obligation, sign it, and send your counterparty a short link.",
+);
 
 
 export default async function NewObligationPage() {

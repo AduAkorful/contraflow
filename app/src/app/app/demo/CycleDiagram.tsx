@@ -1,13 +1,13 @@
 "use client";
 
-import { useReducedMotion } from "../../../src/hooks/useReducedMotion";
+import { useReducedMotion } from "@/src/hooks/useReducedMotion";
 import {
   demoEdgeAmountLabel,
   demoNetToSettleLabel,
   type DemoCenterView,
   type DemoEdgeStatus,
   type DemoEdgeView,
-} from "../../../src/demo/pageState";
+} from "@/src/demo/pageState";
 
 export type DemoEdge = DemoEdgeView;
 export type DiagramCenter = DemoCenterView;

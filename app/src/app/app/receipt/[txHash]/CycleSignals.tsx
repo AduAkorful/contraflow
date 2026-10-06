@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CycleSignalsPanel, SignalsLoading, SignalsUnavailable } from "../../../../components/inspector/SignalsPanels";
+import { CycleSignalsPanel, SignalsLoading, SignalsUnavailable } from "@/components/inspector/SignalsPanels";
 import { lookupCycleSignals, type CycleSignalsResult } from "./actions";
 
 const TITLE = "About the parties in this cycle";

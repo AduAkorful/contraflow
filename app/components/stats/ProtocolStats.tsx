@@ -5,7 +5,7 @@
 /// not a placeholder.
 
 import { useEffect, useState } from "react";
-import { loadProtocolStats, type ProtocolStatsResult } from "../../app/app/stats/actions";
+import { loadProtocolStats, type ProtocolStatsResult } from "../../src/app/app/stats/actions";
 import type { StatTile, StatsView } from "../../src/stats/view";
 
 function Tile({ tile, size }: { tile: StatTile; size: "lg" | "sm" }) {

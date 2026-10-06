@@ -1,15 +1,17 @@
 import Link from "next/link";
-import spec from "../../public/api/v1/openapi.json";
-import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { OPENAPI } from "@/src/api/openapi";
+import { pageMeta } from "@/src/site/pageMeta";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
 
-export const metadata = {
-  title: "Docs",
-  description: "Contraflow API v1: parties grant scoped permissions, tenants submit signatures, Contraflow never holds keys.",
-};
+export const metadata = pageMeta(
+  "/docs",
+  "Docs",
+  "Contraflow API v1: parties grant scoped permissions, tenants submit signatures, Contraflow never holds keys.",
+);
 
 export default function DocsPage() {
-  const info = spec.info as { title?: string; version?: string; description?: string };
-  const paths = Object.keys(spec.paths ?? {});
+  const info = OPENAPI.info;
+  const paths = Object.keys(OPENAPI.paths);
   return (
     <MarketingPage>
       <div className="mx-auto w-full max-w-3xl px-6 py-16">
@@ -22,15 +24,15 @@ export default function DocsPage() {
           <a href="/api/v1/openapi.json" className="text-gold hover:underline">
             /api/v1/openapi.json
           </a>
-          . Keys are operator-issued. Request one through{" "}
-          <Link href="/contact" className="text-gold hover:underline">
-            Contact
+          . Create a test key while{" "}
+          <Link href="/app/api-keys" className="text-gold hover:underline">
+            signed in
           </Link>
-          .
+          . It is shown once.
         </p>
         <h2 className="mt-10 text-sm font-semibold">Quick start</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
-          <li>Ask for a test key (`cfk_test_…`).</li>
+          <li>Sign in and create a test key (cfk_test_…).</li>
           <li>Have the party sign the permission typed data, then `POST /api/v1/permissions`.</li>
           <li>Call party-scoped endpoints with `Authorization: Bearer` and `Idempotency-Key` on writes.</li>
         </ol>

@@ -164,7 +164,7 @@ describe("useOwnerWallet", () => {
   vi.doMock("wagmi", () => ({ useAccount }));
 
   it("blocks when disconnected or connected as a different address than the session", async () => {
-    const { useOwnerWallet } = await import("../app/app/balance/wallet");
+    const { useOwnerWallet } = await import("../src/app/app/balance/wallet");
     useAccount.mockReturnValue({ isConnected: false });
     expect(useOwnerWallet(OWNER).status).toBe("disconnected");
 
@@ -185,7 +185,7 @@ describe("no deposit or move without a click", () => {
       return statSync(path).isDirectory() ? files(path) : /\.(ts|tsx)$/.test(name) ? [path] : [];
     });
   }
-  const sources = [...files(join(root, "app")), ...files(join(root, "components"))].map((path) => ({
+  const sources = [...files(join(root, "src/app")), ...files(join(root, "components"))].map((path) => ({
     path: relative(root, path),
     text: readFileSync(path, "utf8"),
   }));
@@ -198,7 +198,7 @@ describe("no deposit or move without a click", () => {
 
   it("only the two panels call deposit/moveToArc, each from its own click handler, never from an effect", () => {
     const callers = sources.filter(({ text }) => /\b(deposit|moveToArc)\(await wallet\.adapter\(\)/.test(text));
-    expect(callers.map((c) => c.path).sort()).toEqual(["app/app/balance/DepositPanel.tsx", "app/app/balance/MovePanel.tsx"]);
+    expect(callers.map((c) => c.path).sort()).toEqual(["src/app/app/balance/DepositPanel.tsx", "src/app/app/balance/MovePanel.tsx"]);
     for (const { path, text } of callers) {
       const handler = path.endsWith("DepositPanel.tsx") ? "handleDeposit" : "handleMove";
       const body = text.slice(text.indexOf(`async function ${handler}`));

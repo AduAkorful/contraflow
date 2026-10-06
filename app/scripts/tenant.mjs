@@ -1,4 +1,6 @@
-// Operator tool for API tenants. Keys are issued here by hand; there's no self-serve sign-up.
+// Operator tool for named tenants, live keys and webhook endpoints.
+// A signed-in address creates its own test keys at /app/api-keys. Use this for live keys
+// and for tenants that have no owner_address.
 // Usage (from app/):
 //   node --env-file=.env.local scripts/tenant.mjs create "<name>"
 //   node --env-file=.env.local scripts/tenant.mjs issue-key <tenantId> test|live

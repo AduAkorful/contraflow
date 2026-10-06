@@ -1,12 +1,17 @@
 import Link from "next/link";
-import { MarketingPage } from "../../components/marketing/MarketingPage";
-import { docsNavLink } from "../../src/site/docsUrl";
-import { APP_CHAIN_ID, addressesForChain } from "../../src/contracts/addresses";
-import { explorerAddressUrl } from "../../src/blockscout/explorer";
-import { sourcifyLookupUrl } from "../../src/site/sourcify";
-import { Address } from "../../components/ui/Address";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { docsNavLink } from "@/src/site/docsUrl";
+import { APP_CHAIN_ID, addressesForChain } from "@/src/contracts/addresses";
+import { explorerAddressUrl } from "@/src/blockscout/explorer";
+import { sourcifyLookupUrl } from "@/src/site/sourcify";
+import { Address } from "@/components/ui/Address";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Integrations" };
+export const metadata = pageMeta(
+  "/integrations",
+  "Integrations",
+  "Record obligations and apply certificates from your own platform. Contraflow never holds keys.",
+);
 
 type External = { title: string; body: string; href: string; label: string };
 
@@ -47,7 +52,7 @@ export default function IntegrationsPage() {
         <h2 className="font-serif-display text-3xl">API</h2>
         <p className="mt-4 max-w-2xl text-muted">
           Parties grant scoped, expiring permissions. Tenants submit the signatures those parties
-          made. Keys are operator-issued. There is no invoice or settlement API: those stay in the
+          made. Create a test key while signed in. There is no invoice or settlement API: those stay in the
           app, signed and paid by the party.
         </p>
         <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
@@ -61,8 +66,8 @@ export default function IntegrationsPage() {
               Docs
             </Link>
           )}
-          <Link href="/contact" className="text-gold hover:underline">
-            Request an API key
+          <Link href="/app/api-keys" className="text-gold hover:underline">
+            Create an API key
           </Link>
           <a href="/api/v1/openapi.json" className="text-gold hover:underline">
             OpenAPI

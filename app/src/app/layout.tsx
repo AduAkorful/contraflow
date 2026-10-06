@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
-const SITE_TITLE = "Contraflow — Cancel circular debt on Arc";
+const SITE_TITLE = "Contraflow — Net out the debts that go in circles";
 const SITE_DESCRIPTION =
   "Contraflow finds loops of debt between counterparties and nets them out: USDC invoices in one transaction on Arc, and obligations in any currency with one certificate everyone signs.";
 

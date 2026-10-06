@@ -18,7 +18,18 @@ export type WebhookEventType =
   | "certificate.ready"
   | "certificate.applied"
   | "certificate.expired"
-  | "certificate.cancelled";
+  | "certificate.cancelled"
+  | "webhook.test";
+
+export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = [
+  "obligation.recorded",
+  "certificate.proposed",
+  "certificate.ready",
+  "certificate.applied",
+  "certificate.expired",
+  "certificate.cancelled",
+  "webhook.test",
+];
 
 export function newWebhookSecret(): string {
   return `whsec_${randomBytes(32).toString("base64url")}`;

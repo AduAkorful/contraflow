@@ -72,7 +72,7 @@ The database connection verifies Supabase's TLS certificate against the root pin
 Compare that fingerprint with the certificate in the dashboard's Database settings before replacing it.
 
 To run the database integration tests, point `TEST_DATABASE_URL` at a scratch database with migrations
-001–011 applied (never the app's own) and run `pnpm vitest run test/db.integration.test.ts`.
+001–013 applied (never the app's own) and run `pnpm vitest run test/db.integration.test.ts`.
 
 | # | Adds |
 |---|---|
@@ -86,6 +86,9 @@ To run the database integration tests, point `TEST_DATABASE_URL` at a scratch da
 | 008 | Durable starter-grant operation reservations |
 | 009 | Owner-token leases for recoverable API idempotency operations |
 | 010 | Terminal `suppressed` webhook-event status after permission loss |
+| 011 | Row-level security on every table; no privileges for `anon` or `authenticated` |
+| 012 | `invoice_links` for short invoice share links |
+| 013 | `tenants.owner_address` for self-serve test API keys |
 
 ## Operator scripts
 
@@ -100,6 +103,8 @@ node --env-file=app/.env.local app/scripts/tenant.mjs revoke-key <keyPrefix>
 node --env-file=app/.env.local app/scripts/tenant.mjs list
 ```
 
+- **Self-serve test keys.** A signed-in address creates its own tenant and test keys at `/app/api-keys` (migration 013).
+  The secret is shown once. This script remains the path for live keys, webhook endpoints and tenants with no owner.
 - **Shown once.** Keys and webhook secrets are printed once and never stored in the clear (webhook secrets are
   stored, since signing needs them). Send them to the tenant over a secure channel.
 - **Key limit.** A tenant can hold at most two active keys.
@@ -137,9 +142,9 @@ Rehearse on testnet (`5042002`) before mainnet (`5042`).
 | Root directory | `app` (the Next.js package; `next` isn't in the repo root) |
 | Build | `pnpm build`. The `prebuild` script builds `packages/solver`, whose `dist/` isn't committed. Don't remove it. |
 | Env vars | Everything in the table above, for each environment |
-| Cron | `app/vercel.json` schedules `/api/cron/webhooks` daily at 04:15 UTC. The Hobby plan only allows daily crons (a more frequent schedule fails the deploy). On Pro you can run it every minute. |
+| Cron | `app/vercel.json` schedules `/api/cron/webhooks` daily at 04:15 UTC. The Hobby plan only allows daily crons (a more frequent schedule fails the deploy). Deliveries do not wait on that cron: every authenticated API request and web-app obligation write runs the pipeline in a Next.js `after()` hook. Tenants can also `POST /api/v1/webhooks/test` to enqueue a `webhook.test` event. On Pro you can run the cron every minute. |
 
-`app/app/app/layout.tsx` keeps `dynamic = "force-dynamic"`. Without it, the build prerenders the Privy provider and
+`app/src/app/app/layout.tsx` keeps `dynamic = "force-dynamic"`. Without it, the build prerenders the Privy provider and
 crashes.
 
 ## Monitoring
@@ -198,7 +203,7 @@ minutes on testnet.
    the tenant should receive a later state change. Suppressed events are terminal and are not replayed.
 2. Fix the endpoint, or re-register it with `set-webhook`.
 3. Wait for the next retry. Pending events retry with backoff for three days, then are marked `failed`.
-4. To force a pass, call the cron route with the secret:
+4. To force a pass, call the cron route with the secret, or have the tenant `POST /api/v1/webhooks/test`:
    ```bash
    curl -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/cron/webhooks
    ```

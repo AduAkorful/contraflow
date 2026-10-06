@@ -3,19 +3,19 @@
 /// Public, unauthenticated: the receipt and history pages work without sign-in, so the quote does
 /// too. The only input is an invoice id; the amount is read from the Registry.
 
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
-import { chainById, createArcPublicClient } from "../../../src/chain/client";
-import { getInvoice } from "../../../src/chain/readInvoices";
+import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { chainById, createArcPublicClient } from "@/src/chain/client";
+import { getInvoice } from "@/src/chain/readInvoices";
 import {
   estimateWithThrowawayKit,
   QUOTE_RATE_LIMIT,
   quoteRemainingInEurc,
   swapQuoteSupported,
-} from "../../../src/kits/quote";
-import { eurcQuoteEnabled, type EurcQuote, type EurcQuoteResult } from "../../../src/kits/quoteFormat";
-import { checkRateLimit } from "../../../src/ratelimit/limiter";
-import { requestIp } from "../../../src/ratelimit/requestIp";
-import { redis } from "../../../src/upstash/client";
+} from "@/src/kits/quote";
+import { eurcQuoteEnabled, type EurcQuote, type EurcQuoteResult } from "@/src/kits/quoteFormat";
+import { checkRateLimit } from "@/src/ratelimit/limiter";
+import { requestIp } from "@/src/ratelimit/requestIp";
+import { redis } from "@/src/upstash/client";
 
 const CHAIN_ID = ARC_TESTNET_CHAIN_ID;
 

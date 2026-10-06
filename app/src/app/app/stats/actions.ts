@@ -1,10 +1,10 @@
 "use server";
 
-import { addressesForChain } from "../../../src/contracts/addresses";
-import { checkRateLimit } from "../../../src/ratelimit/limiter";
-import { requestIp } from "../../../src/ratelimit/requestIp";
-import { getProtocolStats, STATS_CHAIN_ID } from "../../../src/stats/load";
-import { buildStatsView, type StatsView } from "../../../src/stats/view";
+import { addressesForChain } from "@/src/contracts/addresses";
+import { checkRateLimit } from "@/src/ratelimit/limiter";
+import { requestIp } from "@/src/ratelimit/requestIp";
+import { getProtocolStats, STATS_CHAIN_ID } from "@/src/stats/load";
+import { buildStatsView, type StatsView } from "@/src/stats/view";
 
 export type ProtocolStatsResult = { ok: true; view: StatsView } | { ok: false; error: string };
 

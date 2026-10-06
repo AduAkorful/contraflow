@@ -1,8 +1,13 @@
-import { SignInGate } from "../../../components/wallet/SignInGate";
-import { getSession } from "../../../src/session/getSession";
+import { SignInGate } from "@/components/wallet/SignInGate";
+import { getSession } from "@/src/session/getSession";
 import { ComposeForm } from "./ComposeForm";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Send an invoice" };
+export const metadata = pageMeta(
+  "/app/attest",
+  "Send an invoice",
+  "Both parties sign a USDC invoice. It's registered on Arc once both signatures are in.",
+);
 
 
 export default async function AttestComposePage() {

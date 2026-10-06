@@ -1,22 +1,22 @@
 import Link from "next/link";
 import type { Address as Hex } from "viem";
-import { Address } from "../../components/ui/Address";
-import { Money } from "../../components/ui/Money";
-import { displayMajorAmount, displayMinorAmount } from "../../components/netting/format";
-import { getInvoicesForAddress, type InvoiceRow } from "../../src/db/invoices";
-import { certificateService } from "../../src/obligations/certificateDefaults";
-import type { CertificateSummary } from "../../src/obligations/certificates";
-import { listMine, type ProposalSummary } from "../../src/obligations/service";
+import { Address } from "@/components/ui/Address";
+import { Money } from "@/components/ui/Money";
+import { displayMajorAmount, displayMinorAmount } from "@/components/netting/format";
+import { getInvoicesForAddress, type InvoiceRow } from "@/src/db/invoices";
+import { certificateService } from "@/src/obligations/certificateDefaults";
+import type { CertificateSummary } from "@/src/obligations/certificates";
+import { listMine, type ProposalSummary } from "@/src/obligations/service";
 import {
   invoiceUsdcPosition,
   invoiceUsdcPositionLine,
   obligationPositionByCurrency,
   obligationPositionLine,
-} from "../../src/obligations/position";
-import { SettleLoopCard } from "../../components/settle/SettleLoopCard";
-import { ObligationLoopBanner } from "../../components/obligations/ObligationLoopBanner";
-import { OVERVIEW_SECTION_ORDER } from "../../components/overview/sections";
-import { ProtocolStats } from "../../components/stats/ProtocolStats";
+} from "@/src/obligations/position";
+import { ReadyToNet } from "@/components/settle/ReadyToNet";
+import { ObligationLoopBanner } from "@/components/obligations/ObligationLoopBanner";
+import { OVERVIEW_SECTION_ORDER } from "@/components/overview/sections";
+import { ProtocolStats } from "@/components/stats/ProtocolStats";
 
 const RECENT_INVOICES = 5;
 
@@ -135,7 +135,7 @@ export async function Overview({ address }: { address: string }) {
         </Card>
 
         <Card title={OVERVIEW_SECTION_ORDER[1]}>
-          <SettleLoopCard sessionAddress={address} embedded />
+          <ReadyToNet sessionAddress={address} embedded />
           {certificates.ok ? (
             <ObligationLoopBanner certificates={certificates.value.certificates} />
           ) : (

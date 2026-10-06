@@ -27,8 +27,8 @@ export function Developers() {
           <Link href="/integrations" className="text-gold hover:underline">
             Integrations &amp; API
           </Link>
-          <Link href="/contact" className="text-gold hover:underline">
-            Request an API key
+          <Link href="/app/api-keys" className="text-gold hover:underline">
+            Create an API key
           </Link>
         </p>
       </div>

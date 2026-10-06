@@ -25,7 +25,8 @@ An obligation starts as a human-readable **document**, which both parties see:
 
 - **Canonical form.** The document is serialised with sorted keys, lowercased addresses and a trimmed
   description. `documentHash = keccak256(utf8(canonical JSON))`. Both parties' browsers compute it, and the
-  `format` tag means an obligation document can never hash the same as an invoice document.
+  `format` tag means an obligation document can never hash the same as an invoice document. Copy-paste helper
+  and three known hashes: [API reference](api.md#post-obligationsproposals).
 - **Signed struct.** The document becomes the EIP-712 `NettingObligation` both parties sign:
   - `amount` in the currency's ISO 4217 minor units (cents for USD, whole yen for JPY);
   - `maturity` at midnight UTC of the date;

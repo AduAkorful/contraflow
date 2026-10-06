@@ -3,7 +3,7 @@
 
 import { getAddress, type Address, type Hex } from "viem";
 import { randomUUID } from "node:crypto";
-import type { IdempotencyContext, NewPermission, StoredKey, StoredPermission, TenantStore } from "../api/auth";
+import type { IdempotencyContext, NewPermission, StoredKey, StoredPermission, TenantInfo, TenantStore } from "../api/auth";
 import { sql, withDbRetry } from "./client";
 
 interface PermissionDbRow {
@@ -43,6 +43,22 @@ export const postgresTenantStore: TenantStore = {
       revoked: row.revoked_at !== null,
       tenantActive: row.status === "active",
     } satisfies StoredKey;
+  },
+
+  async getTenant(tenantId: Hex) {
+    const rows = (await withDbRetry(
+      () => sql()`SELECT t.name, t.status, (w.tenant_id IS NOT NULL) AS webhook_configured
+                  FROM tenants t
+                  LEFT JOIN webhook_endpoints w ON w.tenant_id = t.tenant_id
+                  WHERE t.tenant_id = ${tenantId.toLowerCase()}`,
+    )) as { name: string; status: "active" | "suspended"; webhook_configured: boolean }[];
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      name: row.name,
+      status: row.status,
+      webhookConfigured: Boolean(row.webhook_configured),
+    } satisfies TenantInfo;
   },
 
   async savePermission(p: NewPermission, idempotency?: IdempotencyContext) {
@@ -109,6 +125,22 @@ export const postgresTenantStore: TenantStore = {
       () => sql()`SELECT permission_id, tenant_id, chain_id, party, scopes, expires_at, revoked_at
                   FROM tenant_permissions
                   WHERE tenant_id = ${tenantId.toLowerCase()} AND chain_id = ${String(chainId)} AND party = ${party.toLowerCase()}`,
+    )) as unknown as PermissionDbRow[];
+    return rows.map(toPermission);
+  },
+
+  async listPermissions(tenantId: Hex, chainId: number, party?: Address) {
+    const rows = (await withDbRetry(
+      () =>
+        party
+          ? sql()`SELECT permission_id, tenant_id, chain_id, party, scopes, expires_at, revoked_at
+                  FROM tenant_permissions
+                  WHERE tenant_id = ${tenantId.toLowerCase()} AND chain_id = ${String(chainId)} AND party = ${party.toLowerCase()}
+                  ORDER BY created_at DESC`
+          : sql()`SELECT permission_id, tenant_id, chain_id, party, scopes, expires_at, revoked_at
+                  FROM tenant_permissions
+                  WHERE tenant_id = ${tenantId.toLowerCase()} AND chain_id = ${String(chainId)}
+                  ORDER BY created_at DESC`,
     )) as unknown as PermissionDbRow[];
     return rows.map(toPermission);
   },

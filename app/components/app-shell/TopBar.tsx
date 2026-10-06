@@ -2,20 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isSignInPrimaryPage } from "../../src/session/primarySignInPath";
-import { useSignIn } from "../wallet/useSignIn";
-import { AddressMenu } from "./AddressMenu";
+import { formatAddress } from "../../src/format/address";
+import { useSignIn, useWalletReady } from "../wallet/signInContext";
 import { NetworkChip } from "./NetworkChip";
 import { SidebarNav } from "./SidebarNav";
 import type { NavItem } from "./nav";
+
+const AddressMenu = dynamic(() => import("./AddressMenu").then((m) => m.AddressMenu), { ssr: false });
 
 /// Sticky bar: brand and menu button on small screens (and always when signed out), network chip and
 /// address menu on the right. The menu button opens the same list the sidebar shows.
 export function TopBar({ address, items }: { address: string | null; items: NavItem[] }) {
   const pathname = usePathname();
   const { start, phase } = useSignIn();
+  const walletReady = useWalletReady();
   const [menuOpen, setMenuOpen] = useState(false);
   const hideHeaderSignIn = isSignInPrimaryPage(pathname);
 
@@ -63,7 +67,13 @@ export function TopBar({ address, items }: { address: string | null; items: NavI
             <NetworkChip />
           </div>
           {address ? (
-            <AddressMenu address={address} />
+            walletReady ? (
+              <AddressMenu address={address} />
+            ) : (
+              <span className="font-mono text-sm text-muted" title={address}>
+                {formatAddress(address)}
+              </span>
+            )
           ) : hideHeaderSignIn ? null : (
             <button
               type="button"

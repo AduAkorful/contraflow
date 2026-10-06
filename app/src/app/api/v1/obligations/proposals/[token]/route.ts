@@ -1,5 +1,7 @@
-import { getObligationProposal, withdrawObligationProposal } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { getObligationProposal, withdrawObligationProposal } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const GET = route(getObligationProposal);
-export const DELETE = route(withdrawObligationProposal);
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({
+  GET: getObligationProposal,
+  DELETE: withdrawObligationProposal,
+});

@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Features" };
+export const metadata = pageMeta(
+  "/features",
+  "Features",
+  "Sign an invoice or an obligation, find the loop, and net it in one step. No cash moves except gas.",
+);
 
 const INVOICES = [
   {

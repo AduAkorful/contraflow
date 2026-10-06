@@ -1,9 +1,14 @@
 import Link from "next/link";
-import { MarketingPage } from "../../components/marketing/MarketingPage";
-import { NetworkNotice } from "../../components/network/NetworkNotice";
-import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { NetworkNotice } from "@/components/network/NetworkNotice";
+import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Pricing" };
+export const metadata = pageMeta(
+  "/pricing",
+  "Pricing",
+  "No protocol fee today. You pay Arc's network fee, a fraction of a cent, from your own wallet.",
+);
 
 const GAS_COSTS = [
   { call: "Record an offchain obligation", cost: "No gas" },
@@ -53,8 +58,11 @@ export default function PricingPage() {
         <div className="mt-10 rounded-card border border-border-subtle bg-surface-1 p-6">
           <h2 className="text-lg font-medium">Will this stay free?</h2>
           <p className="mt-2 text-sm text-muted">
-            There is no protocol fee today. A future upgrade could introduce one; that&apos;s in the
-            Terms. There are no subscriptions or per-loop tolls.
+            There is no protocol fee today. A future upgrade could introduce one; that&apos;s in the{" "}
+            <Link href="/terms#fees" className="text-gold hover:underline">
+              Terms
+            </Link>
+            . There are no subscriptions or per-loop tolls.
           </p>
         </div>
         <p className="mt-10 text-center">

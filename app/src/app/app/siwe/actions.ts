@@ -3,11 +3,11 @@
 /// Server Actions behind the wallet-connect sign-in flow.
 
 import { cookies } from "next/headers";
-import { issueNonce } from "../../../src/siwe/nonce";
-import { verifySignIn } from "../../../src/siwe/verifySignIn";
-import { createSessionToken, verifySessionToken } from "../../../src/session/cookie";
-import { revokeSession } from "../../../src/session/revocation";
-import { SESSION_COOKIE_NAME, getSession } from "../../../src/session/getSession";
+import { issueNonce } from "@/src/siwe/nonce";
+import { verifySignIn } from "@/src/siwe/verifySignIn";
+import { createSessionToken, verifySessionToken } from "@/src/session/cookie";
+import { revokeSession } from "@/src/session/revocation";
+import { SESSION_COOKIE_NAME, getSession } from "@/src/session/getSession";
 
 function requireEnv(name: string): string {
   const value = process.env[name];

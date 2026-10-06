@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Address } from "../../../components/ui/Address";
-import { displayDate, displayMajorAmount, displayMinorAmount } from "../../../components/netting/format";
-import { earlyNettingReview } from "../../../src/format/signing";
+import { Address } from "@/components/ui/Address";
+import { displayDate, displayMajorAmount, displayMinorAmount } from "@/components/netting/format";
+import { earlyNettingReview } from "@/src/format/signing";
 import {
   obligationPositionByCurrency,
   obligationPositionLine,
   obligationStatusLabel,
-} from "../../../src/obligations/position";
-import type { ObligationSummary, ProposalSummary } from "../../../src/obligations/service";
+} from "@/src/obligations/position";
+import type { ObligationSummary, ProposalSummary } from "@/src/obligations/service";
 import { closeObligation, withdrawProposal } from "./actions";
 
 const OUT_OF_SYNC_EXPLAINED =

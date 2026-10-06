@@ -1,12 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Receipt, type ReceiptData } from "../../../components/receipt/Receipt";
-import { Money } from "../../../components/ui/Money";
-import { sumUsdc } from "../../../src/format/money";
+import { Receipt, type ReceiptData } from "@/components/receipt/Receipt";
+import { Money } from "@/components/ui/Money";
+import { sumUsdc } from "@/src/format/money";
 import { CycleDiagram } from "./CycleDiagram";
 import { registerCycleInvoiceStep, proposeCycle, settleProposedCycle } from "./actions";
-import { MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "../../../src/fixtures/demoIdentities";
+import { MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "@/src/fixtures/demoIdentities";
 import {
   afterSettleFailure,
   demoIdleEdges,
@@ -14,7 +14,7 @@ import {
   type DemoCenterView,
   type DemoEdgeView,
   type DemoPhase,
-} from "../../../src/demo/pageState";
+} from "@/src/demo/pageState";
 
 const PARTY_COUNT_OPTIONS = Array.from(
   { length: MAX_DEMO_PARTIES - MIN_DEMO_PARTIES + 1 },

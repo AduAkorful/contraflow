@@ -69,7 +69,7 @@ vi.mock("../src/demo/spendBudget", async () => {
   };
 });
 
-const { registerCycleInvoiceStep, settleProposedCycle } = await import("../app/app/demo/actions");
+const { registerCycleInvoiceStep, settleProposedCycle } = await import("../src/app/app/demo/actions");
 
 const HASH = `0x${"1".repeat(64)}` as const;
 

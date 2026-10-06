@@ -1,7 +1,7 @@
 /// DB-first, Blockscout-fallback receipt lookup for `/app/receipt/[txHash]`. The fallback works
 /// even for an empty or wrong database: `InvoiceNetted`/`Settled`'s own decoded event data
 /// carries everything needed
-/// (`before = remainingAfter + wNet`), same formula `app/app/app/demo/actions.ts` already uses.
+/// (`before = remainingAfter + wNet`), same formula `app/src/app/app/demo/actions.ts` already uses.
 
 import { getSettlement, getInvoicesForSettlement } from "../db/invoices";
 import { BlockscoutNotFoundError, fetchTransactionFee, fetchTransactionLogs, paramValue } from "../blockscout/client";

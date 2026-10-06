@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
-import { deposit, estimateDeposit, isUnsupportedSmartAccount, readGatewayBalances, walletCode, walletUsdc } from "../../../src/kits/browserAdapter";
-import { checkUsdcAmount, feeLabel, fromBaseUnits, parseGatewayBalances, toBaseUnits, type FeeLine } from "../../../src/kits/gatewayBalance";
-import { explorerTxLink, gatewaySourceChains, networkTypeForChainId, type GatewayChain } from "../../../src/kits/gatewayChains";
-import { roundDecimalString } from "../../../src/kits/quoteFormat";
+import { deposit, estimateDeposit, isUnsupportedSmartAccount, readGatewayBalances, walletCode, walletUsdc } from "@/src/kits/browserAdapter";
+import { checkUsdcAmount, feeLabel, fromBaseUnits, parseGatewayBalances, toBaseUnits, type FeeLine } from "@/src/kits/gatewayBalance";
+import { explorerTxLink, gatewaySourceChains, networkTypeForChainId, type GatewayChain } from "@/src/kits/gatewayChains";
+import { roundDecimalString } from "@/src/kits/quoteFormat";
 import { walletErrorMessage, type WalletState } from "./wallet";
-import { prepareWalletContext } from "../../../src/attest/walletContext";
-import { clearPendingGatewayDeposit, GATEWAY_RECOVERY_EVENT, gatewayTxHashFromError, readPendingGatewayDeposit, readPendingGatewayMove, savePendingGatewayDeposit, type PendingGatewayDeposit } from "../../../src/kits/gatewayRecovery";
+import { prepareWalletContext } from "@/src/attest/walletContext";
+import { clearPendingGatewayDeposit, GATEWAY_RECOVERY_EVENT, gatewayTxHashFromError, readPendingGatewayDeposit, readPendingGatewayMove, savePendingGatewayDeposit, type PendingGatewayDeposit } from "@/src/kits/gatewayRecovery";
 
 type Ready = Extract<WalletState, { status: "ready" }>;
 

@@ -7,16 +7,16 @@
 
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
-import { getSession } from "../../../src/session/getSession";
-import { requestStarterGrant, grantAmountUsdc } from "../../../src/attest/starterGrant";
-import { resolveNextNonce } from "../../../src/attest/nextNonce";
-import { preCheckAttestation } from "../../../src/attest/precheck";
-import { recordRegistration } from "../../../src/attest/record";
-import type { InvoiceAttestation } from "../../../src/attest/signAttestation";
-import { hashInvoiceDocument, invoiceDocumentProblem, type CanonicalInvoiceDocument } from "../../../src/attest/document";
-import { insertInvoiceDocumentIfAbsent, getInvoiceDocumentByRef } from "../../../src/db/documents";
-import { createInvoiceShareLink, getInvoiceShareLink } from "../../../src/attest/invoiceLinks";
-import { guardPublicRead } from "../../../src/ratelimit/publicReadGuard";
+import { getSession } from "@/src/session/getSession";
+import { requestStarterGrant, grantAmountUsdc } from "@/src/attest/starterGrant";
+import { resolveNextNonce } from "@/src/attest/nextNonce";
+import { preCheckAttestation } from "@/src/attest/precheck";
+import { recordRegistration } from "@/src/attest/record";
+import type { InvoiceAttestation } from "@/src/attest/signAttestation";
+import { hashInvoiceDocument, invoiceDocumentProblem, type CanonicalInvoiceDocument } from "@/src/attest/document";
+import { insertInvoiceDocumentIfAbsent, getInvoiceDocumentByRef } from "@/src/db/documents";
+import { createInvoiceShareLink, getInvoiceShareLink } from "@/src/attest/invoiceLinks";
+import { guardPublicRead } from "@/src/ratelimit/publicReadGuard";
 
 export type GrantResult =
   | { ok: true; alreadyGranted: boolean; txHash?: string; amountUsdc?: string }

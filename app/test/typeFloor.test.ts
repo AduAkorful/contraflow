@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const appRoot = new URL("..", import.meta.url).pathname;
-const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
 const SKIP = new Set(["node_modules", ".next", "dist", "coverage"]);
 const SOURCE = /\.(tsx|ts|jsx|js)$/;
@@ -32,7 +32,6 @@ describe("type floor", () => {
 
   it("has no informative text sized below 13px", () => {
     const files: string[] = [];
-    walk(join(appRoot, "app"), files);
     walk(join(appRoot, "components"), files);
     walk(join(appRoot, "src"), files);
     const hits: string[] = [];

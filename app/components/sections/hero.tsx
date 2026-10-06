@@ -13,7 +13,7 @@ export function Hero() {
         <p className="mb-6 text-sm font-medium text-gold">Netting, not credit.</p>
 
         <h1 className="font-serif-display text-5xl leading-[1.05] tracking-tight sm:text-6xl">
-          Cancel circular debt in one transaction
+          Net out the debts that go in circles.
         </h1>
 
         <p className="mt-6 max-w-xl text-balance text-base text-muted sm:text-lg">

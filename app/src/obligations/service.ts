@@ -21,6 +21,7 @@ import {
   type ObligationStatus,
 } from "../db/obligations";
 import { checkRateLimit } from "../ratelimit/limiter";
+import { serviceRateLimitKey } from "../api/limitBucket";
 import { ZERO_HASH } from "../netting/commitment";
 import { appLedgerDomain } from "../netting/domain";
 import { OBLIGATION_DOCUMENT_FORMAT, type CanonicalObligationDocument } from "../netting/document";
@@ -48,7 +49,7 @@ function submissionDeps(): SubmissionDeps {
 }
 
 async function rateLimited(kind: string, address: Address, limit: { max: number; windowSeconds: number }) {
-  const result = await checkRateLimit(`obligations:${kind}:${address.toLowerCase()}`, limit.max, limit.windowSeconds);
+  const result = await checkRateLimit(serviceRateLimitKey("obligations", kind, address), limit.max, limit.windowSeconds);
   return !result.allowed;
 }
 

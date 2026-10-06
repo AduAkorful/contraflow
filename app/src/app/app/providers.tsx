@@ -1,6 +1,6 @@
 "use client";
 
-/// Privy/wagmi provider, scoped to `/app/*` only via `app/app/app/layout.tsx` — the marketing
+/// Privy/wagmi provider, scoped to `/app/*` only via `app/src/app/app/layout.tsx` — the marketing
 /// pages never load any wallet code. Privy supplies the connect surface (external wallets *and*
 /// email-based embedded wallets in one hosted modal) as a wagmi connector source, via
 /// `@privy-io/wagmi`'s own `createConfig`/`WagmiProvider` (a drop-in replacement for wagmi's own,
@@ -12,12 +12,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider, createConfig } from "@privy-io/wagmi";
 import { http } from "wagmi";
-import { SessionProvider } from "../../components/session/SessionProvider";
-import { SignInProvider } from "../../components/wallet/SignInProvider";
-import { arcTestnet } from "../../src/chain/client";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
-import { gatewaySourceChains, unifiedBalanceEnabled, viemChainFor } from "../../src/kits/gatewayChains";
-import { queryClient } from "../../src/query/client";
+import { SignInProvider } from "@/components/wallet/SignInProvider";
+import { arcTestnet } from "@/src/chain/client";
+import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { gatewaySourceChains, unifiedBalanceEnabled, viemChainFor } from "@/src/kits/gatewayChains";
+import { queryClient } from "@/src/query/client";
 
 const wagmiConfig = createConfig({
   chains: [arcTestnet],
@@ -45,10 +44,11 @@ const PLACEHOLDER_APP_ID = "0000000000000000000000000";
 
 export function Providers({
   children,
-  sessionAddress,
+  autoStartLogin = false,
 }: {
   children: React.ReactNode;
   sessionAddress: string | null;
+  autoStartLogin?: boolean;
 }) {
   return (
     <PrivyProvider
@@ -73,9 +73,7 @@ export function Providers({
     >
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <SessionProvider initialAddress={sessionAddress}>
-            <SignInProvider>{children}</SignInProvider>
-          </SessionProvider>
+          <SignInProvider autoStartLogin={autoStartLogin}>{children}</SignInProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

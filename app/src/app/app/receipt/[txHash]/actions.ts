@@ -1,9 +1,9 @@
 "use server";
 
 import { isHash } from "viem";
-import { getCycleSignals } from "../../../../src/inspector/load";
-import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "../../../../src/inspector/requestGuard";
-import type { CycleSignals } from "../../../../src/inspector/signals";
+import { getCycleSignals } from "@/src/inspector/load";
+import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "@/src/inspector/requestGuard";
+import type { CycleSignals } from "@/src/inspector/signals";
 
 export type CycleSignalsResult = { ok: true; signals: CycleSignals } | { ok: false; error: string };
 

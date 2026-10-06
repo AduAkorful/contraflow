@@ -1,9 +1,12 @@
 import { VerifyCertificate } from "./VerifyCertificate";
 
-export const metadata = {
-  title: "Verify a netting certificate",
-  description: "Check an exported Contraflow netting certificate against the Arc ledger, in your browser.",
-};
+import { pageMeta } from "@/src/site/pageMeta";
+
+export const metadata = pageMeta(
+  "/app/verify",
+  "Verify a netting certificate",
+  "Check an exported Contraflow netting certificate against the Arc ledger, in your browser.",
+);
 
 export default function VerifyPage() {
   return (

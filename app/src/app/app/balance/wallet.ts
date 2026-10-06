@@ -3,8 +3,8 @@
 import { useAccount } from "wagmi";
 import { isAddressEqual, numberToHex, type EIP1193Provider } from "viem";
 
-import { userAdapter, type UserAdapter } from "../../../src/kits/browserAdapter";
-import type { GatewayChain } from "../../../src/kits/gatewayChains";
+import { userAdapter, type UserAdapter } from "@/src/kits/browserAdapter";
+import type { GatewayChain } from "@/src/kits/gatewayChains";
 
 export type WalletState =
   | { status: "disconnected" }

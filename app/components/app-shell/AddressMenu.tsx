@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useExportWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useDisconnect } from "wagmi";
 import { queryClient } from "../../src/query/client";
-import { signOut } from "../../app/app/siwe/actions";
+import { signOut } from "../../src/app/app/siwe/actions";
 import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { explorerAddressUrl } from "../../src/blockscout/explorer";
 import { checksumAddress, formatAddress } from "../../src/format/address";

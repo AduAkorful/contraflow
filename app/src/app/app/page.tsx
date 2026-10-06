@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Overview } from "./Overview";
-import { SignInOverlay } from "../../components/overview/SignInOverlay";
-import { OverviewIllustration } from "../../components/overview/OverviewIllustration";
-import { getSession } from "../../src/session/getSession";
-import { safeNextPath } from "../../src/session/nextPath";
+import { SignInOverlay } from "@/components/overview/SignInOverlay";
+import { OverviewIllustration } from "@/components/overview/OverviewIllustration";
+import { getSession } from "@/src/session/getSession";
+import { safeNextPath } from "@/src/session/nextPath";
 
 export async function generateMetadata() {
-  return { title: (await getSession()) ? "Overview" : "Sign in" };
+  const signedIn = Boolean(await getSession());
+  return {
+    title: signedIn ? "Overview" : "Sign in",
+    description: signedIn
+      ? "Invoices waiting, obligations to sign, and any loop ready to net."
+      : "Sign in to record an invoice or an obligation, and to net a loop.",
+    alternates: { canonical: "/app" },
+  };
 }
 
 export default async function AppLandingPage({
@@ -22,6 +28,7 @@ export default async function AppLandingPage({
   if (session && next) redirect(next);
 
   if (session) {
+    const { Overview } = await import(/* webpackPrefetch: false */ "./Overview");
     return <Overview address={session.address} />;
   }
 

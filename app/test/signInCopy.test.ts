@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { connectedButUnsignedHint, signingInLabel } from "../src/session/signInCopy";
-import { isSignInPrimaryPage } from "../src/session/primarySignInPath";
+import { isSignInPrimaryPage, pageNeedsWallet } from "../src/session/primarySignInPath";
 import { sessionOwns } from "../src/session/owned";
 import { safeNextPath } from "../src/session/nextPath";
 
@@ -25,6 +25,19 @@ describe("header Sign in visibility", () => {
     expect(isSignInPrimaryPage("/app/i/AbCdEf123_-xxxxxxxx")).toBe(true);
     expect(isSignInPrimaryPage("/app/history")).toBe(false);
     expect(isSignInPrimaryPage("/app/demo")).toBe(false);
+  });
+
+  it("does not load the wallet tree for read-only /app pages", () => {
+    expect(pageNeedsWallet("/app")).toBe(false);
+    expect(pageNeedsWallet("/app/history")).toBe(false);
+    expect(pageNeedsWallet("/app/demo")).toBe(false);
+    expect(pageNeedsWallet("/app/verify")).toBe(false);
+    expect(pageNeedsWallet("/app/receipt/0xabc")).toBe(false);
+    expect(pageNeedsWallet("/app/attest")).toBe(true);
+    expect(pageNeedsWallet("/app/balance")).toBe(true);
+    expect(pageNeedsWallet("/app/api-keys")).toBe(true);
+    expect(isSignInPrimaryPage("/app/api-keys")).toBe(true);
+    expect(pageNeedsWallet("/app/o/token")).toBe(true);
   });
 });
 

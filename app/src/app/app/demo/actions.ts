@@ -4,31 +4,31 @@
 /// functions. Never imported by client-bundled code; the operator private key this file
 /// constructs a signer from must never reach the browser.
 
-import { ARC_TESTNET_CHAIN_ID, addressesForChain } from "../../../src/contracts/addresses";
-import { registerInvoice, ComplianceRejectedError } from "../../../src/actions/register";
-import { proposeSettlement, settleBestCycle, NoSettleableCycleError } from "../../../src/actions/settle";
-import { computeDashboardTiles } from "../../../src/receipt/dashboardTiles";
-import { getInvoice } from "../../../src/chain/readInvoices";
-import { signAttestation } from "../../../src/attest/signAttestation";
-import { buildDemoCycleInvoices } from "../../../src/fixtures/demoCycle";
-import { deriveDemoParties, MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "../../../src/fixtures/demoIdentities";
+import { ARC_TESTNET_CHAIN_ID, addressesForChain } from "@/src/contracts/addresses";
+import { registerInvoice, ComplianceRejectedError } from "@/src/actions/register";
+import { proposeSettlement, settleBestCycle, NoSettleableCycleError } from "@/src/actions/settle";
+import { computeDashboardTiles } from "@/src/receipt/dashboardTiles";
+import { getInvoice } from "@/src/chain/readInvoices";
+import { signAttestation } from "@/src/attest/signAttestation";
+import { buildDemoCycleInvoices } from "@/src/fixtures/demoCycle";
+import { deriveDemoParties, MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "@/src/fixtures/demoIdentities";
 import {
   DEMO_RUN_EXPIRED_MESSAGE,
   DEMO_RUN_UNAVAILABLE_MESSAGE,
   demoRunIdsMatch,
   loadDemoRunInvoiceIds,
   rememberDemoRunInvoiceId,
-} from "../../../src/demo/runIds";
-import { operatorSigner, arcPublicClient as publicClient } from "../../../src/chain/operatorEnv";
-import { upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement } from "../../../src/db/invoices";
-import { requestIp } from "../../../src/ratelimit/requestIp";
+} from "@/src/demo/runIds";
+import { operatorSigner, arcPublicClient as publicClient } from "@/src/chain/operatorEnv";
+import { upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement } from "@/src/db/invoices";
+import { requestIp } from "@/src/ratelimit/requestIp";
 import {
   claimDemoSpend,
   completeDemoSpend,
   DEMO_REGISTER_TRANSACTION_LIMITS,
   DEMO_SETTLE_TRANSACTION_LIMITS,
   inspectDemoSpend,
-} from "../../../src/demo/spendBudget";
+} from "@/src/demo/spendBudget";
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 

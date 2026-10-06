@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignIn } from "./useSignIn";
+import { useSignIn } from "./signInContext";
 import { formatAddress } from "../../src/format/address";
 
 /// Thin view over `useSignIn`. Used on `/app` and on share-link pages that already sit in the

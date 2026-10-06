@@ -9,6 +9,7 @@ const PATHS = [
   "/contact",
   "/privacy",
   "/terms",
+  "/docs",
   "/app/demo",
   "/app/verify",
 ];

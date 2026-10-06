@@ -8,7 +8,7 @@ import { usdcBaseUnits } from "../../src/format/money";
 import { NETTING_STATUS_LABEL, nettingStatus } from "../../src/format/netting";
 import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
 import { earlyNettingReview } from "../../src/format/signing";
-import type { HistoryInvoiceView } from "../../app/app/history/actions";
+import type { HistoryInvoiceView } from "../../src/app/app/history/actions";
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 

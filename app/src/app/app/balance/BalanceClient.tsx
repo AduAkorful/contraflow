@@ -7,12 +7,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
-import { readGatewayBalances, walletUsdc } from "../../../src/kits/browserAdapter";
-import { fromBaseUnits, parseGatewayBalances, toBaseUnits, type GatewayBalanceView } from "../../../src/kits/gatewayBalance";
-import { gatewayArcChain, networkTypeForChainId } from "../../../src/kits/gatewayChains";
-import { Money } from "../../../components/ui/Money";
-import { formatAddress } from "../../../src/format/address";
-import { roundDecimalString } from "../../../src/kits/quoteFormat";
+import { readGatewayBalances, walletUsdc } from "@/src/kits/browserAdapter";
+import { fromBaseUnits, parseGatewayBalances, toBaseUnits, type GatewayBalanceView } from "@/src/kits/gatewayBalance";
+import { gatewayArcChain, networkTypeForChainId } from "@/src/kits/gatewayChains";
+import { Money } from "@/components/ui/Money";
+import { formatAddress } from "@/src/format/address";
+import { roundDecimalString } from "@/src/kits/quoteFormat";
 import { DepositPanel } from "./DepositPanel";
 import { MovePanel } from "./MovePanel";
 import { useOwnerWallet } from "./wallet";

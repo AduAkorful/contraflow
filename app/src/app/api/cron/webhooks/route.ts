@@ -1,4 +1,4 @@
-import { runWebhookPipeline } from "../../../../src/api/webhookRunner";
+import { runWebhookPipeline } from "@/src/api/webhookRunner";
 
 /// Vercel Cron calls this with `Authorization: Bearer $CRON_SECRET`. It's the retry backstop:
 /// deliveries also run right after API requests and web-app obligation actions.

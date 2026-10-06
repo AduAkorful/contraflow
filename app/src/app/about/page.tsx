@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "About" };
+export const metadata = pageMeta(
+  "/about",
+  "About",
+  "Why Contraflow exists: so money that would only go round in a circle never has to move.",
+);
 
 export default function AboutPage() {
   return (

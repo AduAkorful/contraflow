@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
-import { useSignIn } from "./useSignIn";
+import { useSignIn } from "./signInContext";
 
 /// Sign-in on `/app`. A new sign-in stays here (the server refresh then shows Overview) or follows
 /// a validated `next`. `autoStart` reopens the modal after "Switch account".

@@ -22,7 +22,10 @@ describe("checkRateLimit / incrementWindowCounter", () => {
   it("allows requests under the limit", async () => {
     incr.mockResolvedValueOnce(1);
     const result = await checkRateLimit("key", 5, 60);
-    expect(result).toEqual({ allowed: true, remaining: 4, count: 1 });
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(4);
+    expect(result.count).toBe(1);
+    expect(result.reset).toBeGreaterThan(Math.floor(Date.now() / 1000));
     expect(expire).toHaveBeenCalledTimes(1);
   });
 

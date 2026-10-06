@@ -4,12 +4,12 @@
 /// address from the verified session, never from a parameter; the logic and its access rules
 /// live in `src/obligations/service.ts` and `src/obligations/certificates.ts`.
 
-import { getSession } from "../../../src/session/getSession";
-import * as service from "../../../src/obligations/service";
-import type { CreateProposalInput, Result } from "../../../src/obligations/service";
-import { certificateService } from "../../../src/obligations/certificateDefaults";
+import { getSession } from "@/src/session/getSession";
+import * as service from "@/src/obligations/service";
+import type { CreateProposalInput, Result } from "@/src/obligations/service";
+import { certificateService } from "@/src/obligations/certificateDefaults";
 import { after } from "next/server";
-import { runWebhookPipelineQuietly } from "../../../src/api/webhookRunner";
+import { runWebhookPipelineQuietly } from "@/src/api/webhookRunner";
 
 /// Anything these actions change (or sync from the ledger) reaches API tenants' webhooks once the
 /// response is sent.

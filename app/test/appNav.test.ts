@@ -18,6 +18,7 @@ describe("app navigation", () => {
     expect(active("/app/balance")).toEqual(["Balance"]);
     expect(active("/app/verify")).toEqual(["Verify"]);
     expect(active("/app/demo")).toEqual(["Demo"]);
+    expect(active("/app/api-keys")).toEqual(["API keys"]);
   });
   it("doesn't treat a look-alike prefix as a match", () => {
     expect(active("/app/attestation")).toEqual([]);

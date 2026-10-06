@@ -1,4 +1,4 @@
-import { listPartyObligations } from "../../../../../../src/api/handlers";
-import { route } from "../../../../../../src/api/http";
+import { listPartyObligations } from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const GET = route(listPartyObligations);
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({ GET: listPartyObligations });

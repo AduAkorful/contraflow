@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { displayDate, displayMinorAmount } from "../../../components/netting/format";
-import type { CertificateSummary } from "../../../src/obligations/certificates";
-import { loopBannerTarget } from "../../../src/obligations/loopBanner";
+import { displayDate, displayMinorAmount } from "@/components/netting/format";
+import type { CertificateSummary } from "@/src/obligations/certificates";
+import { loopBannerTarget } from "@/src/obligations/loopBanner";
 import { findNettingLoop } from "./actions";
 
 const STATUS_TEXT: Record<CertificateSummary["status"], string> = {

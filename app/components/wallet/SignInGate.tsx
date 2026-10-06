@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "./ConnectButton";
-import { useSignIn } from "./useSignIn";
+import { useSignIn } from "./signInContext";
 
 /// The one signed-out card for `/app/...` pages. Signs in in place, then the server refresh shows
 /// the page. Share-link pages use the same control and never navigate away.

@@ -1,7 +1,12 @@
-import { MarketingPage } from "../../components/marketing/MarketingPage";
-import { LegalDoc } from "../../components/marketing/LegalDoc";
+import { MarketingPage } from "@/components/marketing/MarketingPage";
+import { LegalDoc } from "@/components/marketing/LegalDoc";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Terms of Service" };
+export const metadata = pageMeta(
+  "/terms",
+  "Terms of Service",
+  "What Contraflow does, what a settlement or certificate is, and what it does not do.",
+);
 
 const SECTIONS = [
   {

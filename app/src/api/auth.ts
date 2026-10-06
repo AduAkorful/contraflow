@@ -51,11 +51,19 @@ export interface IdempotencyContext {
   leaseToken: string;
 }
 
+export interface TenantInfo {
+  name: string;
+  status: "active" | "suspended";
+  webhookConfigured: boolean;
+}
+
 export interface TenantStore {
   findKey(hash: string): Promise<StoredKey | null>;
+  getTenant(tenantId: Hex): Promise<TenantInfo | null>;
   /// False when a permission with the same tenant, chain, party and nonce already exists.
   savePermission(permission: NewPermission, idempotency?: IdempotencyContext): Promise<boolean>;
   permissionsFor(tenantId: Hex, chainId: number, party: Address): Promise<StoredPermission[]>;
+  listPermissions(tenantId: Hex, chainId: number, party?: Address): Promise<StoredPermission[]>;
   /// False when there's no such unrevoked permission for this tenant.
   revokePermission(tenantId: Hex, permissionId: string): Promise<boolean>;
 }
@@ -72,7 +80,7 @@ function chainDeployed(chainId: number): boolean {
 }
 
 export async function authenticate(authorization: string | null, store: TenantStore): Promise<ApiCaller> {
-  const match = /^Bearer (\S+)$/.exec(authorization ?? "");
+  const match = /^Bearer\s+(\S+)$/i.exec(authorization ?? "");
   if (!match) throw UNAUTHORIZED;
   const key = match[1]!;
   const mode = keyMode(key);

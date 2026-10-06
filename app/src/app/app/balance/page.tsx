@@ -1,11 +1,16 @@
 import { notFound } from "next/navigation";
-import { SignInGate } from "../../../components/wallet/SignInGate";
-import { getSession } from "../../../src/session/getSession";
-import { ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
-import { unifiedBalanceEnabled } from "../../../src/kits/gatewayChains";
+import { SignInGate } from "@/components/wallet/SignInGate";
+import { getSession } from "@/src/session/getSession";
+import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { unifiedBalanceEnabled } from "@/src/kits/gatewayChains";
 import { BalanceClient } from "./BalanceClient";
+import { pageMeta } from "@/src/site/pageMeta";
 
-export const metadata = { title: "Bring USDC from another chain" };
+export const metadata = pageMeta(
+  "/app/balance",
+  "Bring USDC from another chain",
+  "Move USDC from another chain to your own Arc address. Contraflow never holds the funds.",
+);
 
 
 /// The server only decides who's signed in. Balances, deposits and moves all run in the browser,

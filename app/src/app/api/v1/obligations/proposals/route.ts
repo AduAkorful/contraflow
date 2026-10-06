@@ -1,7 +1,9 @@
 import {
   createObligationProposal,
   recoverCreateObligationProposal,
-} from "../../../../../src/api/handlers";
-import { route } from "../../../../../src/api/http";
+} from "@/src/api/handlers";
+import { apiMethods } from "@/src/api/http";
 
-export const POST = route(createObligationProposal, { recoverFromEffect: recoverCreateObligationProposal });
+export const { GET, POST, PUT, PATCH, DELETE, OPTIONS } = apiMethods({
+  POST: { handler: createObligationProposal, options: { recoverFromEffect: recoverCreateObligationProposal } },
+});

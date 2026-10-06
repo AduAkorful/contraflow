@@ -21,6 +21,7 @@ export function appNavItems(options: { balance: boolean; docs?: { href: string; 
     ...(options.balance ? [{ label: "Balance", href: "/app/balance" }] : []),
     { label: "Verify", href: "/app/verify" },
     { label: "Demo", href: "/app/demo" },
+    { label: "API keys", href: "/app/api-keys" },
     { label: "Docs", href: docs.href, external: docs.external },
   ];
 }

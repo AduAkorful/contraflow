@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
-import { estimateMoveToArc, getForwarderStatus, moveToArc, retryMoveMint } from "../../../src/kits/browserAdapter";
+import { estimateMoveToArc, getForwarderStatus, moveToArc, retryMoveMint } from "@/src/kits/browserAdapter";
 import {
   checkUsdcAmount,
   feeLabel,
@@ -12,10 +12,10 @@ import {
   usdcFeeTotal,
   type FeeLine,
   type GatewayBalanceView,
-} from "../../../src/kits/gatewayBalance";
-import { explorerTxLink, gatewayArcChain, type GatewayChain } from "../../../src/kits/gatewayChains";
+} from "@/src/kits/gatewayBalance";
+import { explorerTxLink, gatewayArcChain, type GatewayChain } from "@/src/kits/gatewayChains";
 import { walletErrorMessage, type WalletState } from "./wallet";
-import { prepareWalletContext } from "../../../src/attest/walletContext";
+import { prepareWalletContext } from "@/src/attest/walletContext";
 import {
   clearPendingGatewayMove,
   GATEWAY_RECOVERY_EVENT,
@@ -24,7 +24,7 @@ import {
   readPendingGatewayDeposit,
   savePendingGatewayMove,
   type PendingGatewayMove,
-} from "../../../src/kits/gatewayRecovery";
+} from "@/src/kits/gatewayRecovery";
 
 type Ready = Extract<WalletState, { status: "ready" }>;
 

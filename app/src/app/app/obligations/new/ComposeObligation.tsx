@@ -5,29 +5,29 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
 import { useWallets } from "@privy-io/react-auth";
 import { useSetActiveWallet } from "@privy-io/wagmi";
-import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
-import { useSignIn } from "../../../../components/wallet/useSignIn";
-import { earlyNettingHelper, obligationSigningConfirmation } from "../../../../src/format/signing";
-import { signingInLabel } from "../../../../src/session/signInCopy";
-import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
-import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
-import { ComposerFrame } from "../../../../components/ui/ComposerFrame";
-import { Field, inputClass } from "../../../../components/ui/Field";
-import { Segmented } from "../../../../components/ui/Segmented";
-import { shortAddr } from "../../../../components/netting/format";
-import { randomBlinding } from "../../../../src/netting/commitment";
-import { formatAmount, isIsoCurrency, parseAmount } from "../../../../src/netting/currency";
-import { appLedgerDomain } from "../../../../src/netting/domain";
+import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
+import { useSignIn } from "@/components/wallet/useSignIn";
+import { earlyNettingHelper, obligationSigningConfirmation } from "@/src/format/signing";
+import { signingInLabel } from "@/src/session/signInCopy";
+import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
+import { ObligationTerms } from "@/components/netting/ObligationTerms";
+import { ComposerFrame } from "@/components/ui/ComposerFrame";
+import { Field, inputClass } from "@/components/ui/Field";
+import { Segmented } from "@/components/ui/Segmented";
+import { shortAddr } from "@/components/netting/format";
+import { randomBlinding } from "@/src/netting/commitment";
+import { formatAmount, isIsoCurrency, parseAmount } from "@/src/netting/currency";
+import { appLedgerDomain } from "@/src/netting/domain";
 import {
   obligationDocumentProblem,
   obligationFromDocument,
   OBLIGATION_DOCUMENT_FORMAT,
   type CanonicalObligationDocument,
-} from "../../../../src/netting/document";
-import { obligationTypedData } from "../../../../src/netting/obligation";
-import { prepareWalletContext } from "../../../../src/attest/walletContext";
-import { serializeObligation } from "../../../../src/netting/serialize";
-import type { NettingObligation } from "../../../../src/netting/types";
+} from "@/src/netting/document";
+import { obligationTypedData } from "@/src/netting/obligation";
+import { prepareWalletContext } from "@/src/attest/walletContext";
+import { serializeObligation } from "@/src/netting/serialize";
+import type { NettingObligation } from "@/src/netting/types";
 import { createProposal } from "../actions";
 
 type Phase = "compose" | "review" | "signing" | "done";
