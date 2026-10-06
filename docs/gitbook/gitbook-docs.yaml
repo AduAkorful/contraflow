@@ -5,7 +5,7 @@ site:
     - type: space
       key: contraflow-docs
       title: Contraflow
-      path: /
+      path: undefined
       default: true
       content:
         directory: ./
