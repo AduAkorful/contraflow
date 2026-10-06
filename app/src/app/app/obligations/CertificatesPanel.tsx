@@ -121,7 +121,11 @@ export function CertificatesPanel({ certificates }: { certificates: CertificateS
                 <div className="flex items-center gap-3 text-xs">
                   <span
                     className={`rounded-pill border px-3 py-1 ${
-                      c.status === "applied" || c.status === "ready" ? "border-gold/30 bg-gold/10 text-gold" : "border-white/15 text-muted"
+                      c.status === "applied"
+                        ? "border-cleared/40 bg-cleared/10 text-cleared"
+                        : c.status === "ready"
+                          ? "border-gold/30 bg-gold/10 text-gold"
+                          : "border-white/15 text-muted"
                     }`}
                   >
                     {STATUS_TEXT[c.status]}

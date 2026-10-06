@@ -21,7 +21,7 @@ function contrast(a: string, b: string): number {
 }
 
 describe("design tokens", () => {
-  it.each(["foreground", "muted", "faint", "gold", "success", "danger"])("%s text is AA on every surface", (name) => {
+  it.each(["foreground", "muted", "faint", "gold", "success", "cleared", "danger"])("%s text is AA on every surface", (name) => {
     for (const surface of ["bg", "surface-1", "surface-2"]) {
       expect(contrast(token(name), token(surface))).toBeGreaterThanOrEqual(4.5);
     }

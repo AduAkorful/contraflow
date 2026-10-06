@@ -18,8 +18,10 @@ import { verifyCertificateView, type VerificationResult } from "@/src/netting/ve
 import type { CertificateView } from "@/src/netting/types";
 import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { createArcPublicClient } from "@/src/chain/client";
+import sampleCertificate from "./sample-certificate.json";
 
 const publicClient = createArcPublicClient(APP_CHAIN_ID);
+const sampleJson = JSON.stringify(sampleCertificate, null, 2);
 
 export function VerifyCertificate() {
   const [text, setText] = useState("");
@@ -30,12 +32,15 @@ export function VerifyCertificate() {
   const [checking, setChecking] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [sample, setSample] = useState(false);
 
   async function verify(json: string) {
     setResult(null);
     setView(null);
     setSummary(null);
     setError(null);
+    const isSample = json.trim() === sampleJson.trim();
+    setSample(isSample);
     let parsed;
     try {
       parsed = parseCertificateView(json);
@@ -47,8 +52,8 @@ export function VerifyCertificate() {
     try {
       const outcome = await verifyCertificateView(parsed, {
         now: BigInt(Math.floor(Date.now() / 1000)),
-        stage: "applied",
-        client: publicClient as unknown as ChainReader | undefined,
+        stage: isSample ? "signed" : "applied",
+        client: isSample ? undefined : (publicClient as unknown as ChainReader | undefined),
       });
       setView(parsed);
       setResult(outcome);
@@ -114,14 +119,30 @@ export function VerifyCertificate() {
         rows={6}
         className="w-full rounded-lg border border-white/10 bg-white/[0.02] p-3 font-mono text-xs"
       />
+      <button
+        type="button"
+        onClick={() => {
+          setText(sampleJson);
+          void verify(sampleJson);
+        }}
+        className="self-start text-sm text-gold underline-offset-4 hover:underline"
+      >
+        Try a sample certificate
+      </button>
+      <p className="text-xs text-muted">A made-up certificate. It is not a settlement on Arc.</p>
 
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
 
       {result && view && (
         <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-          <p className="text-sm">
+          {sample && (
+            <p className="text-sm text-muted">This is a sample. It is not a settlement on Arc.</p>
+          )}
+          <p className={`text-sm${sample ? " mt-1" : ""}`}>
             {result.ok
-              ? verificationPassedHeadline(fullCount, totalCount)
+              ? sample
+                ? "The sample's signatures and hashes check out."
+                : verificationPassedHeadline(fullCount, totalCount)
               : `${failed} of ${result.checks.length} checks did not pass.`}
           </p>
           {summary && <p className="mt-1 text-xs text-muted">{summary}</p>}

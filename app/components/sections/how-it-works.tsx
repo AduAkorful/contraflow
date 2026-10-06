@@ -48,7 +48,9 @@ export function HowItWorks() {
               <p className="text-sm font-semibold">{step.frame.heading}</p>
               <ul className="mt-3 space-y-1.5 text-sm text-muted">
                 {step.frame.lines.map((line) => (
-                  <li key={line}>{line}</li>
+                  <li key={line} className={line === "Fully netted" ? "text-cleared" : undefined}>
+                    {line}
+                  </li>
                 ))}
               </ul>
               <figcaption className="mt-3 text-[13px] text-muted">Illustration of the app.</figcaption>

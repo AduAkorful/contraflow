@@ -226,7 +226,8 @@ describe("apply transaction", () => {
   it("returns calldata for applyCertificate with every signature once the certificate is ready", async () => {
     const { d, me, view } = await withCertificate(true);
     const res = await handlers.applyTransaction(caller, req({ params: { token: "c" }, query: new URLSearchParams({ party: me }) }), d);
-    const body = res.body as { to: string; data: Hex; value: string };
+    const body = res.body as { to: string; data: Hex; value: string; chainId: number };
+    expect(body.chainId).toBe(TESTNET);
     expect(body.to).toBe(domain.verifyingContract);
     expect(body.value).toBe("0");
     const decoded = decodeFunctionData({ abi: contraflowNettingLedgerAbi, data: body.data });
@@ -298,7 +299,7 @@ describe("tenant and webhook helpers", () => {
     const { d } = deps();
     expect(await handlers.getTenant(caller, req(), d)).toMatchObject({
       status: 200,
-      body: { tenantId: TENANT, name: "test", mode: "test", chainId: String(TESTNET), webhookConfigured: false },
+      body: { tenantId: TENANT, name: "test", mode: "test", chainId: TESTNET, webhookConfigured: false },
     });
   });
 
@@ -330,9 +331,19 @@ describe("obligation list pagination", () => {
   it("returns nextCursor when more items remain", async () => {
     const { d, store, obligations, certificates } = deps();
     await grant(store, SCOPE.read);
+    const proposal = {
+      token: "a",
+      waitingOn: "them" as const,
+      youOwe: true,
+      counterparty: party,
+      currency: "USD",
+      amount: "100.00",
+      description: "Retainer",
+      expiresAt: "2026-10-26T13:29:01.000Z",
+    };
     obligations.listMine.mockResolvedValue({
       ok: true as const,
-      proposals: [{ token: "a" }, { token: "b" }],
+      proposals: [proposal, { ...proposal, token: "b" }],
       obligations: [],
     });
     certificates.listCertificates.mockResolvedValue({ ok: true as const, certificates: [] });
@@ -342,8 +353,20 @@ describe("obligation list pagination", () => {
       d,
     );
     expect(res.status).toBe(200);
-    const body = res.body as { proposals: { token: string }[]; nextCursor: string | null };
-    expect(body.proposals).toEqual([{ token: "a" }]);
+    const body = res.body as { proposals: { token: string; amountMinor: string; amountDisplay: string; expiresAt: string }[]; nextCursor: string | null };
+    expect(body.proposals).toEqual([
+      {
+        token: "a",
+        waitingOn: "them",
+        youOwe: true,
+        counterparty: party,
+        currency: "USD",
+        amountMinor: "10000",
+        amountDisplay: "100.00",
+        description: "Retainer",
+        expiresAt: "1793021341",
+      },
+    ]);
     expect(typeof body.nextCursor).toBe("string");
   });
 });

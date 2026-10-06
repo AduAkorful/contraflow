@@ -5,6 +5,7 @@
 /// A Redis lock keeps two runs from overlapping.
 
 import type { Address, Hex } from "viem";
+import { apiChainId } from "./wire";
 import {
   eventTypeFor,
   RETRY_WINDOW_SECONDS,
@@ -82,7 +83,7 @@ export async function fanOutChanges(store: WebhookStore, now: Date): Promise<num
         change.kind === "obligation"
           ? { obligationId: change.refId, parties: reader.parties }
           : { certificateId: change.refId, token: context?.token, status: change.status, parties: reader.parties };
-      const body = JSON.stringify({ id: eventId, type, created: Math.floor(now.getTime() / 1000), chainId: change.chainId, data });
+      const body = JSON.stringify({ id: eventId, type, created: Math.floor(now.getTime() / 1000), chainId: apiChainId(change.chainId), data });
       await store.insertEvent({ eventId, tenantId: reader.tenantId, type: type!, body });
       created++;
     }

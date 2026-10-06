@@ -1,0 +1,107 @@
+{
+  "format": "contraflow-netting-certificate/1",
+  "domain": {
+    "chainId": "5042002",
+    "verifyingContract": "0x2f5996aae68cbc8026543c405cc81c26d58c2ef7"
+  },
+  "currency": "USD",
+  "wNet": "8000",
+  "certificate": {
+    "certificateId": "0x3fedc3793137159366cdd86530c4d8b4abb1f13091a7942178810facbb7c5a7a",
+    "contentHash": "0x3bd73457abb3e27dc0e680435795b56c80354d7b708e463b28c9f4056d04cd13",
+    "deadline": "4000000000",
+    "entries": [
+      {
+        "obligationId": "0x139e85032147e7f496df90cf7a201bbdd714bd6f8b416082a78a8472dd2ca52c",
+        "debtor": "0xa811387685ebc92e212d8d92c2cb1b04345d4445",
+        "creditor": "0x7826c94d750ddea56a68d535e8717398504b91e8",
+        "priorCommitment": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nextCommitment": "0xf9d1dde90ba2a06ec14922036340d51febd02540d8b01d0466f61dc8e176320a"
+      },
+      {
+        "obligationId": "0xd574e9c2885bd10cb9377cbfe8f1351af00ab1f5f96246fd567dcbd3f73894b1",
+        "debtor": "0x7826c94d750ddea56a68d535e8717398504b91e8",
+        "creditor": "0xb464bf2cb4b6903af85f846c05af7c6bd56ff100",
+        "priorCommitment": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nextCommitment": "0xfe3e3dfc38fd68d9526a3a9c14bd867a6b30086cec2af03ca2c5a9867a19de85"
+      },
+      {
+        "obligationId": "0xa8b3c419e9dbe6f3e627df8618e212687a86665d5bc1b353762a9861f3e872cd",
+        "debtor": "0xb464bf2cb4b6903af85f846c05af7c6bd56ff100",
+        "creditor": "0xa811387685ebc92e212d8d92c2cb1b04345d4445",
+        "priorCommitment": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nextCommitment": "0xcb370103f0b54ee1713ac680616ec2791c3e4341e75dcf6e92758dc4fa69276b"
+      }
+    ]
+  },
+  "signatures": [
+    "0x008cdafd12e5c48afb227620f3a47fdbd8187c1722b5fb76a80b0698eb0c6e3c5638e5217481e1b48d8928b48bac5d3f2e7e3f057acbf753b3b506f9e8be08641b",
+    "0xeebef72d146990d5572988794b0a38d601ae81233987550ddd50ac599f8a037a1504b7b8b3477c4221df9ac457b4241e09e7afbca78dc5cdd1d63bfb1b8b8af91b",
+    "0x396517c180c2c57102abe8363d917b316742651055c5613740dd44955a24cf697f7afd970f3a10e09bf2feab71a447e9d744c34694881257bae3fb7ea5ce9e8f1b"
+  ],
+  "entries": [
+    {
+      "kind": "full",
+      "document": {
+        "obligation": {
+          "documentHash": "0x6de5b4281cf4522e3c9351e88fa91dd7fae435c953a05cb977cd0f59dc410ec0",
+          "debtor": "0xa811387685ebc92e212d8d92c2cb1b04345d4445",
+          "creditor": "0x7826c94d750ddea56a68d535e8717398504b91e8",
+          "currency": "USD",
+          "amount": "10000",
+          "maturity": "4000000000",
+          "earlyNetConsent": true,
+          "salt": "0xf1e553c94304684ad1419b2295af77f9c291539abe06a4bba8f59a96f307077a"
+        },
+        "debtorSignature": "0x7536413eb066bb471e7e4ecdc61be9a573ad4fe495b5567725d950711792d876187a0f8ab215587b5157dbc43bcc28d955509bc30682a2b3a0730ebcfb0580891c",
+        "creditorSignature": "0x23da32f45fccdc1f06901f383a223e3ec423785b06e7403b893ebe91645b25b83dfe00196f1e759b4453062adc885449e918e262ce7457d3fcc845c444a52c631b",
+        "remainingBefore": "10000",
+        "blindingBefore": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "remainingAfter": "2000",
+        "blindingAfter": "0x6bf6ae8994d9dc1c1b089b00fecc7731eb5e55c1b026c69318aa1112d9fa65b7"
+      }
+    },
+    {
+      "kind": "full",
+      "document": {
+        "obligation": {
+          "documentHash": "0x61f4582913eadfb6bd4a0319588f340db981674826b8da5a0b82a7586621d1d3",
+          "debtor": "0x7826c94d750ddea56a68d535e8717398504b91e8",
+          "creditor": "0xb464bf2cb4b6903af85f846c05af7c6bd56ff100",
+          "currency": "USD",
+          "amount": "12500",
+          "maturity": "4000000000",
+          "earlyNetConsent": true,
+          "salt": "0xaaf3b2aa0f62786a73d3fbd2d10cc15c09967789c8b66bd79a97ddce2d142068"
+        },
+        "debtorSignature": "0x6bcc66bf7539db7dbb053e5ac1aba6843228598e4edaa7a424ac700e982240753595d9d5e25d8fd705dc26dfb43187c13cb4d13f7c376706ee3900139c35f50f1b",
+        "creditorSignature": "0x1c9c170fc5496ca77386ece6e3299de2f7f67fb7bf5f2ed6a198b35750a203914418496006c9bf739d2d37b8fe356fced5c6387ae69c1290ff0f7c6e3a12690c1b",
+        "remainingBefore": "12500",
+        "blindingBefore": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "remainingAfter": "4500",
+        "blindingAfter": "0xb25f780c0477e269a38659efe69b6334341a71343cedb050bee84bae57d71bf4"
+      }
+    },
+    {
+      "kind": "full",
+      "document": {
+        "obligation": {
+          "documentHash": "0x1f4eb79cc6ea0d5726389614735b32509de14a70fd2823aa9dfc7ee14fb508a6",
+          "debtor": "0xb464bf2cb4b6903af85f846c05af7c6bd56ff100",
+          "creditor": "0xa811387685ebc92e212d8d92c2cb1b04345d4445",
+          "currency": "USD",
+          "amount": "8000",
+          "maturity": "4000000000",
+          "earlyNetConsent": true,
+          "salt": "0x513f75e75c17727c1e3ffa323dd58270abf14b355e3f3d9db61f2d897ceeb263"
+        },
+        "debtorSignature": "0xfcbc8b8eca7b1e2b501103a150b48315969811c4ed057063d77b9f36ba23814f07b39a6ff632a4333c2dc85686078300a1470936c2a9e8a2b45defb729105bf71c",
+        "creditorSignature": "0x9eb32f00419cf65e57946e1814d8941a6c7945f0dfe8c5dac0f0b61ec065d1934e61689afda684026ed4cd6e887140a4803febd901d4e1ea334b0fdde15bbbf61b",
+        "remainingBefore": "8000",
+        "blindingBefore": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "remainingAfter": "0",
+        "blindingAfter": "0xbfdbac8a17baf8790105161846e6def00f2a809563a6de8d13a2070dd68f6d79"
+      }
+    }
+  ]
+}

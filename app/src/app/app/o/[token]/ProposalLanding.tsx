@@ -172,10 +172,8 @@ export function ProposalLanding({ token }: { token: string }) {
   if (phase === "signin") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
-        <h1 className="heading-1">An obligation is waiting for you</h1>
-        <p className="mt-4 text-sm text-muted">
-          Sign in with the account this was sent to. Its terms are shown only to the two parties named on it.
-        </p>
+        <h1 className="heading-1">Sign in</h1>
+        <p className="mt-4 text-sm text-muted">This link is for a specific account.</p>
         <div className="mt-6">
           <ConnectButton />
         </div>

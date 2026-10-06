@@ -79,7 +79,11 @@ function TxLink({ inv }: { inv: HistoryInvoiceView }) {
 function StatusBadge({ inv, inLoop }: { inv: HistoryInvoiceView; inLoop: boolean }) {
   const { label, receiptHref } = rowStatus(inv, inLoop);
   return (
-    <span className="rounded-md border border-border-input px-2 py-0.5 text-xs text-muted">
+    <span
+      className={`rounded-md border px-2 py-0.5 text-xs ${
+        label === "Fully netted" ? "border-cleared/40 text-cleared" : "border-border-input text-muted"
+      }`}
+    >
       {label}
       {!inv.earlyNetConsent ? ` · ${earlyNettingReview(inv.maturity, false)}` : ""}
       {label.startsWith("Partly netted") && receiptHref ? (

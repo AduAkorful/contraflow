@@ -17,6 +17,7 @@ import type * as obligationService from "../obligations/service";
 import { ApiError, requirePartyScope, type ApiCaller, type IdempotencyContext, type TenantStore } from "./auth";
 import { permissionTypedData, parsePermissionGrant, validatePermission } from "./permissions";
 import { paginatePartyLists, parsePageCursor, parsePageLimit } from "./pagination";
+import { amountFieldsFromMajor, amountFieldsFromMinor, apiChainId, unixSeconds } from "./wire";
 
 export interface ApiDeps {
   store: TenantStore;
@@ -161,7 +162,7 @@ export async function getTenant(caller: ApiCaller, _req: ApiRequest, deps: ApiDe
       name: tenant.name,
       status: tenant.status,
       mode: caller.mode,
-      chainId: String(caller.chainId),
+      chainId: apiChainId(caller.chainId),
       webhookConfigured: tenant.webhookConfigured,
     },
   };
@@ -179,7 +180,19 @@ function proposalWithPayload(proposal: obligationService.ProposalView) {
   const domain: LedgerDomain = { chainId: BigInt(proposal.domain.chainId), verifyingContract: proposal.domain.verifyingContract };
   const obligation = parseObligationJson(proposal.obligation);
   const envelope = typedDataResponse(obligationTypedData(obligation, domain));
-  return { ...proposal, typedData: envelope.typedData, digest: envelope.digest };
+  return {
+    ...proposal,
+    domain: { ...proposal.domain, chainId: apiChainId(proposal.domain.chainId) },
+    expiresAt: unixSeconds(proposal.expiresAt),
+    typedData: envelope.typedData,
+    digest: envelope.digest,
+  };
+}
+
+function certificateSummaryWire<T extends { currency: string; wNet: string; deadline: string }>(certificate: T) {
+  const { wNet, deadline, ...rest } = certificate;
+  const net = amountFieldsFromMinor(wNet, certificate.currency);
+  return { ...rest, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay, deadline: unixSeconds(deadline) };
 }
 
 /// If a create already stored the proposal, return that 201 instead of re-inserting.
@@ -202,9 +215,19 @@ export async function recoverFindLoop(caller: ApiCaller, req: ApiRequest, deps: 
   const { certificates } = unwrap(await deps.certificates.listCertificates(party));
   const open = certificates.find((c) => c.status === "collecting" || c.status === "ready");
   if (!open) return null;
+  const net = amountFieldsFromMinor(open.wNet, open.currency);
   return {
     status: 200,
-    body: { outcome: { found: true, token: open.token, currency: open.currency, wNet: open.wNet, parties: open.parties } },
+    body: {
+      outcome: {
+        found: true,
+        token: open.token,
+        currency: open.currency,
+        wNetMinor: net.amountMinor,
+        wNetDisplay: net.amountDisplay,
+        parties: open.parties,
+      },
+    },
   };
 }
 
@@ -268,9 +291,17 @@ export async function listPartyObligations(caller: ApiCaller, req: ApiRequest, d
   return {
     status: 200,
     body: {
-      proposals: page.proposals,
-      obligations: page.obligations,
-      certificates: page.certificates,
+      proposals: page.proposals.map((proposal) => {
+        const { amount, expiresAt, ...rest } = proposal;
+        return { ...rest, ...amountFieldsFromMajor(amount, proposal.currency), expiresAt: unixSeconds(expiresAt) };
+      }),
+      obligations: page.obligations.map((obligation) => {
+        const { amount, remaining, ...rest } = obligation;
+        const face = amountFieldsFromMinor(amount, obligation.currency);
+        const left = amountFieldsFromMinor(remaining, obligation.currency);
+        return { ...rest, ...face, remainingMinor: left.amountMinor, remainingDisplay: left.amountDisplay };
+      }),
+      certificates: page.certificates.map((certificate) => certificateSummaryWire(certificate)),
       nextCursor: page.nextCursor,
     },
   };
@@ -278,8 +309,11 @@ export async function listPartyObligations(caller: ApiCaller, req: ApiRequest, d
 
 export async function findLoop(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const party = await actingParty(caller, req.params.address, "propose", deps);
-  const result = unwrap(await deps.certificates.findAndProposeLoop(party));
-  return { status: 200, body: result };
+  const { outcome } = unwrap(await deps.certificates.findAndProposeLoop(party));
+  if (!outcome.found) return { status: 200, body: { outcome } };
+  const { wNet, ...rest } = outcome;
+  const net = amountFieldsFromMinor(wNet, outcome.currency);
+  return { status: 200, body: { outcome: { ...rest, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay } } };
 }
 
 // Certificates
@@ -293,10 +327,11 @@ export async function getCertificate(caller: ApiCaller, req: ApiRequest, deps: A
   const party = await actingParty(caller, req.query.get("party"), "read", deps);
   const { certificate, view } = await certificateFor(party, req.params.token, deps);
   const envelope = typedDataResponse(certificateTypedData(view.certificate, view.domain));
+  const { view: storedView, ...summary } = certificate;
   return {
     status: 200,
     body: {
-      certificate: { ...certificate, view: JSON.parse(certificate.view) },
+      certificate: { ...certificateSummaryWire(summary), view: JSON.parse(storedView) },
       typedData: envelope.typedData,
       digest: envelope.digest,
     },
@@ -320,7 +355,7 @@ export async function applyTransaction(caller: ApiCaller, req: ApiRequest, deps:
   return {
     status: 200,
     body: {
-      chainId: view.domain.chainId,
+      chainId: apiChainId(view.domain.chainId),
       to: view.domain.verifyingContract,
       value: "0",
       data: encodeFunctionData({

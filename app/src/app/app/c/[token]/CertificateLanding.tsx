@@ -202,10 +202,8 @@ export function CertificateLanding({ token }: { token: string }) {
   if (phase === "signin") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
-        <h1 className="heading-1">A netting certificate</h1>
-        <p className="mt-4 text-sm text-muted">
-          Sign in with your email or wallet. A certificate is only shown to the parties in its loop.
-        </p>
+        <h1 className="heading-1">Sign in</h1>
+        <p className="mt-4 text-sm text-muted">This link is for a specific account.</p>
         <div className="mt-6">
           <ConnectButton />
         </div>
@@ -249,7 +247,7 @@ export function CertificateLanding({ token }: { token: string }) {
   return (
     <SessionBound loadedFor={me}>
     <>
-      <h1 className="heading-1">{heading}</h1>
+      <h1 className={`heading-1${status === "applied" ? " text-cleared" : ""}`}>{heading}</h1>
       {ledgerSyncing && (
         <p className="mt-3 text-sm text-muted">Applied on the ledger. Updating your records…</p>
       )}

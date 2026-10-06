@@ -23,6 +23,7 @@
   --color-gold-dark: #ecb500;
   --color-focus: #ffd24d;
   --color-success: #4cc38a;
+  --color-cleared: #2dd4bf;
   --color-danger: #f2707a;
 
   /* App type floor is 13px. text-xs is remapped so existing classes stay above 12px. */

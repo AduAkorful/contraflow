@@ -107,7 +107,8 @@ describe("fanOutChanges", () => {
     });
     expect(await fanOutChanges(store, NOW)).toBe(2);
     const one = JSON.parse(events.get(eventIdFor("7", TENANT_1))!.body);
-    expect(one).toMatchObject({ type: "certificate.ready", data: { certificateId: "0xcert", token: "tok", status: "ready", parties: [A] } });
+    expect(one).toMatchObject({ type: "certificate.ready", chainId: 5042002, data: { certificateId: "0xcert", token: "tok", status: "ready", parties: [A] } });
+    expect(typeof one.chainId).toBe("number");
     expect(JSON.parse(events.get(eventIdFor("7", TENANT_2))!.body).data.parties).toEqual([A, B]);
     expect(completed).toEqual(["7"]);
   });

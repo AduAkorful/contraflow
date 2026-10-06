@@ -4,11 +4,14 @@ The machine contract is the OpenAPI 3.1 document the app serves at `/api/v1/open
 to use it. For the overview, see [API](../api/README.md).
 
 - **Base path:** `/api/v1`
-- **Format:** JSON in, JSON out. Every integer in a JSON body is a decimal string (amounts, timestamps, chain
-  IDs), because values can exceed what JSON numbers hold exactly. Scopes are a small integer. In EIP-712
-  typed-data responses, `domain.chainId` is a JSON number.
-- **Amounts:** the signed obligation's `amount` is an ISO 4217 minor-unit integer string (`"10000"` is 100.00 USD).
-  The human-readable document's `amount` is major units (`"100.00"`).
+- **Format:** JSON in, JSON out. List and summary amounts are `amountMinor` (a minor-unit integer string) and
+  `amountDisplay` (major units). Timestamps on those responses are unix-second strings. `chainId` is a JSON
+  number on the tenant, an apply transaction, a webhook event, and a proposal's domain. Scopes are a small
+  integer. Signed documents, EIP-712 fields, and certificate files keep their own names, and the integers in
+  those payloads stay decimal strings. In EIP-712 typed-data responses, `domain.chainId` is a JSON number.
+- **Amounts:** a list response's `amountMinor` of `"10000"` and `amountDisplay` of `"100.00"` are the same 100.00
+  USD. The signed obligation's `amount` stays the minor-unit integer string. The human-readable document's
+  `amount` stays major units.
 - **Scope:** offchain obligations only. There is no invoice or settlement API.
 
 ```mermaid
@@ -122,7 +125,7 @@ Every error has the same shape:
 
 ### GET `/tenant`
 
-**200:** `{ "tenantId", "name", "status", "mode", "chainId", "webhookConfigured" }`. `chainId` is a decimal string.
+**200:** `{ "tenantId", "name", "status", "mode", "chainId", "webhookConfigured" }`. `chainId` is a JSON number.
 No party permission required.
 
 ## Permissions
@@ -292,11 +295,11 @@ Known hashes (debtor `0xe05fcc23807536bee418f142d19fa0d21bb0cff7`, creditor
     "state": "open",
     "viewerRole": "proposer",
     "proposerRole": "debtor",
-    "domain": { "chainId": "5042002", "verifyingContract": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7" },
+    "domain": { "chainId": 5042002, "verifyingContract": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7" },
     "obligation": { "…": "as submitted" },
     "document": { "…": "as submitted" },
     "proposerSignature": "0x…",
-    "expiresAt": "2026-10-26T13:29:01.000Z",
+    "expiresAt": "1793021341",
     "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042002, "verifyingContract": "0x2F59…2ef7" }, "types": { "NettingObligation": ["…"] }, "primaryType": "NettingObligation", "message": { "…": "…" } },
     "digest": "0x…"
   }
@@ -337,13 +340,13 @@ Scope: `read`. It brings any certificate the ledger has applied up to date first
 ```json
 {
   "proposals": [
-    { "token": "…", "waitingOn": "them", "youOwe": true, "counterparty": "0x…", "currency": "USD", "amount": "100.00", "description": "…", "expiresAt": "…" }
+    { "token": "…", "waitingOn": "them", "youOwe": true, "counterparty": "0x…", "currency": "USD", "amountMinor": "10000", "amountDisplay": "100.00", "description": "…", "expiresAt": "1793021341" }
   ],
   "obligations": [
-    { "obligationId": "0x…", "youOwe": false, "counterparty": "0x…", "currency": "USD", "amount": "10000", "remaining": "0", "maturity": "1798675200", "description": "…", "status": "active" }
+    { "obligationId": "0x…", "youOwe": false, "counterparty": "0x…", "currency": "USD", "amountMinor": "10000", "amountDisplay": "100.00", "remainingMinor": "0", "remainingDisplay": "0.00", "maturity": "1798675200", "description": "…", "status": "active" }
   ],
   "certificates": [
-    { "token": "zWa9t3gHKtmQZY3uiBvJQg", "status": "applied", "currency": "USD", "wNet": "10000", "deadline": "…", "parties": 3, "signedCount": 3, "youSigned": true, "appliedTxHash": "0x9ff3…7a00" }
+    { "token": "zWa9t3gHKtmQZY3uiBvJQg", "status": "applied", "currency": "USD", "wNetMinor": "10000", "wNetDisplay": "100.00", "deadline": "1791100000", "parties": 3, "signedCount": 3, "youSigned": true, "appliedTxHash": "0x9ff3…7a00" }
   ],
   "nextCursor": null
 }
@@ -360,7 +363,7 @@ ledger, and the obligation won't be netted until that's resolved.
 Scope: `propose`. Searches for a loop including the party and proposes a certificate if it finds one.
 
 ```json
-{ "outcome": { "found": true, "token": "zWa9t3gHKtmQZY3uiBvJQg", "currency": "USD", "wNet": "10000", "parties": 3 } }
+{ "outcome": { "found": true, "token": "zWa9t3gHKtmQZY3uiBvJQg", "currency": "USD", "wNetMinor": "10000", "wNetDisplay": "100.00", "parties": 3 } }
 ```
 
 or
@@ -383,7 +386,8 @@ Scope: `read`. Returns the party's view and the typed data it signs.
     "token": "zWa9t3gHKtmQZY3uiBvJQg",
     "status": "collecting",
     "currency": "USD",
-    "wNet": "10000",
+    "wNetMinor": "10000",
+    "wNetDisplay": "100.00",
     "deadline": "1791100000",
     "parties": 3,
     "signedCount": 1,
@@ -414,7 +418,7 @@ Scope: `read`. **409** `not_ready` until every party has signed.
 
 ```json
 {
-  "chainId": "5042002",
+  "chainId": 5042002,
   "to": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
   "value": "0",
   "data": "0x…",
@@ -469,7 +473,7 @@ Contraflow registers one HTTPS endpoint per tenant and gives you a signing secre
   "id": "evt_41_c4a42fd5e0d427c0",
   "type": "certificate.applied",
   "created": 1790000000,
-  "chainId": "5042002",
+  "chainId": 5042002,
   "data": {
     "certificateId": "0x1f00cc58f52f7a85ada8fcbeca335feba55fab73f59418145b62de4f3574b4e7",
     "token": "zWa9t3gHKtmQZY3uiBvJQg",

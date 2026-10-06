@@ -113,7 +113,7 @@ export const OPENAPI = {
     title: "Contraflow API",
     version: "1.0.0",
     description:
-      "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. Amounts on signed obligations are integer strings in the currency's ISO 4217 minor units; the human-readable document uses major units (for example `\"1250.00\"` USD). In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers stay decimal strings. Authorization is case-insensitive `Bearer`. There is no invoice or settlement API.",
+      "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. List and summary responses name amounts `amountMinor` (an ISO 4217 minor-unit integer string) and `amountDisplay` (the same amount in major units). Their timestamps are unix-second strings. `chainId` is a JSON number on the tenant, an apply transaction, a webhook event, and a proposal's domain. Signed obligation documents, EIP-712 fields, and `contraflow-netting-certificate/1` files keep their own field names. In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers in those signed payloads stay decimal strings. Authorization is case-insensitive `Bearer`. There is no invoice or settlement API.",
   },
   servers: [
     { url: "https://contraflow.vercel.app/api/v1", description: "Hosted app" },
@@ -415,7 +415,7 @@ export const OPENAPI = {
           name: { type: "string" },
           status: { type: "string", enum: ["active", "suspended"] },
           mode: { type: "string", enum: ["test", "live"] },
-          chainId: { type: "string" },
+          chainId: { type: "integer" },
           webhookConfigured: { type: "boolean" },
         },
       },
@@ -521,7 +521,7 @@ export const OPENAPI = {
         type: "object",
         required: ["chainId", "to", "value", "data", "note"],
         properties: {
-          chainId: { type: "string" },
+          chainId: { type: "integer" },
           to: { $ref: "#/components/schemas/Address" },
           value: { type: "string" },
           data: { $ref: "#/components/schemas/Hex" },
@@ -543,7 +543,7 @@ export const OPENAPI = {
           id: { type: "string" },
           type: { type: "string", enum: [...WEBHOOK_EVENT_TYPES] },
           created: { type: "integer" },
-          chainId: { type: "string" },
+          chainId: { type: "integer" },
           data: { type: "object" },
         },
       },

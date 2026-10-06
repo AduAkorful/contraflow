@@ -110,7 +110,13 @@ export function Receipt({ data }: { data: ReceiptData }) {
             <li key={row.invoiceId} className="py-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Parties row={row} />
-                <span className="rounded-md border border-border-input px-2 py-0.5 text-xs text-muted">{NETTING_STATUS_LABEL[status]}</span>
+                <span
+                  className={`rounded-md border px-2 py-0.5 text-xs ${
+                    status === "fully" ? "border-cleared/40 text-cleared" : "border-border-input text-muted"
+                  }`}
+                >
+                  {NETTING_STATUS_LABEL[status]}
+                </span>
               </div>
               <dl className="mt-3 grid grid-cols-3 gap-4">
                 <Figure label="Before">

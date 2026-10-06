@@ -329,8 +329,8 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
   if (phase === "sign-in-required") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
-        <h1 className="heading-1">Sign in to review this invoice</h1>
-        <p className="mt-3 text-sm text-muted">Only one of the two invoice parties can load its description and terms.</p>
+        <h1 className="heading-1">Sign in</h1>
+        <p className="mt-3 text-sm text-muted">This link is for a specific account.</p>
         <div className="mt-6">
           <ConnectButton />
         </div>
