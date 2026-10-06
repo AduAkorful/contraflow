@@ -1,8 +1,8 @@
 "use client";
 
-/// Protocol-wide totals counted from contract events. `headline` is the four-tile block on `/`;
-/// `full` adds the detail row on `/app`. If the stats can't be loaded it shows no figures at all:
-/// a zero here would be a false statement, not a placeholder.
+/// Protocol-wide totals counted from contract events. Shown on `/app` (collapsed on Overview).
+/// If the stats can't be loaded it shows no figures at all: a zero here would be a false statement,
+/// not a placeholder.
 
 import { useEffect, useState } from "react";
 import { loadProtocolStats, type ProtocolStatsResult } from "../../app/app/stats/actions";
@@ -10,16 +10,16 @@ import type { StatTile, StatsView } from "../../src/stats/view";
 
 function Tile({ tile, size }: { tile: StatTile; size: "lg" | "sm" }) {
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-card border border-border-subtle bg-surface-1 p-5">
       <dt className="text-xs text-muted">{tile.label}</dt>
       <dd
-        className={size === "lg" ? "mt-2 font-serif-display text-3xl tabular-nums" : "mt-1.5 text-lg tabular-nums"}
+        className={size === "lg" ? "mt-2 text-2xl font-semibold tabular-nums" : "mt-1.5 text-lg tabular-nums"}
         title={tile.exact}
         aria-label={`${tile.label}: ${tile.exact}`}
       >
         {tile.value}
+        {tile.note ? <p className="mt-2 text-xs font-normal leading-relaxed text-muted">{tile.note}</p> : null}
       </dd>
-      {tile.note && <p className="mt-2 text-xs leading-relaxed text-muted">{tile.note}</p>}
     </div>
   );
 }
@@ -52,14 +52,19 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
           {view.contracts.map((c, i) => (
             <span key={c.label}>
               {i > 0 && " · "}
-              <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+              <a
+                href={c.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tap-inline text-gold underline"
+              >
                 {c.label}
               </a>
             </span>
           ))}
         </p>
         <details className="group">
-          <summary className="cursor-pointer text-gold hover:underline">How these are counted</summary>
+          <summary className="tap-inline cursor-pointer text-gold underline">How these are counted</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>Invoices registered and face value: every invoice registered with the Registry.</li>
             <li>

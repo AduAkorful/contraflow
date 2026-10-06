@@ -1,104 +1,127 @@
-import { SiteNav } from "../../components/site-nav";
-import { SiteFooter } from "../../components/site-footer";
+import Link from "next/link";
+import { MarketingPage } from "../../components/marketing/MarketingPage";
 import { docsNavLink } from "../../src/site/docsUrl";
+import { APP_CHAIN_ID, addressesForChain } from "../../src/contracts/addresses";
+import { explorerAddressUrl } from "../../src/blockscout/explorer";
+import { sourcifyLookupUrl } from "../../src/site/sourcify";
+import { Address } from "../../components/ui/Address";
 
 export const metadata = { title: "Integrations" };
 
+type External = { title: string; body: string; href: string; label: string };
 
-type Integration = { title: string; body: string; href?: string };
-
-const IN_THE_APP: Integration[] = [
+const VENDORS: External[] = [
   {
     title: "Arc",
-    body: "Invoices, settlements and netting certificates are all recorded on Arc, with gas paid in native USDC.",
+    body: "Invoices, settlements and netting certificates are recorded on Arc, with gas paid in native USDC.",
     href: "https://docs.arc.io/",
-  },
-  {
-    title: "Arc Explorer",
-    body: "Every transaction can be checked independently here, and the protocol stats are counted from the contracts' events on it.",
+    label: "Arc docs ↗",
   },
   {
     title: "Privy",
     body: "Sign in with the wallet you already use, or with your email.",
     href: "https://docs.privy.io/",
-  },
-  {
-    title: "Sourcify",
-    body: "The source of every Contraflow contract is published and verified against the deployed bytecode.",
-    href: "https://sourcify.dev/",
+    label: "Privy docs ↗",
   },
 ];
-
-const FROM_CIRCLE: Integration[] = [
-  {
-    title: "Swap Kit",
-    body: "Shows a live USDC to EURC quote for any balance a loop leaves behind. Quote only: it never places a trade.",
-    href: "https://docs.arc.io/app-kit",
-  },
-  {
-    title: "Unified Balance / Gateway",
-    body: "Lets you bring USDC from another chain to your own address on Arc, from your own wallet, to cover a balance a loop leaves behind.",
-    href: "https://docs.arc.io/app-kit/unified-balance",
-  },
-  {
-    title: "Developer-Controlled Wallets",
-    body: "Lets Contraflow's own operator wallet sign its transactions through Circle's wallet infrastructure.",
-    href: "https://developers.circle.com/wallets/dev-controlled",
-  },
-];
-
-function Cards({ items }: { items: Integration[] }) {
-  return (
-    <div className={`mt-10 grid gap-6 sm:grid-cols-2 ${items.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
-      {items.map((i) => (
-        <div key={i.title} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-          <h3 className="font-medium">{i.title}</h3>
-          <p className="mt-2 text-sm text-muted">{i.body}</p>
-          {i.href ? (
-            <a href={i.href} className="mt-4 inline-block text-sm text-gold hover:underline">
-              Docs →
-            </a>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function IntegrationsPage() {
+  const docs = docsNavLink();
+  const addresses = addressesForChain(APP_CHAIN_ID);
+  const contracts = [
+    { name: "Registry", address: addresses.registry },
+    { name: "Settler", address: addresses.settler },
+    { name: "Netting ledger", address: addresses.nettingLedger },
+  ];
+
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
-          <h1 className="font-serif-display text-5xl leading-[1.05]">Built on Circle and Arc</h1>
-          <p className="mx-auto mt-6 max-w-xl text-muted">
-            Contraflow runs on Arc and Circle&apos;s infrastructure.
-          </p>
-        </section>
+    <MarketingPage>
+      <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
+        <h1 className="font-serif-display text-5xl leading-[1.05]">Integrations &amp; API</h1>
+        <p className="mx-auto mt-6 max-w-xl text-muted">
+          Record offchain obligations from your own product. Contraflow never signs for tenants.
+        </p>
+      </section>
 
-        <section className="mx-auto max-w-6xl px-6 py-12">
-          <h2 className="font-serif-display text-3xl">In the app</h2>
-          <Cards items={IN_THE_APP} />
-        </section>
-
-        <section className="mx-auto max-w-6xl px-6 py-12">
-          <h2 className="font-serif-display text-3xl">From Circle</h2>
-          <Cards items={FROM_CIRCLE} />
-        </section>
-
-        <section className="mx-auto max-w-6xl px-6 py-12">
-          <h2 className="font-serif-display text-3xl">API</h2>
-          <p className="mt-4 max-w-xl text-muted">
-            Offchain obligations can be recorded through the API. Contraflow never signs for tenants:
-            parties grant scoped permissions, and tenants submit the signatures those parties made.
-          </p>
-          <a href={docsNavLink().href} className="mt-4 inline-block text-sm text-gold hover:underline">
-            Docs →
+      <section className="mx-auto max-w-6xl px-6 py-12">
+        <h2 className="font-serif-display text-3xl">API</h2>
+        <p className="mt-4 max-w-2xl text-muted">
+          Parties grant scoped, expiring permissions. Tenants submit the signatures those parties
+          made. Keys are operator-issued. There is no invoice or settlement API: those stay in the
+          app, signed and paid by the party.
+        </p>
+        <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          {docs.external ? (
+            <a href={docs.href} target="_blank" rel="noreferrer" className="text-gold hover:underline">
+              Docs ↗
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : (
+            <Link href={docs.href} className="text-gold hover:underline">
+              Docs
+            </Link>
+          )}
+          <Link href="/contact" className="text-gold hover:underline">
+            Request an API key
+          </Link>
+          <a href="/api/v1/openapi.json" className="text-gold hover:underline">
+            OpenAPI
           </a>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+        </p>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-12">
+        <h2 className="font-serif-display text-3xl">In the app</h2>
+        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+          {VENDORS.map((item) => (
+            <div key={item.title} className="rounded-card border border-border-subtle bg-surface-1 p-6">
+              <h3 className="font-medium">{item.title}</h3>
+              <p className="mt-2 text-sm text-muted">{item.body}</p>
+              <a href={item.href} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm text-gold hover:underline">
+                {item.label}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-12">
+        <h2 className="font-serif-display text-3xl">Contracts on Arc</h2>
+        <p className="mt-4 max-w-2xl text-muted">
+          Source is verified on Sourcify. Every transaction is on the Arc explorer.
+        </p>
+        <ul className="mt-10 grid gap-6 sm:grid-cols-3">
+          {contracts.map((contract) => {
+            const explorer = explorerAddressUrl(APP_CHAIN_ID, contract.address);
+            return (
+              <li key={contract.name} className="rounded-card border border-border-subtle bg-surface-1 p-6">
+                <h3 className="font-medium">{contract.name}</h3>
+                <p className="mt-3">
+                  <Address address={contract.address} chainId={APP_CHAIN_ID} />
+                </p>
+                <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                  {explorer ? (
+                    <a href={explorer} target="_blank" rel="noreferrer" className="text-gold hover:underline">
+                      Explorer ↗
+                      <span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  ) : null}
+                  <a
+                    href={sourcifyLookupUrl(contract.address)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gold hover:underline"
+                  >
+                    Sourcify ↗
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    </MarketingPage>
   );
 }

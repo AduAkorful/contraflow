@@ -17,7 +17,7 @@ export default function NotFound() {
 
       <SiteNav />
 
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <main id="main" className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
         <h1 className="font-serif-display text-[7rem] leading-none text-gold/70 sm:text-[9rem]">
           404
         </h1>

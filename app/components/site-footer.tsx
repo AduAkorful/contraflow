@@ -1,63 +1,30 @@
 import Link from "next/link";
-import { docsNavLink } from "../src/site/docsUrl";
+import { marketingFooterColumns, type MarketingLink } from "./marketing/nav";
 
-const DOCS = docsNavLink();
-
-const COLUMNS = [
-  {
-    title: "Product",
-    links: [
-      { label: "Features", href: "/features" },
-      { label: "Pricing", href: "/pricing" },
-      { label: "Integrations", href: "/integrations" },
-      { label: "Verify a certificate", href: "/app/verify" },
-      { label: "Docs", href: DOCS.href, external: DOCS.external },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Terms of Service", href: "/terms" },
-    ],
-  },
-] as const;
-
-type FooterLink = { label: string; href: string; external?: boolean };
+const COLUMNS = marketingFooterColumns();
 
 export function SiteFooter() {
   return (
     <footer className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-      <div className="grid gap-12 border-t border-border-subtle pt-14 sm:grid-cols-3 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
-        <div className="sm:col-span-3 lg:col-span-1">
-          <h3 className="font-serif-display text-3xl leading-tight">Netting, not credit.</h3>
-          <p className="mt-4 max-w-md text-sm text-muted">
-            Contraflow finds loops of debt between counterparties and nets them out: USDC invoices in
-            one transaction on Arc, and obligations in any currency with one certificate everyone
-            signs.
-          </p>
+      <div className="grid gap-12 border-t border-border-subtle pt-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(5,minmax(0,1fr))]">
+        <div className="sm:col-span-2 lg:col-span-1">
+          <h3 className="font-serif-display text-3xl leading-tight">Net loops of debt.</h3>
+          <p className="mt-4 max-w-md text-sm text-muted">No cash moves except gas.</p>
         </div>
 
         {COLUMNS.map((column) => (
           <nav key={column.title} aria-label={column.title}>
             <p className="text-sm font-medium text-foreground">{column.title}</p>
             <ul className="mt-4 space-y-2.5 text-sm">
-              {(column.links as readonly FooterLink[]).map((link) => (
-                <li key={link.href}>
+              {column.links.map((link: MarketingLink) => (
+                <li key={`${link.label}:${link.href}`}>
                   {link.external ? (
-                    <a href={link.href} target="_blank" rel="noreferrer" className="text-muted hover:text-foreground">
+                    <a href={link.href} target="_blank" rel="noreferrer" className="tap-inline text-muted hover:text-foreground">
                       {link.label}
                       <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ) : (
-                    <Link href={link.href} className="text-muted hover:text-foreground">
+                    <Link href={link.href} className="tap-inline text-muted hover:text-foreground">
                       {link.label}
                     </Link>
                   )}
@@ -68,7 +35,7 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <p className="mt-14 border-t border-border-subtle pt-8 text-xs text-faint">© 2026 Contraflow. All rights reserved.</p>
+      <p className="mt-14 border-t border-border-subtle pt-8 text-sm text-faint">© 2026 Contraflow. All rights reserved.</p>
     </footer>
   );
 }

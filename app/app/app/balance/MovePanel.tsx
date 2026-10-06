@@ -280,8 +280,8 @@ export function MovePanel({
               Check original transfer
             </button>
           )}
-          {pendingMove.transferId && <p className="mt-2 break-all font-mono text-[10px] text-muted">Transfer: {pendingMove.transferId}</p>}
-          <p className="mt-2 break-all font-mono text-[10px] text-muted">Operation: {pendingMove.operationId}</p>
+          {pendingMove.transferId && <p className="mt-2 break-all font-mono text-xs text-muted">Transfer: {pendingMove.transferId}</p>}
+          <p className="mt-2 break-all font-mono text-xs text-muted">Operation: {pendingMove.operationId}</p>
         </div>
       )}
       {depositPending && !pendingMove && (

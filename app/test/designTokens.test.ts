@@ -26,6 +26,10 @@ describe("design tokens", () => {
       expect(contrast(token(name), token(surface))).toBeGreaterThanOrEqual(4.5);
     }
   });
+  it("muted meets about 7:1 on the page background (key information at the type floor)", () => {
+    expect(contrast(token("muted"), token("bg"))).toBeGreaterThanOrEqual(7);
+    expect(contrast(token("muted"), token("surface-1"))).toBeGreaterThanOrEqual(7);
+  });
   it("control borders and the focus ring meet 3:1 (WCAG 1.4.11)", () => {
     for (const surface of ["bg", "surface-1"]) {
       expect(contrast(token("border-input"), token(surface))).toBeGreaterThanOrEqual(3);

@@ -53,7 +53,7 @@ function Loop() {
           <path d={headPath(edge)} fill="#a8aebd" className="animate-loop-head" />
         </g>
       ))}
-      <g fill="#a8aebd" fontSize="12" textAnchor="middle">
+      <g fill="#a8aebd" fontSize="13" textAnchor="middle">
         <text x="112" y="116" transform="rotate(-50 112 116)">1,000 USDC</text>
         <text x="190" y="236">1,000 USDC</text>
         <text x="268" y="116" transform="rotate(50 268 116)">1,000 USDC</text>
@@ -104,7 +104,12 @@ export function HeroExample() {
           </dl>
         </div>
       </div>
-      <figcaption className="mt-3 text-center text-xs text-faint">Example: an illustration, not a real transaction.</figcaption>
+      <figcaption className="mt-3 text-center text-[13px] text-muted">
+        Illustration ·{" "}
+        <a href="/app/history" className="text-foreground hover:underline">
+          See a real one on Arc →
+        </a>
+      </figcaption>
     </figure>
   );
 }

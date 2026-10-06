@@ -204,7 +204,7 @@ export function DepositPanel({
               View original transaction →
             </a>
           )}
-          {pendingDeposit && <p className="mt-2 break-all font-mono text-[10px] text-muted">Operation: {pendingDeposit.operationId}</p>}
+          {pendingDeposit && <p className="mt-2 break-all font-mono text-xs text-muted">Operation: {pendingDeposit.operationId}</p>}
           {pendingDeposit && (
             <button type="button" onClick={handleCheckDeposit} disabled={busy !== null} className="mt-3 rounded-pill border border-border-input px-4 py-2 text-xs disabled:state-disabled">
               Check original deposit

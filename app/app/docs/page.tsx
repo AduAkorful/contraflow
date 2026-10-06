@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { SiteNav } from "../../components/site-nav";
-import { SiteFooter } from "../../components/site-footer";
 import spec from "../../public/api/v1/openapi.json";
+import { MarketingPage } from "../../components/marketing/MarketingPage";
 
 export const metadata = {
   title: "Docs",
@@ -12,9 +11,8 @@ export default function DocsPage() {
   const info = spec.info as { title?: string; version?: string; description?: string };
   const paths = Object.keys(spec.paths ?? {});
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
-      <SiteNav />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
+    <MarketingPage>
+      <div className="mx-auto w-full max-w-3xl px-6 py-16">
         <h1 className="heading-1">Docs</h1>
         <p className="mt-4 text-sm text-muted">
           {info.description ?? "Offchain obligations API. Contraflow never signs for API users: tenants deliver signatures the parties made."}
@@ -40,13 +38,12 @@ export default function DocsPage() {
           {info.title ?? "API"}
           {info.version ? ` · v${info.version}` : ""}
         </h2>
-        <ul className="mt-3 space-y-1 font-mono text-xs text-muted">
+        <ul className="mt-3 space-y-1 font-mono text-sm text-muted">
           {paths.map((path) => (
             <li key={path}>{path}</li>
           ))}
         </ul>
-      </main>
-      <SiteFooter />
-    </div>
+      </div>
+    </MarketingPage>
   );
 }

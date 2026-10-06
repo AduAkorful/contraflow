@@ -1,8 +1,7 @@
-import { SiteNav } from "../../components/site-nav";
-import { SiteFooter } from "../../components/site-footer";
+import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { LegalDoc } from "../../components/marketing/LegalDoc";
 
 export const metadata = { title: "Privacy Policy" };
-
 
 const SECTIONS = [
   {
@@ -58,30 +57,13 @@ const SECTIONS = [
 
 export default function PrivacyPage() {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-3xl px-6 pb-8 pt-10">
-          <h1 className="font-serif-display text-5xl leading-[1.05]">Privacy Policy</h1>
-          <p className="mt-6 text-sm text-muted">Last updated 2 October 2026</p>
-        </section>
-
-        <section className="mx-auto max-w-3xl px-6 py-8">
-          <div className="space-y-10">
-            {SECTIONS.map((s) => (
-              <div key={s.title}>
-                <h2 className="text-lg font-medium text-gold">{s.title}</h2>
-                {s.body.map((p) => (
-                  <p key={p.slice(0, 32)} className="mt-2 text-sm text-muted">
-                    {p}
-                  </p>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+    <MarketingPage>
+      <LegalDoc
+        title="Privacy Policy"
+        updated="2 October 2026"
+        summary="We store what you and your counterparty sign. Invoice amounts and parties are public on Arc. Obligation amounts stay offchain, but Contraflow can read them. We don't sell data or run ads."
+        sections={SECTIONS}
+      />
+    </MarketingPage>
   );
 }

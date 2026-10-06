@@ -1,33 +1,33 @@
-import { SiteNav } from "../components/site-nav";
-import { SiteFooter } from "../components/site-footer";
 import { Hero } from "../components/sections/hero";
-import { WhyUs } from "../components/sections/why-us";
-import { KeyFeatures } from "../components/sections/key-features";
-import { Values } from "../components/sections/values";
-import { Cta } from "../components/sections/cta";
+import { ProofStrip } from "../components/sections/proof-strip";
 import { HowItWorks } from "../components/sections/how-it-works";
-import { Integrations } from "../components/sections/integrations";
-import { Pricing } from "../components/sections/pricing";
+import { WhoItsFor } from "../components/sections/who-its-for";
+import { TwoRails } from "../components/sections/two-rails";
+import { VerifyYourself } from "../components/sections/verify-yourself";
+import { PricingTeaser } from "../components/sections/pricing-teaser";
+import { Developers } from "../components/sections/developers";
 import { Faq } from "../components/sections/faq";
-import { ProtocolStatsSection } from "../components/sections/protocol-stats";
+import { Cta } from "../components/sections/cta";
+import { MarketingPage } from "../components/marketing/MarketingPage";
+
+export const metadata = {
+  description:
+    "When A owes B, B owes C and C owes A, Contraflow nets the loop in one signed step. No cash moves.",
+};
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <Hero />
-        <WhyUs />
-        <KeyFeatures />
-        <Values />
-        <Cta />
-        <HowItWorks />
-        <ProtocolStatsSection />
-        <Integrations />
-        <Pricing />
-        <Faq />
-      </main>
-      <SiteFooter />
-    </div>
+    <MarketingPage>
+      <Hero />
+      <ProofStrip />
+      <HowItWorks />
+      <WhoItsFor />
+      <TwoRails />
+      <VerifyYourself />
+      <PricingTeaser />
+      <Developers />
+      <Faq />
+      <Cta />
+    </MarketingPage>
   );
 }

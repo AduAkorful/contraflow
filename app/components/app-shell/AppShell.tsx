@@ -39,13 +39,13 @@ export function AppShell({
             </Link>
             <SidebarNav items={items} />
             <div className="mt-auto flex flex-col gap-1 px-2 text-xs text-faint">
-              <Link href="/" className="hover:text-foreground">
+              <Link href="/" className="tap-inline hover:text-foreground">
                 Contraflow website
               </Link>
-              <Link href="/terms" className="hover:text-foreground">
+              <Link href="/terms" className="tap-inline hover:text-foreground">
                 Terms
               </Link>
-              <Link href="/privacy" className="hover:text-foreground">
+              <Link href="/privacy" className="tap-inline hover:text-foreground">
                 Privacy
               </Link>
             </div>
@@ -59,15 +59,15 @@ export function AppShell({
           {children}
         </main>
         {!address && (
-          <footer className="border-t border-border-subtle px-6 py-6 text-xs text-faint">
-            <div className="mx-auto flex max-w-5xl flex-wrap gap-x-6 gap-y-2">
-              <Link href="/" className="hover:text-foreground">
+          <footer className="border-t border-border-subtle px-4 py-6 text-xs text-faint sm:px-6">
+            <div className="mx-auto flex max-w-4xl flex-wrap gap-x-6 gap-y-2">
+              <Link href="/" className="tap-inline hover:text-foreground">
                 Contraflow website
               </Link>
-              <Link href="/terms" className="hover:text-foreground">
+              <Link href="/terms" className="tap-inline hover:text-foreground">
                 Terms
               </Link>
-              <Link href="/privacy" className="hover:text-foreground">
+              <Link href="/privacy" className="tap-inline hover:text-foreground">
                 Privacy
               </Link>
             </div>

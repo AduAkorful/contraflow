@@ -1,41 +1,70 @@
+import { Gloss } from "../marketing/Gloss";
+
 const STEPS = [
   {
-    number: "1",
     title: "Sign",
-    body: "You and your counterparty both sign each debt with your own wallets: a USDC invoice on Arc, or an obligation in the currency you actually invoice in.",
+    body: "You and your counterparty both sign each debt: a USDC invoice on Arc, or an obligation in the currency you invoice in.",
+    frame: {
+      heading: "Review and sign",
+      lines: ["You owe Company B", "1,000.00 USDC", "One free confirmation"],
+    },
   },
   {
-    number: "2",
     title: "Find the loop",
-    body: "Contraflow finds closed loops of debt between parties and shows you exactly how much nets off before you commit to anything.",
+    body: "Contraflow finds closed loops and shows how much would net off before anyone submits a transaction.",
+    frame: {
+      heading: "Ready to net",
+      lines: ["3 invoices form a loop", "1,000.00 USDC from each", "No cash moves"],
+    },
   },
   {
-    number: "3",
     title: "Net it",
-    body: "One transaction cancels a loop of invoices. For obligations, one certificate signed by everyone in the loop is recorded on Arc, so the same debt can never be netted twice.",
+    body: "One transaction nets a loop of invoices. For obligations, one certificate everyone signs is recorded on Arc, so the same debt cannot be netted twice.",
+    frame: {
+      heading: "Receipt",
+      lines: ["Before 1,000.00 → remaining 0.00", "Fully netted", "Open on Arc ↗"],
+    },
   },
-];
+] as const;
 
 export function HowItWorks() {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-20">
+    <section id="how-it-works" className="scroll-mt-28 mx-auto max-w-6xl px-6 py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-gold">How it works</p>
-        <h2 className="mt-3 font-serif-display text-4xl">How netting works</h2>
+        <h2 className="font-serif-display text-4xl">How it works</h2>
         <p className="mt-4 text-muted">
-          From two signatures to a loop of debt netted out, in three steps.
+          From two signatures to a loop netted out, in three steps. Screens are labelled illustrations
+          of the app, not a live session.
         </p>
       </div>
 
-      <div className="mt-12 grid gap-8 sm:grid-cols-3">
-        {STEPS.map((s) => (
-          <div key={s.number} className="text-center sm:text-left">
-            <span className="heading-1 text-gold">{s.number}</span>
-            <h3 className="mt-3 text-lg font-medium">{s.title}</h3>
-            <p className="mt-2 text-sm text-muted">{s.body}</p>
-          </div>
+      <ol className="mt-12 grid gap-8 sm:grid-cols-3">
+        {STEPS.map((step, index) => (
+          <li key={step.title}>
+            <p className="text-sm font-medium text-gold">{index + 1}</p>
+            <h3 className="mt-2 text-lg font-medium">{step.title}</h3>
+            <p className="mt-2 text-sm text-muted">{step.body}</p>
+            <figure className="mt-5 rounded-card border border-border-subtle bg-surface-1 p-4">
+              <p className="text-sm font-semibold">{step.frame.heading}</p>
+              <ul className="mt-3 space-y-1.5 text-sm text-muted">
+                {step.frame.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <figcaption className="mt-3 text-[13px] text-muted">Illustration of the app.</figcaption>
+            </figure>
+          </li>
         ))}
-      </div>
+      </ol>
+      <p className="mt-8 text-center text-sm text-muted">
+        A{" "}
+        <Gloss title="The file every party in an obligation loop signs. Check it in your browser against the ledger.">
+          certificate
+        </Gloss>{" "}
+        is not a{" "}
+        <Gloss title="The onchain record of an invoice loop that was netted.">receipt</Gloss>. You
+        keep the certificate; anyone can open the receipt.
+      </p>
     </section>
   );
 }

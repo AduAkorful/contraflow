@@ -46,7 +46,7 @@ export function TopBar({ address, items }: { address: string | null; items: NavI
           </button>
           <Link href={address ? "/app" : "/"} aria-label="Contraflow" className={`items-center gap-2 text-base font-semibold tracking-tight ${address ? "flex lg:hidden" : "flex"}`}>
             <Image src="/logo-mark.png" alt="" width={24} height={24} className="size-6 shrink-0" />
-            <span className={address ? "hidden sm:inline" : "hidden min-[420px]:inline"}>Contraflow</span>
+            <span>Contraflow</span>
           </Link>
           {!address && (
             <nav aria-label="Public pages" className="ml-4 hidden items-center gap-1 lg:flex">
@@ -59,7 +59,9 @@ export function TopBar({ address, items }: { address: string | null; items: NavI
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <NetworkChip />
+          <div className="hidden lg:block">
+            <NetworkChip />
+          </div>
           {address ? (
             <AddressMenu address={address} />
           ) : hideHeaderSignIn ? null : (
@@ -76,6 +78,9 @@ export function TopBar({ address, items }: { address: string | null; items: NavI
       </div>
       {menuOpen && (
         <div id="app-mobile-menu" className="border-t border-border-subtle bg-surface-1 p-3 lg:hidden">
+          <div className="mb-3">
+            <NetworkChip />
+          </div>
           <SidebarNav items={items} onNavigate={() => setMenuOpen(false)} />
         </div>
       )}

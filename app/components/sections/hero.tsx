@@ -10,17 +10,15 @@ export function Hero() {
       />
 
       <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-6 pb-20 pt-12 text-center">
-        <span className="mb-6 inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
-          ★ BUILT ON ARC
-        </span>
+        <p className="mb-6 text-sm font-medium text-gold">Netting, not credit.</p>
 
         <h1 className="font-serif-display text-5xl leading-[1.05] tracking-tight sm:text-6xl">
           Cancel circular debt in one transaction
         </h1>
 
         <p className="mt-6 max-w-xl text-balance text-base text-muted sm:text-lg">
-          Contraflow finds loops of debt between your counterparties and nets them out: USDC invoices in
-          one transaction on Arc, and obligations in any currency with one certificate everyone signs.
+          When A owes B, B owes C and C owes A, Contraflow nets the loop in one signed step. No cash
+          moves.
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
@@ -28,21 +26,14 @@ export function Hero() {
             href="/app"
             className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
           >
-            Launch App
+            Start free
           </Link>
-          <Link
-            href="/features"
-            className="rounded-pill border border-border-input px-6 py-3 text-sm font-medium transition-colors hover:bg-surface-2"
-          >
-            Explore Features
+          <Link href="/#how-it-works" className="text-sm font-medium text-foreground hover:underline">
+            How it works
           </Link>
         </div>
 
         <HeroExample />
-
-        <p className="mt-12 text-xs uppercase tracking-wide text-muted">
-          $0 protocol fee · gas priced in USDC · permissionless settlement
-        </p>
       </div>
     </section>
   );

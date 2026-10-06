@@ -3,15 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { docsNavLink } from "../src/site/docsUrl";
+import { marketingMobileExtraLinks, marketingPrimaryLinks, type MarketingLink } from "./marketing/nav";
 import { NetworkNotice } from "./network/NetworkNotice";
 
-const DOCS = docsNavLink();
-
-type PrimaryLink = { label: string; href: string; external?: boolean };
-
-/// Docs lives on another site, so it opens in a new tab.
-function NavLink({ link, className, onClick }: { link: PrimaryLink; className: string; onClick?: () => void }) {
+function NavLink({ link, className, onClick }: { link: MarketingLink; className: string; onClick?: () => void }) {
   if (link.external) {
     return (
       <a href={link.href} target="_blank" rel="noreferrer" onClick={onClick} className={className}>
@@ -27,14 +22,8 @@ function NavLink({ link, className, onClick }: { link: PrimaryLink; className: s
   );
 }
 
-const PRIMARY_LINKS: PrimaryLink[] = [
-  { label: "About", href: "/about" },
-  { label: "Features", href: "/features" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Integrations", href: "/integrations" },
-  { label: "Docs", href: DOCS.href, external: DOCS.external },
-  { label: "Contact", href: "/contact" },
-];
+const PRIMARY_LINKS = marketingPrimaryLinks();
+const MOBILE_EXTRA = marketingMobileExtraLinks();
 
 export function SiteNav() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,7 +39,13 @@ export function SiteNav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-border-subtle/60 bg-bg/85 backdrop-blur">
-      <NetworkNotice className="border-b border-border-subtle/60 bg-surface-1 px-6 py-2 text-center text-xs text-muted" />
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-gold focus:px-3 focus:py-2 focus:text-sm focus:text-black"
+      >
+        Skip to content
+      </a>
+      <NetworkNotice className="border-b border-border-subtle/60 bg-surface-1 px-6 py-2 text-center text-sm text-muted" />
       <div className="mx-auto max-w-6xl px-6 py-4">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex shrink-0 items-center gap-2 text-lg font-medium tracking-tight">
@@ -60,16 +55,16 @@ export function SiteNav() {
 
           <nav className="hidden min-w-0 items-center gap-6 text-sm text-muted lg:flex">
             {PRIMARY_LINKS.map((link) => (
-              <NavLink key={link.href} link={link} className="whitespace-nowrap transition-colors hover:text-foreground" />
+              <NavLink key={`${link.label}:${link.href}`} link={link} className="whitespace-nowrap transition-colors hover:text-foreground" />
             ))}
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href="/app"
-              className="shrink-0 whitespace-nowrap rounded-pill bg-foreground px-5 py-2.5 text-sm font-medium text-black transition-opacity hover:opacity-90"
+              className="shrink-0 whitespace-nowrap px-2 py-2.5 text-sm font-medium text-foreground hover:underline"
             >
-              Launch App
+              Sign in
             </Link>
 
             <button
@@ -106,9 +101,9 @@ export function SiteNav() {
             id="mobile-nav-menu"
             className="animate-card-entrance mt-4 flex flex-col gap-1 rounded-card border border-white/10 bg-surface p-4 text-sm text-muted lg:hidden"
           >
-            {PRIMARY_LINKS.map((link) => (
+            {[...PRIMARY_LINKS, ...MOBILE_EXTRA].map((link) => (
               <NavLink
-                key={link.href}
+                key={`${link.label}:${link.href}`}
                 link={link}
                 onClick={() => setMenuOpen(false)}
                 className="rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5 hover:text-foreground"

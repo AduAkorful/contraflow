@@ -1,55 +1,68 @@
-import { SiteNav } from "../../components/site-nav";
-import { SiteFooter } from "../../components/site-footer";
-import { Pricing } from "../../components/sections/pricing";
+import Link from "next/link";
+import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { NetworkNotice } from "../../components/network/NetworkNotice";
+import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 
 export const metadata = { title: "Pricing" };
 
-
-const COST_NOTES = [
-  { title: "Protocol fee", body: "$0 today. Contraflow doesn't take a cut when you net a loop." },
-  {
-    title: "What you pay",
-    body: "Arc network gas, priced in USDC, for registering invoices, settling a loop or applying a certificate. Recording an obligation costs nothing.",
-  },
-  { title: "No subscriptions", body: "No tiers, no monthly plan, no per-loop toll." },
+const GAS_COSTS = [
+  { call: "Record an offchain obligation", cost: "No gas" },
+  { call: "Apply a netting certificate (3 obligations)", cost: "~$0.0042" },
+  { call: "Attest an invoice", cost: "~$0.0072" },
+  { call: "Settle a 3-invoice cycle", cost: "~$0.0043" },
+  { call: "Settle a 4-invoice cycle", cost: "~$0.0052" },
+  { call: "Settle a 5-invoice cycle", cost: "~$0.0061" },
 ];
 
 export default function PricingPage() {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-4xl px-6 pb-4 pt-10 text-center">
-          <h1 className="font-serif-display text-5xl leading-[1.05]">Simple, transparent pricing</h1>
-          <p className="mx-auto mt-6 max-w-xl text-muted">
-            No subscriptions, no tiers. You only ever pay Arc network gas.
-          </p>
-        </section>
+    <MarketingPage>
+      <section className="mx-auto max-w-4xl px-6 pb-4 pt-10 text-center">
+        <h1 className="font-serif-display text-5xl leading-[1.05]">$0 protocol fee</h1>
+        <p className="mx-auto mt-6 max-w-xl text-muted">
+          Netting costs nothing on Contraflow today. You only pay Arc network gas, priced in USDC,
+          and recording an obligation costs nothing at all.
+        </p>
+      </section>
 
-        <Pricing />
-
-        <section className="mx-auto max-w-6xl px-6 py-16">
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-gold">
-            The full picture
-          </p>
-          <h2 className="mt-3 text-center font-serif-display text-3xl">
-            What "$0 fee" means
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-muted">
-            Just the gas a transaction costs on Arc — nothing else.
-          </p>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {COST_NOTES.map((n) => (
-              <div key={n.title} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-                <h3 className="font-medium text-gold">{n.title}</h3>
-                <p className="mt-2 text-sm text-muted">{n.body}</p>
+      <section className="mx-auto max-w-2xl px-6 py-12">
+        <NetworkNotice className="text-center text-sm text-muted" />
+        <p className="mt-4 text-center text-sm text-muted">
+          {APP_CHAIN_ID === ARC_TESTNET_CHAIN_ID ? "Measured on Arc Testnet" : "Measured on Arc"}
+        </p>
+        <div className="mt-4 rounded-card border border-border-subtle bg-surface-1">
+          <div className="flex justify-between gap-4 border-b border-border-subtle px-5 py-3 text-sm font-medium text-faint">
+            <span>Action</span>
+            <span>Typical gas cost</span>
+          </div>
+          <dl>
+            {GAS_COSTS.map((row) => (
+              <div
+                key={row.call}
+                className="flex flex-col gap-0.5 border-b border-border-subtle px-5 py-4 text-sm last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              >
+                <dt>{row.call}</dt>
+                <dd className="font-medium tabular-nums text-gold">{row.cost}</dd>
               </div>
             ))}
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+          </dl>
+          <p className="border-t border-border-subtle px-5 py-4 text-sm text-muted">
+            Gas costs vary with network conditions. Figures above are typical, not guaranteed.
+          </p>
+        </div>
+        <div className="mt-10 rounded-card border border-border-subtle bg-surface-1 p-6">
+          <h2 className="text-lg font-medium">Will this stay free?</h2>
+          <p className="mt-2 text-sm text-muted">
+            There is no protocol fee today. A future upgrade could introduce one; that&apos;s in the
+            Terms. There are no subscriptions or per-loop tolls.
+          </p>
+        </div>
+        <p className="mt-10 text-center">
+          <Link href="/app" className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black">
+            Start free
+          </Link>
+        </p>
+      </section>
+    </MarketingPage>
   );
 }

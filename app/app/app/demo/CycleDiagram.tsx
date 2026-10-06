@@ -109,10 +109,10 @@ function Node({
         </circle>
       )}
       <circle cx={x} cy={y} r={NODE_RADIUS} fill="#111119" stroke={active ? COLOR.settled : "rgba(255,255,255,0.15)"} strokeWidth={active ? 2 : 1} style={{ transition: "stroke 0.4s ease" }} />
-      <text x={x} y={y + 4} textAnchor="middle" fontSize="12" fill={COLOR.foreground} fontWeight={500}>
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="13" fill={COLOR.foreground} fontWeight={500}>
         {index + 1}
       </text>
-      <text x={namePos.x} y={namePos.y} textAnchor="middle" fontSize="10.5" fill={COLOR.muted}>
+      <text x={namePos.x} y={namePos.y} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
         {shortLabel(label)}
       </text>
     </g>
@@ -175,7 +175,7 @@ function EdgeLabel({
   const text = demoEdgeAmountLabel(status, amountUsdc);
   const color = status === "settled" || status === "settling" ? COLOR.settled : status === "registered" || status === "preview" ? COLOR.foreground : COLOR.muted;
   const content = (
-    <text x={geometry.labelX} y={geometry.labelY} textAnchor="middle" fontSize="10.5" fill={color} style={{ transition: "fill 0.4s ease" }}>
+    <text x={geometry.labelX} y={geometry.labelY} textAnchor="middle" fontSize="13" fill={color} style={{ transition: "fill 0.4s ease" }}>
       {text}
     </text>
   );
@@ -193,14 +193,14 @@ function EdgeLabel({
 function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reducedMotion: boolean }) {
   if (center.kind === "idle") {
     return (
-      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="11" fill={COLOR.muted}>
+      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
         Not started
       </text>
     );
   }
   if (center.kind === "finding") {
     return (
-      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="11" fill={COLOR.muted}>
+      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
         Finding cycle...
       </text>
     );
@@ -208,7 +208,7 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
   if (center.kind === "proposal") {
     return (
       <g>
-        <text x={CENTER.x} y={CENTER.y - 8} textAnchor="middle" fontSize="10" fill={COLOR.muted} letterSpacing="0.05em">
+        <text x={CENTER.x} y={CENTER.y - 8} textAnchor="middle" fontSize="13" fill={COLOR.muted} letterSpacing="0.05em">
           NET TO SETTLE
         </text>
         <text x={CENTER.x} y={CENTER.y + 16} textAnchor="middle" fontSize="16" fill={COLOR.foreground} fontFamily="var(--font-sans)" fontWeight={600}>
@@ -219,7 +219,7 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
   }
   if (center.kind === "failed") {
     return (
-      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="11" fill="#fca5a5">
+      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="13" fill="#fca5a5">
         Settle failed
       </text>
     );
@@ -230,7 +230,7 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
         <circle cx={CENTER.x} cy={CENTER.y} r={26} fill="none" stroke={COLOR.settled} strokeWidth={2} opacity={reducedMotion ? 0.65 : undefined}>
           {!reducedMotion && <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" repeatCount="indefinite" />}
         </circle>
-        <text x={CENTER.x} y={CENTER.y + 5} textAnchor="middle" fontSize="10" fill={COLOR.muted}>
+        <text x={CENTER.x} y={CENTER.y + 5} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
           Settling...
         </text>
       </g>

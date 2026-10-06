@@ -31,7 +31,7 @@ export function SignInOverlay({ next, autoStart = false }: { next: string | null
 
   return (
     <div className="relative mx-auto w-full max-w-md rounded-card border border-border-subtle bg-surface-1 p-6 text-center shadow-lg sm:p-8">
-      <NetworkNotice className="text-xs font-medium text-gold" />
+      <NetworkNotice className="text-sm font-medium text-gold" />
       <h1 className="heading-1 mt-3">Sign in to start netting</h1>
       <div className="mt-6">
         <ConnectButton layout="split" />

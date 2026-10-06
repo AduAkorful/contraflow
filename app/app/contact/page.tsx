@@ -1,60 +1,54 @@
-import { SiteNav } from "../../components/site-nav";
-import { SiteFooter } from "../../components/site-footer";
+import { MarketingPage } from "../../components/marketing/MarketingPage";
+import { GITHUB_REPO } from "../../src/site/github";
 
 export const metadata = { title: "Contact" };
 
-
 const CONTACT_CARDS = [
   {
-    title: "Code & issues",
+    title: "Code and issues",
     body: "Bug reports, feature questions, or anything about how the contracts or app work.",
-    link: "https://github.com/AduAkorful/contraflow",
-    cta: "Open the repo",
+    href: GITHUB_REPO,
+    cta: "Open the repo ↗",
+    external: true,
   },
   {
     title: "API access",
     body: "Platforms such as ERPs, accounting apps and marketplaces can record obligations and apply certificates for their customers. Keys are issued by hand. Ask for one in the repository and say which platform you build.",
-    link: "https://github.com/AduAkorful/contraflow",
-    cta: "Request an API key",
+    href: GITHUB_REPO,
+    cta: "Request an API key ↗",
+    external: true,
   },
-  {
-    title: "Verify it yourself",
-    body: "Every settlement and certificate is on the Arc explorer, and any certificate can be checked against the ledger in your browser.",
-    link: "/app/verify",
-    cta: "Verify a certificate",
-  },
-];
+] as const;
 
 export default function ContactPage() {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-bg">
-      <SiteNav />
-      <main className="relative z-10">
-        <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
-          <h1 className="font-serif-display text-5xl leading-[1.05]">Connect With Us</h1>
-          <p className="mx-auto mt-6 max-w-xl text-muted">
-            Questions, bug reports and partnership enquiries all go through our GitHub repository.
-          </p>
-        </section>
+    <MarketingPage>
+      <section className="mx-auto max-w-4xl px-6 pb-12 pt-10 text-center">
+        <h1 className="font-serif-display text-5xl leading-[1.05]">Talk to us</h1>
+        <p className="mx-auto mt-6 max-w-xl text-muted">
+          Questions, bug reports and partnership enquiries all go through our GitHub repository.
+        </p>
+      </section>
 
-        <section className="mx-auto max-w-6xl px-6 py-12">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {CONTACT_CARDS.map((c) => (
-              <div key={c.title} className="rounded-card border border-border-subtle bg-surface-1 p-6 text-center">
-                <h3 className="font-medium">{c.title}</h3>
-                <p className="mt-2 text-sm text-muted">{c.body}</p>
-                <a
-                  href={c.link}
-                  className="mt-4 inline-block rounded-pill border border-white/15 px-5 py-2 text-sm hover:border-white/30"
-                >
-                  {c.cta}
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+      <section className="mx-auto max-w-4xl px-6 py-12">
+        <div className="grid gap-6 sm:grid-cols-2">
+          {CONTACT_CARDS.map((card) => (
+            <div key={card.title} className="rounded-card border border-border-subtle bg-surface-1 p-6">
+              <h2 className="text-lg font-medium">{card.title}</h2>
+              <p className="mt-2 text-sm text-muted">{card.body}</p>
+              <a
+                href={card.href}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-block text-sm text-gold hover:underline"
+              >
+                {card.cta}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </div>
+          ))}
+        </div>
+      </section>
+    </MarketingPage>
   );
 }
