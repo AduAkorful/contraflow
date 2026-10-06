@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeAttestLink, decodeAttestLink, MalformedAttestLinkError } from "../src/attest/link";
+import { encodeAttestLink, decodeAttestLink, parseAttestLinkObject, serializeAttestLink, MalformedAttestLinkError } from "../src/attest/link";
 import type { InvoiceAttestation } from "../src/attest/signAttestation";
 import type { CanonicalInvoiceDocument } from "../src/attest/document";
 
@@ -81,5 +81,24 @@ describe("encodeAttestLink / decodeAttestLink", () => {
     for (const b of bytes) binary += String.fromCharCode(b);
     const encoded = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     expect(() => decodeAttestLink(encoded)).toThrow(MalformedAttestLinkError);
+  });
+});
+
+describe("parseAttestLinkObject", () => {
+  it("round-trips serializeAttestLink without a document", () => {
+    const serialized = serializeAttestLink({ invoice: INVOICE, role: "creditor", signatureA: "0xdeadbeef" });
+    expect(serialized.version).toBe(2);
+    expect("document" in serialized).toBe(false);
+    expect(parseAttestLinkObject(serialized)).toEqual({
+      version: 2,
+      invoice: INVOICE,
+      role: "creditor",
+      signatureA: "0xdeadbeef",
+    });
+  });
+
+  it("rejects a version 2 payload that still carries a document", () => {
+    const serialized = serializeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
+    expect(() => parseAttestLinkObject({ ...serialized, document: DOCUMENT })).toThrow(MalformedAttestLinkError);
   });
 });

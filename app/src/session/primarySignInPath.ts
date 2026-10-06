@@ -8,5 +8,6 @@ export function isSignInPrimaryPage(pathname: string): boolean {
   if (pathname === "/app/balance") return true;
   if (pathname.startsWith("/app/o/")) return true;
   if (pathname.startsWith("/app/c/")) return true;
+  if (pathname.startsWith("/app/i/")) return true;
   return false;
 }

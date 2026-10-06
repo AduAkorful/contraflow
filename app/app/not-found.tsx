@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { SiteNav } from "../components/site-nav";
 
+export const metadata = { title: "Page not found" };
+
 export default function NotFound() {
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip bg-bg">
@@ -26,8 +28,19 @@ export default function NotFound() {
           href="/"
           className="mt-8 rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
         >
-          Go Back to Homepage
+          Home
         </Link>
+        <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
+          <Link href="/app/demo" className="text-gold hover:underline">
+            Demo
+          </Link>
+          <Link href="/app/verify" className="text-gold hover:underline">
+            Verify a certificate
+          </Link>
+          <Link href="/docs" className="text-gold hover:underline">
+            Docs
+          </Link>
+        </div>
       </main>
     </div>
   );

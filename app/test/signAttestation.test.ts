@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { keccak256, recoverTypedDataAddress, toHex } from "viem";
+import { hashTypedData, keccak256, recoverTypedDataAddress, toHex } from "viem";
 import {
   invoiceAttestationId,
   invoiceAttestationTypedData,
@@ -65,8 +65,9 @@ describe("signAttestation", () => {
     await expect(signAttestation(invoice, debtorKey, wrongKey)).rejects.toBeInstanceOf(SignerMismatchError);
   });
 
-  it("invoiceAttestationId is a pure, deterministic function of the invoice fields", () => {
+  it("invoiceAttestationId is the Registry id (the typed-data hash of the attestation)", () => {
     const invoice = sampleInvoice({ nonce: 7n });
+    expect(invoiceAttestationId(invoice)).toBe(hashTypedData(invoiceAttestationTypedData(invoice)));
     expect(invoiceAttestationId(invoice)).toBe(invoiceAttestationId({ ...invoice }));
     expect(invoiceAttestationId(invoice)).not.toBe(invoiceAttestationId({ ...invoice, nonce: 8n }));
   });

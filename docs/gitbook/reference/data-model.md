@@ -40,6 +40,13 @@ erDiagram
     text maturity
     text created_by
   }
+  invoice_links {
+    text token PK "short-link token"
+    jsonb payload
+    text debtor
+    text creditor
+    timestamptz expires_at "30 days"
+  }
   addresses {
     text address PK
     text starter_grant_tx_hash
@@ -53,6 +60,7 @@ erDiagram
 |---|---|
 | `invoices`, `settlements` | Public through the app, since the data is public onchain |
 | `invoice_documents` | The invoice's two parties only, through session-checked actions. It's never joined into a public query. |
+| `invoice_links` | The invoice's two parties only. The token is a handle, not access control. Expired rows are treated as not found. |
 | `addresses` | Server only: which addresses have had the one-time starter gas grant |
 
 ## Offchain obligations

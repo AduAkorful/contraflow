@@ -123,7 +123,16 @@ export function Receipt({ data }: { data: ReceiptData }) {
                   <Money value={row.afterUsdc} />
                 </Figure>
               </dl>
-              {hasRemaining(row.afterUsdc) && <EurcQuote invoiceId={row.invoiceId} className="mt-3" />}
+              {hasRemaining(row.afterUsdc) && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer list-none text-xs text-muted" aria-label="More actions">
+                    ⋯
+                  </summary>
+                  <div className="mt-2">
+                    <EurcQuote invoiceId={row.invoiceId} />
+                  </div>
+                </details>
+              )}
             </li>
           );
         })}

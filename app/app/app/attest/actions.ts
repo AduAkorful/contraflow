@@ -15,10 +15,11 @@ import { recordRegistration } from "../../../src/attest/record";
 import type { InvoiceAttestation } from "../../../src/attest/signAttestation";
 import { hashInvoiceDocument, invoiceDocumentProblem, type CanonicalInvoiceDocument } from "../../../src/attest/document";
 import { insertInvoiceDocumentIfAbsent, getInvoiceDocumentByRef } from "../../../src/db/documents";
+import { createInvoiceShareLink, getInvoiceShareLink } from "../../../src/attest/invoiceLinks";
 import { guardPublicRead } from "../../../src/ratelimit/publicReadGuard";
 
 export type GrantResult =
-  | { ok: true; alreadyGranted: boolean; txHash?: string }
+  | { ok: true; alreadyGranted: boolean; txHash?: string; amountUsdc?: string }
   | { ok: false; error: string };
 
 export async function requestGrant(): Promise<GrantResult> {
@@ -28,7 +29,7 @@ export async function requestGrant(): Promise<GrantResult> {
   const result = await requestStarterGrant(session.address);
   if (!result.ok) return { ok: false, error: result.reason };
   if (result.alreadyGranted) return { ok: true, alreadyGranted: true };
-  return { ok: true, alreadyGranted: false, txHash: result.txHash };
+  return { ok: true, alreadyGranted: false, txHash: result.txHash, amountUsdc: grantAmountUsdc() };
 }
 
 export async function starterGrantAmount(): Promise<string> {
@@ -193,4 +194,16 @@ export async function getInvoiceDocument(invoiceRef: string): Promise<GetDocumen
       maturity: row.maturity,
     },
   };
+}
+
+export async function createInvoiceLink(encoded: string) {
+  const session = await getSession();
+  if (!session) return { ok: false as const, error: "Sign in first." };
+  return createInvoiceShareLink(session.address, encoded);
+}
+
+export async function getInvoiceLink(token: string) {
+  const session = await getSession();
+  if (!session) return { ok: false as const, error: "Sign in first." };
+  return getInvoiceShareLink(session.address, token);
 }

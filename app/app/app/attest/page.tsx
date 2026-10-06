@@ -2,7 +2,7 @@ import { SignInGate } from "../../../components/wallet/SignInGate";
 import { getSession } from "../../../src/session/getSession";
 import { ComposeForm } from "./ComposeForm";
 
-export const metadata = { title: "Propose an invoice" };
+export const metadata = { title: "Send an invoice" };
 
 
 export default async function AttestComposePage() {
@@ -11,9 +11,9 @@ export default async function AttestComposePage() {
   return (
     <>
       <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <h1 className="heading-1">Propose an invoice</h1>
+        <h1 className="heading-1">Send an invoice</h1>
         <p className="mt-4 max-w-xl text-sm text-muted">
-          Sign a USDC invoice and send your counterparty the link. Nothing is
+          Sign a USDC invoice and send your counterparty the short link. Nothing is
           registered on Arc until they sign too.
         </p>
 

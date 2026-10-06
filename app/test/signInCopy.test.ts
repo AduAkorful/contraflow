@@ -22,6 +22,7 @@ describe("header Sign in visibility", () => {
     expect(isSignInPrimaryPage("/app")).toBe(true);
     expect(isSignInPrimaryPage("/app/attest")).toBe(true);
     expect(isSignInPrimaryPage("/app/c/token")).toBe(true);
+    expect(isSignInPrimaryPage("/app/i/AbCdEf123_-xxxxxxxx")).toBe(true);
     expect(isSignInPrimaryPage("/app/history")).toBe(false);
     expect(isSignInPrimaryPage("/app/demo")).toBe(false);
   });

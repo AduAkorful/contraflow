@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  async redirects() {
+    const docs = process.env.NEXT_PUBLIC_DOCS_URL;
+    return [
+      { source: "/demo", destination: "/app/demo", permanent: false },
+      ...(docs ? [{ source: "/docs", destination: docs, permanent: false }] : []),
+    ];
+  },
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icon.png" }];
+  },
 };
 
 export default nextConfig;

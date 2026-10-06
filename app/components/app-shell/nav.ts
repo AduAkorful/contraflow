@@ -13,7 +13,7 @@ export interface NavItem {
 export function appNavItems(options: { balance: boolean; docsUrl?: string | null }): NavItem[] {
   return [
     { label: "Overview", href: "/app" },
-    { label: "Propose invoice", href: "/app/attest" },
+    { label: "Send invoice", href: "/app/attest", alsoActiveFor: ["/app/i/"] },
     { label: "History", href: "/app/history", alsoActiveFor: ["/app/receipt"] },
     { label: "Obligations", href: "/app/obligations", alsoActiveFor: ["/app/o/", "/app/c/"] },
     ...(options.balance ? [{ label: "Balance", href: "/app/balance" }] : []),

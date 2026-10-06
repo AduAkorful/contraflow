@@ -57,8 +57,13 @@ interface SerializedInvoice {
   chainId: string;
 }
 
-export function encodeAttestLink(payload: AttestLinkInput): string {
-  const serialized = {
+export function serializeAttestLink(payload: AttestLinkInput): {
+  version: 2;
+  invoice: SerializedInvoice;
+  role: "debtor" | "creditor";
+  signatureA: Hex;
+} {
+  return {
     version: 2,
     invoice: {
       ...payload.invoice,
@@ -66,11 +71,14 @@ export function encodeAttestLink(payload: AttestLinkInput): string {
       maturity: payload.invoice.maturity.toString(),
       nonce: payload.invoice.nonce.toString(),
       chainId: payload.invoice.chainId.toString(),
-    } satisfies SerializedInvoice,
+    },
     role: payload.role,
     signatureA: payload.signatureA,
   };
-  return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(serialized)));
+}
+
+export function encodeAttestLink(payload: AttestLinkInput): string {
+  return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(serializeAttestLink(payload))));
 }
 
 export class MalformedAttestLinkError extends Error {
@@ -80,21 +88,14 @@ export class MalformedAttestLinkError extends Error {
   }
 }
 
-export function decodeAttestLink(encoded: string): AttestLinkPayload {
-  let parsed: Record<string, unknown>;
-  try {
-    const json = new TextDecoder().decode(base64UrlToBytes(encoded));
-    parsed = JSON.parse(json);
-  } catch {
-    throw new MalformedAttestLinkError();
-  }
-
+export function parseAttestLinkObject(parsed: unknown): AttestLinkPayload {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new MalformedAttestLinkError();
-  if (!parsed.invoice || (parsed.role !== "debtor" && parsed.role !== "creditor") || typeof parsed.signatureA !== "string") {
+  const record = parsed as Record<string, unknown>;
+  if (!record.invoice || (record.role !== "debtor" && record.role !== "creditor") || typeof record.signatureA !== "string") {
     throw new MalformedAttestLinkError();
   }
 
-  const invoice = parsed.invoice as SerializedInvoice;
+  const invoice = record.invoice as SerializedInvoice;
   if (
     typeof invoice.amount !== "string" ||
     typeof invoice.maturity !== "string" ||
@@ -104,10 +105,10 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
     throw new MalformedAttestLinkError();
   }
 
-  const version = parsed.version === undefined ? 1 : parsed.version;
+  const version = record.version === undefined ? 1 : record.version;
   let document: CanonicalInvoiceDocument | undefined;
   if (version === 1) {
-    const candidate = parsed.document as Partial<CanonicalInvoiceDocument> | undefined;
+    const candidate = record.document as Partial<CanonicalInvoiceDocument> | undefined;
     if (
       !candidate ||
       typeof candidate.description !== "string" ||
@@ -122,7 +123,7 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
   } else if (version === 2) {
     // Reject a v2 link carrying legacy terms; otherwise a downgrade or malformed payload could
     // accidentally restore bearer access to the description.
-    if (parsed.document !== undefined) throw new MalformedAttestLinkError();
+    if (record.document !== undefined) throw new MalformedAttestLinkError();
   } else {
     throw new MalformedAttestLinkError();
   }
@@ -141,11 +142,21 @@ export function decodeAttestLink(encoded: string): AttestLinkPayload {
         registry: invoice.registry,
         chainId: BigInt(invoice.chainId),
       },
-      role: parsed.role,
-      signatureA: parsed.signatureA as Hex,
+      role: record.role,
+      signatureA: record.signatureA as Hex,
     };
     return version === 1 ? { ...base, version: 1, document: document! } : { ...base, version: 2 };
   } catch {
     throw new MalformedAttestLinkError();
   }
+}
+
+export function decodeAttestLink(encoded: string): AttestLinkPayload {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encoded)));
+  } catch {
+    throw new MalformedAttestLinkError();
+  }
+  return parseAttestLinkObject(parsed);
 }

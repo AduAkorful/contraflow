@@ -12,19 +12,19 @@ first transaction. Every transaction after that is sent from your own wallet.
 
 ## Invoices on Arc
 
-### Propose an invoice
+### Send an invoice
 
 1. Choose whether you're the debtor ("I owe them") or the creditor ("They owe me").
 2. Enter the counterparty's address, the amount in USDC and a maturity date.
 3. Describe what the invoice is for. The description becomes part of what you sign, so your
    counterparty's browser can check it's exactly what you wrote. A link that's been tampered with
    is rejected outright.
-4. Sign with your wallet. This gives you a link to send to your counterparty.
+4. Sign. This gives you a short link (`/app/i/…`) to send to your counterparty. It works for 30 days.
 
 ### Your counterparty signs
 
-They open the link, see the same terms and description you signed, and sign with their own
-wallet. Their wallet then registers the invoice on Arc.
+They sign in, open the link, see the same terms and description you signed, and sign. Their wallet
+then registers the invoice on Arc. Only the two parties can load the link.
 
 ### Settlement
 
@@ -34,12 +34,12 @@ exactly what changed for each invoice.
 
 ## Offchain obligations
 
-### Record an obligation
+### Record a debt
 
-1. From the app's home page, open **Obligations in any currency**, then choose **Record an obligation**.
+1. From the app's home page, open **Record a debt (any currency)**.
 2. Choose whether you owe or are owed, then enter the counterparty's address, the currency, the
    amount, a maturity date and a description.
-3. Sign with your wallet. You get a short link to send to your counterparty. It works for 30 days.
+3. Sign. You get a short link to send to your counterparty. It works for 30 days.
 
 ### Your counterparty signs
 

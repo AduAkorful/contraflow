@@ -1,5 +1,5 @@
 /// Runs against a real Postgres, so it only runs when `TEST_DATABASE_URL` is set (a scratch database
-/// with migrations 001 to 011 applied, never the app's own). It checks what the offline tests can't:
+/// with migrations 001 to 012 applied, never the app's own). It checks what the offline tests can't:
 /// that the adapter's transactions, row locks and result types behave as the stores expect, that each
 /// store's SQL works on the real engine, and that the lockdown holds.
 ///

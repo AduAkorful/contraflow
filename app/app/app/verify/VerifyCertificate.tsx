@@ -6,44 +6,55 @@
 
 import { useState } from "react";
 import { usePublicClient } from "wagmi";
-import { describeCheck, statusMark } from "../../../components/netting/checks";
+import {
+  describeCheck,
+  groupChecks,
+  statusMark,
+  verificationPassedHeadline,
+} from "../../../components/netting/checks";
 import { displayMinorAmount } from "../../../components/netting/format";
 import { parseCertificateView } from "../../../src/netting/serialize";
 import type { ChainReader } from "../../../src/netting/signature";
 import { verifyCertificateView, type VerificationResult } from "../../../src/netting/verify";
+import type { CertificateView } from "../../../src/netting/types";
 
 export function VerifyCertificate() {
   const publicClient = usePublicClient();
   const [text, setText] = useState("");
   const [result, setResult] = useState<VerificationResult | null>(null);
+  const [view, setView] = useState<CertificateView | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   async function verify(json: string) {
     setResult(null);
+    setView(null);
     setSummary(null);
     setError(null);
-    let view;
+    let parsed;
     try {
-      view = parseCertificateView(json);
+      parsed = parseCertificateView(json);
     } catch (err) {
       setError(`This isn't a readable certificate file: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
     setChecking(true);
     try {
-      const outcome = await verifyCertificateView(view, {
+      const outcome = await verifyCertificateView(parsed, {
         now: BigInt(Math.floor(Date.now() / 1000)),
         stage: "applied",
         client: publicClient as unknown as ChainReader | undefined,
       });
+      setView(parsed);
       setResult(outcome);
       setSummary(
-        `${view.certificate.entries.length} obligations in ${view.currency}, each reduced by ${displayMinorAmount(
-          view.wNet.toString(),
-          view.currency,
-        )}. Certificate ${view.certificate.certificateId.slice(0, 10)}…`,
+        `${parsed.certificate.entries.length} obligations in ${parsed.currency}, each reduced by ${displayMinorAmount(
+          parsed.wNet.toString(),
+          parsed.currency,
+        )}. Certificate ${parsed.certificate.certificateId.slice(0, 10)}…`,
       );
     } finally {
       setChecking(false);
@@ -58,58 +69,89 @@ export function VerifyCertificate() {
   }
 
   const failed = result ? result.checks.filter((c) => c.status !== "pass").length : 0;
+  const fullCount = view ? view.entries.filter((e) => e.kind === "full").length : 0;
+  const totalCount = view ? view.certificate.entries.length : 0;
+  const groups = result ? groupChecks(result.checks) : [];
 
   return (
     <div className="mt-8 flex flex-col gap-4">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          void onFile(e.dataTransfer.files[0]);
+        }}
+        className={`rounded-card border border-dashed p-6 text-center ${
+          dragging ? "border-gold bg-gold/10" : "border-white/15 bg-white/[0.02]"
+        }`}
+      >
+        <p className="text-sm">{checking ? "Checking..." : "Drop a certificate file here, or choose one"}</p>
+        <input
+          type="file"
+          accept="application/json,.json"
+          onChange={(e) => void onFile(e.target.files?.[0])}
+          className="mt-3 text-sm text-muted file:mr-3 file:rounded-pill file:border file:border-white/15 file:bg-transparent file:px-4 file:py-1.5 file:text-sm file:text-foreground"
+        />
+      </div>
       <label className="text-xs uppercase tracking-wide text-muted" htmlFor="certificate-json">
-        Certificate file
+        Or paste its contents
       </label>
-      <input
-        type="file"
-        accept="application/json,.json"
-        onChange={(e) => void onFile(e.target.files?.[0])}
-        className="text-sm text-muted file:mr-3 file:rounded-pill file:border file:border-white/15 file:bg-transparent file:px-4 file:py-1.5 file:text-sm file:text-foreground"
-      />
       <textarea
         id="certificate-json"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="…or paste its contents here"
-        rows={8}
+        onBlur={() => {
+          if (text.trim()) void verify(text);
+        }}
+        placeholder="Paste a contraflow-netting-certificate/1 file"
+        rows={6}
         className="w-full rounded-lg border border-white/10 bg-white/[0.02] p-3 font-mono text-xs"
       />
-      <button
-        onClick={() => void verify(text)}
-        disabled={checking || text.trim().length === 0}
-        className="self-start rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
-      >
-        {checking ? "Checking..." : "Verify"}
-      </button>
 
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
 
-      {result && (
+      {result && view && (
         <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
           <p className="text-sm">
-            {result.ok ? "Every check passed." : `${failed} of ${result.checks.length} checks did not pass.`}
+            {result.ok
+              ? verificationPassedHeadline(fullCount, totalCount)
+              : `${failed} of ${result.checks.length} checks did not pass.`}
           </p>
           {summary && <p className="mt-1 text-xs text-muted">{summary}</p>}
           <ul className="mt-4 flex flex-col gap-2 text-sm">
-            {result.checks.map((c) => (
-              <li key={c.name} className="flex gap-2">
-                <span aria-hidden className={c.status === "pass" ? "text-gold" : c.status === "fail" ? "text-red-300" : "text-muted"}>
-                  {statusMark(c.status)}
-                </span>
-                <span>
-                  {describeCheck(c.name)}
-                  <span className="text-xs text-muted">
-                    {" "}
-                    · {c.status === "pass" ? "passed" : c.status === "fail" ? "failed" : "couldn't check"}
-                    {c.detail ? ` · ${c.detail}` : ""}
-                  </span>
-                </span>
-              </li>
-            ))}
+            {groups.map((g) => {
+              const open = openGroup === g.label;
+              return (
+                <li key={g.label}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroup(open ? null : g.label)}
+                    className="flex w-full items-center gap-2 text-left"
+                  >
+                    <span aria-hidden className={g.status === "pass" ? "text-gold" : g.status === "fail" ? "text-red-300" : "text-muted"}>
+                      {statusMark(g.status)}
+                    </span>
+                    <span>{g.label}</span>
+                    <span className="text-xs text-muted">{open ? "Hide" : "Show"}</span>
+                  </button>
+                  {open && (
+                    <ul className="mt-2 ml-6 flex flex-col gap-1 text-xs text-muted">
+                      {g.checks.map((c) => (
+                        <li key={c.name}>
+                          {statusMark(c.status)} {describeCheck(c.name)}
+                          {c.detail ? ` · ${c.detail}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

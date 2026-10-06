@@ -6,26 +6,28 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useWriteContract, usePublicClient, useSwitchChain } from "wagmi";
-import { recoverTypedDataAddress, type Address } from "viem";
+import { recoverTypedDataAddress, hashTypedData, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
 import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
 import { SessionBound, useSession } from "../../../../components/session/SessionProvider";
 import { ReviewAndSign } from "../../../../components/attest/ReviewAndSign";
+import { RegisterProgress } from "../../../../components/attest/RegisterProgress";
 import { Money } from "../../../../components/ui/Money";
 import { invoiceSigningConfirmation } from "../../../../src/format/signing";
 import { signingInLabel } from "../../../../src/session/signInCopy";
 import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
 import { formatUsdcAmount } from "../../../../src/attest/amount";
-import { decodeAttestLink, type AttestLinkPayload } from "../../../../src/attest/link";
+import { decodeAttestLink, parseAttestLinkObject, type AttestLinkPayload } from "../../../../src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../../src/attest/document";
 import { invoiceAttestationTypedData } from "../../../../src/attest/signAttestation";
 import { invoiceViewerRole, isInvoiceCounterparty } from "../../../../src/attest/viewer";
 import { prepareWalletContext } from "../../../../src/attest/walletContext";
+import { starterGrantToast } from "../../../../src/attest/grantCopy";
 import { ARC_TESTNET_CHAIN_ID } from "../../../../src/contracts/addresses";
 import { contraflowRegistryAbi } from "../../../../src/contracts/abi/index";
 import { arcTestnet } from "../../../../src/chain/client";
-import { checkLinkFreshness, getInvoiceDocument, requestGrant, preCheck, record } from "../actions";
+import { checkLinkFreshness, getInvoiceDocument, getInvoiceLink, requestGrant, preCheck, record } from "../actions";
 
 type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
 const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
@@ -40,7 +42,7 @@ function serializeInvoice(invoice: AttestLinkPayload["invoice"]) {
   };
 }
 
-export function LandingClient({ encoded }: { encoded: string }) {
+export function LandingClient({ encoded, token }: { encoded?: string; token?: string }) {
   const { address, connector } = useAccount();
   const { signTypedData } = useContraflowSignTypedData();
   const { writeContractAsync } = useWriteContract();
@@ -57,9 +59,10 @@ export function LandingClient({ encoded }: { encoded: string }) {
   const [document, setDocument] = useState<CanonicalInvoiceDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultTxHash, setResultTxHash] = useState<string | null>(null);
-  const [registeredRef, setRegisteredRef] = useState<string | null>(null);
   const [recordWarning, setRecordWarning] = useState<string | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [grantNote, setGrantNote] = useState<string | null>(null);
+  const registryId = payload ? hashTypedData(invoiceAttestationTypedData(payload.invoice)) : null;
 
   const viewerRole = payload ? invoiceViewerRole(payload.invoice, sessionAddress) : null;
   const mayCoSign = payload ? isInvoiceCounterparty(payload.invoice, payload.role, sessionAddress, address) : false;
@@ -148,6 +151,12 @@ export function LandingClient({ encoded }: { encoded: string }) {
   }
 
   useEffect(() => {
+    if (token) return;
+    if (!encoded) {
+      setError("This link is invalid or has been altered.");
+      setPhase("invalid");
+      return;
+    }
     (async () => {
       let decoded: AttestLinkPayload;
       try {
@@ -162,9 +171,45 @@ export function LandingClient({ encoded }: { encoded: string }) {
         await verifyTerms(decoded, decoded.document);
       }
     })();
-  }, [encoded]);
+  }, [encoded, token]);
 
   useEffect(() => {
+    if (!token) return;
+    if (!sessionAddress) {
+      setPayload(null);
+      setDocument(null);
+      setLoadedFor(null);
+      setPhase("sign-in-required");
+      return;
+    }
+    (async () => {
+      setPhase("verifying");
+      const result = await getInvoiceLink(token);
+      if (!result.ok) {
+        if (result.error === "Sign in first.") {
+          setPhase("sign-in-required");
+          return;
+        }
+        setError(result.error);
+        setPhase(result.error === "Not found." ? "invalid" : "error");
+        return;
+      }
+      let decoded: AttestLinkPayload;
+      try {
+        decoded = parseAttestLinkObject(result.payload);
+      } catch {
+        setError("This link is invalid or has been altered.");
+        setPhase("invalid");
+        return;
+      }
+      setPayload(decoded);
+      setLoadedFor(sessionAddress);
+      await loadPrivateTerms(decoded, sessionAddress);
+    })();
+  }, [token, sessionAddress]);
+
+  useEffect(() => {
+    if (token) return;
     if (!payload || payload.version !== 2) return;
     if (!sessionAddress) {
       setDocument(null);
@@ -173,7 +218,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
       return;
     }
     void loadPrivateTerms(payload, sessionAddress);
-  }, [payload, sessionAddress]);
+  }, [payload, sessionAddress, token]);
 
   async function handleSignAndRegister() {
     if (!payload || !publicClient) return;
@@ -184,7 +229,10 @@ export function LandingClient({ encoded }: { encoded: string }) {
 
     try {
       setPhase("signing");
-      await requestGrant();
+      const grant = await requestGrant();
+      if (grant.ok && !grant.alreadyGranted && grant.amountUsdc) {
+        setGrantNote(starterGrantToast(grant.amountUsdc, ARC_TESTNET_CHAIN_ID));
+      }
 
       const expectedSigner = (payload.role === "debtor" ? payload.invoice.creditor : payload.invoice.debtor) as Address;
       await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
@@ -241,7 +289,6 @@ export function LandingClient({ encoded }: { encoded: string }) {
       setPhase("done");
       try {
         const recordResult = await record(txHash);
-        if (recordResult.ok) setRegisteredRef(recordResult.invoiceRef);
         if (!recordResult.ok) {
           setRecordWarning("Arc confirmed the registration, but history has not synced yet. Contraflow will reconcile it automatically.");
           console.error("record() failed after a successful register():", recordResult.error);
@@ -308,13 +355,22 @@ export function LandingClient({ encoded }: { encoded: string }) {
           </svg>
           Invoice registered on Arc
         </p>
+        <div className="mt-4">
+          <RegisterProgress step={3} txHash={resultTxHash} explorerBase={ARC_EXPLORER} />
+        </div>
+        {grantNote && <p className="mt-3 text-xs text-muted">{grantNote}</p>}
         <p className="mt-3 text-xs text-muted">
           {payload ? <Money value={formatUsdcAmount(payload.invoice.amount)} className="text-foreground" /> : "This invoice"} is now registered.
           If it forms a loop with other invoices, you'll see a Settle button on your Overview.
         </p>
-        {registeredRef && (
+        {registryId && (
           <p className="mt-3 text-xs text-faint">
-            Invoice ID <span className="break-all font-mono text-muted">{registeredRef}</span>
+            Invoice ID <span className="break-all font-mono text-muted">{registryId}</span>
+          </p>
+        )}
+        {payload?.invoice.invoiceRef && (
+          <p className="mt-1 text-xs text-faint">
+            Document hash <span className="break-all font-mono text-muted">{payload.invoice.invoiceRef}</span>
           </p>
         )}
         {recordWarning && <p className="mt-3 text-xs text-muted">{recordWarning}</p>}
@@ -330,7 +386,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
             </a>
           )}
           <a href="/app/attest" className="text-muted hover:underline">
-            Propose another invoice →
+            Send another invoice →
           </a>
         </div>
       </div>
@@ -394,6 +450,14 @@ export function LandingClient({ encoded }: { encoded: string }) {
                 {phase === "recording" && "Finishing up..."}
                 {phase === "ready" && "Sign & register"}
               </button>
+              {(phase === "signing" || phase === "submitting" || phase === "recording") && (
+                <RegisterProgress
+                  step={phase === "signing" ? 1 : phase === "submitting" ? 2 : 3}
+                  txHash={resultTxHash}
+                  explorerBase={ARC_EXPLORER}
+                />
+              )}
+              {grantNote && <p className="text-center text-xs text-muted">{grantNote}</p>}
               {error && <p className="text-center text-xs text-red-300">{error}</p>}
             </div>
           )}

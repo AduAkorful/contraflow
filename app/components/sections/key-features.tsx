@@ -5,7 +5,7 @@ const FEATURES = [
   },
   {
     title: "Obligations in any currency",
-    body: "Record what you owe and are owed in dollars, euros, cedis or any other currency. Amounts and invoice details never go onchain.",
+    body: "Record what you owe and are owed in dollars, euros, cedis or any other currency. Obligation amounts never go onchain. Contraflow's servers can read them. Invoice amounts and parties are public on Arc.",
   },
   {
     title: "One certificate for the whole loop",

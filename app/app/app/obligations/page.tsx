@@ -24,7 +24,7 @@ export default async function ObligationsPage() {
           <h1 className="heading-1">Offchain obligations</h1>
           {session && (
             <Link href="/app/obligations/new" className="text-sm text-gold hover:underline">
-              Record an obligation →
+              Record a debt →
             </Link>
           )}
         </div>

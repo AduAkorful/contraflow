@@ -5,17 +5,18 @@ import { useRouter } from "next/navigation";
 import { Address } from "../../../components/ui/Address";
 import { displayDate, displayMajorAmount, displayMinorAmount } from "../../../components/netting/format";
 import { earlyNettingReview } from "../../../src/format/signing";
+import {
+  obligationPositionByCurrency,
+  obligationPositionLine,
+  obligationStatusLabel,
+} from "../../../src/obligations/position";
 import type { ObligationSummary, ProposalSummary } from "../../../src/obligations/service";
 import { closeObligation, withdrawProposal } from "./actions";
 
 const OUT_OF_SYNC_EXPLAINED =
   "Its recorded state disagrees with the ledger, for example after a certificate was applied outside Contraflow. It won't be netted from here again.";
-
-function statusLabel(o: ObligationSummary): string {
-  if (o.status === "out_of_sync") return "out of sync";
-  if (o.status === "active" && o.remaining === "0") return "fully netted";
-  return o.status;
-}
+const CLOSE_CONFIRM =
+  "Close this obligation? It can't be undone, and it won't be netted in any certificate.";
 
 export function ObligationsList({
   proposals,
@@ -42,7 +43,7 @@ export function ObligationsList({
       <p className="mt-10 text-center text-sm text-muted">
         Nothing yet.{" "}
         <a href="/app/obligations/new" className="text-gold hover:underline">
-          Record your first obligation →
+          Record your first debt →
         </a>
       </p>
     );
@@ -53,6 +54,12 @@ export function ObligationsList({
       {error && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>
       )}
+
+      {obligationPositionByCurrency(obligations).map((row) => (
+        <p key={row.currency} className="text-sm">
+          {obligationPositionLine(row)}
+        </p>
+      ))}
 
       {proposals.length > 0 && (
         <div>
@@ -130,11 +137,12 @@ export function ObligationsList({
                         : "border-white/15 text-muted"
                     }`}
                   >
-                    {statusLabel(o)}
+                    {obligationStatusLabel(o)}
                   </span>
                   {(o.status === "active" || o.status === "out_of_sync") &&
                     (confirmingClose === o.obligationId ? (
                       <>
+                        <p className="max-w-xs text-xs text-muted">{CLOSE_CONFIRM}</p>
                         <button onClick={() => run(() => closeObligation(o.obligationId))} className="text-red-300 hover:underline">
                           Confirm close
                         </button>

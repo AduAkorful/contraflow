@@ -7,8 +7,9 @@ const active = (path: string) => items.filter((i) => isNavActive(i, path)).map((
 describe("app navigation", () => {
   it("marks exactly one item active on each app path", () => {
     expect(active("/app")).toEqual(["Overview"]);
-    expect(active("/app/attest")).toEqual(["Propose invoice"]);
-    expect(active("/app/attest/abc123")).toEqual(["Propose invoice"]);
+    expect(active("/app/attest")).toEqual(["Send invoice"]);
+    expect(active("/app/attest/abc123")).toEqual(["Send invoice"]);
+    expect(active("/app/i/AbCdEf123_-xxxxxxxx")).toEqual(["Send invoice"]);
     expect(active("/app/history")).toEqual(["History"]);
     expect(active("/app/receipt/0xabc")).toEqual(["History"]);
     expect(active("/app/obligations/new")).toEqual(["Obligations"]);

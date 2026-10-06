@@ -110,10 +110,10 @@ export async function Overview({ address }: { address: string }) {
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link href="/app/attest" className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-black">
-          Propose a USDC invoice
+          Send an invoice (USDC)
         </Link>
         <Link href="/app/obligations/new" className="rounded-md border border-border-input px-4 py-2 text-sm text-foreground hover:bg-surface-2">
-          Record an obligation
+          Record a debt (any currency)
         </Link>
       </div>
 

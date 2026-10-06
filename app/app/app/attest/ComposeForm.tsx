@@ -21,7 +21,8 @@ import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../src
 import { formatUsdcAmount, parseUsdcAmount, UsdcAmountError } from "../../../src/attest/amount";
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../../../src/contracts/addresses";
 import { prepareWalletContext } from "../../../src/attest/walletContext";
-import { requestGrant, nextNonceFor, saveInvoiceDocument } from "./actions";
+import { starterGrantToast } from "../../../src/attest/grantCopy";
+import { requestGrant, nextNonceFor, saveInvoiceDocument, createInvoiceLink } from "./actions";
 
 type Phase = "compose" | "review" | "signing" | "done";
 type Role = "debtor" | "creditor";
@@ -69,8 +70,8 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
 
   async function ensureGrant() {
     const result = await requestGrant();
-    if (result.ok && !result.alreadyGranted) {
-      setGrantNote("Your wallet was funded for its first transaction on Arc testnet.");
+    if (result.ok && !result.alreadyGranted && result.amountUsdc) {
+      setGrantNote(starterGrantToast(result.amountUsdc, ARC_TESTNET_CHAIN_ID));
     }
   }
 
@@ -159,8 +160,13 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       });
       await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const encoded = encodeAttestLink({ invoice, role, signatureA });
-      const url = `${window.location.origin}/app/attest/${encoded}`;
-      setLink(url);
+      const stored = await createInvoiceLink(encoded);
+      if (!stored.ok) {
+        setError(stored.error);
+        setPhase("review");
+        return;
+      }
+      setLink(`${window.location.origin}/app/i/${stored.token}`);
       setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign.");
@@ -190,7 +196,8 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
         <p role="status" aria-live="polite" className="sr-only">
           {copied ? "Link copied to clipboard" : ""}
         </p>
-        <p className="mt-4 text-xs text-muted">Nothing is registered on Arc until they sign too.</p>
+        {grantNote && <p className="mt-4 text-xs text-muted">{grantNote}</p>}
+        <p className="mt-4 text-xs text-muted">Nothing is registered on Arc until they sign too. The link works for 30 days.</p>
       </div>
       </ComposerFrame>
     );
@@ -220,6 +227,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           <button onClick={() => setPhase("compose")} className="text-xs text-muted hover:underline">
             ← Back to edit
           </button>
+          {grantNote && <p className="text-center text-xs text-muted">{grantNote}</p>}
           {error && <p role="alert" className="text-center text-xs text-danger">{error}</p>}
         </div>
       </ReviewAndSign>

@@ -59,7 +59,7 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
 
   return (
     <>
-      <section className="mx-auto max-w-5xl px-4 pb-10 pt-10 sm:px-6">
+      <section className="mx-auto max-w-5xl min-w-0 overflow-x-clip px-4 pb-10 pt-10 sm:px-6">
         <h1 className="heading-1">Invoice history</h1>
         <p className="mt-4 max-w-2xl text-muted">
           Look up any address&apos;s invoices on Arc testnet — no sign-in needed. Useful for
@@ -70,14 +70,14 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
           .
         </p>
 
-        <div className="mt-6 flex max-w-2xl flex-col gap-3 sm:flex-row">
+        <div className="mt-6 flex max-w-2xl min-w-0 flex-col gap-3 sm:flex-row">
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
             aria-label="Address to look up"
             placeholder="0x..."
-            className="flex-1 rounded-lg border border-border-input bg-surface-1 px-4 py-3 text-sm font-mono focus:border-focus"
+            className="min-w-0 flex-1 rounded-lg border border-border-input bg-surface-1 px-4 py-3 text-sm font-mono focus:border-focus"
           />
           <button
             onClick={() => search()}
@@ -108,12 +108,6 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
           </div>
         )}
 
-        {signals === "loading" && <SignalsLoading title={SIGNALS_TITLE} />}
-        {signals && signals !== "loading" && !signals.ok && (
-          <SignalsUnavailable title={SIGNALS_TITLE} message={signals.error} />
-        )}
-        {signals && signals !== "loading" && signals.ok && <AddressSignalsPanel signals={signals.signals} />}
-
         {invoices && invoices.length === 0 && (
           <p className="mt-8 text-center text-sm text-muted">No invoices found for this address.</p>
         )}
@@ -125,7 +119,23 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
         )}
 
         {invoices && invoices.length > 0 && (
-          <HistoryTable invoices={invoices} address={address.trim()} loopInvoiceIds={viewingOwn ? loopIds : []} />
+          <HistoryTable
+            invoices={invoices}
+            address={address.trim()}
+            loopInvoiceIds={viewingOwn ? loopIds : []}
+            viewingOwn={viewingOwn}
+          />
+        )}
+
+        {(signals === "loading" || signals) && (
+          <details className="mt-8">
+            <summary className="cursor-pointer text-sm text-muted">Onchain signals</summary>
+            {signals === "loading" && <SignalsLoading title={SIGNALS_TITLE} />}
+            {signals && signals !== "loading" && !signals.ok && (
+              <SignalsUnavailable title={SIGNALS_TITLE} message={signals.error} />
+            )}
+            {signals && signals !== "loading" && signals.ok && <AddressSignalsPanel signals={signals.signals} />}
+          </details>
         )}
       </section>
     </>

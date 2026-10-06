@@ -3,6 +3,22 @@
 
 import type { CheckStatus, VerificationCheck } from "../../src/netting/verify";
 
+const LABELS: Record<string, string> = {
+  "view.shape": "The file is a well-formed certificate",
+  chain: "The certificate is for this network",
+  "certificate.loop": "The obligations form a closed loop, each party once",
+  "certificate:id": "The certificate has a valid ID",
+  "certificate:deadline": "The certificate is still in date",
+  "view.coverage": "At least one obligation is held in full",
+  "view.own-entries": "Both of your obligations are held in full",
+  "content-hash": "The contents match the hash every party signed",
+  onchain: "The ledger was read",
+  "onchain:applied": "The ledger has applied this certificate",
+  "onchain:application-event": "The ledger recorded this certificate being applied",
+  "ledger:current": "Each obligation's recorded state is still current on the ledger",
+  verifier: "The verifier finished",
+};
+
 const ENTRY_CHECKS: Record<string, string> = {
   "obligation-id": "matches the obligation both parties signed",
   parties: "names the right debtor and creditor",
@@ -22,25 +38,31 @@ export function describeCheck(name: string): string {
   if (signature) return `Party ${Number(signature[1]) + 1} signed this certificate`;
   const state = /^onchain:entry:(\d+):state$/.exec(name);
   if (state) return `Obligation ${Number(state[1]) + 1}'s state on the ledger`;
-  return (
-    {
-      "view.shape": "The file is a well-formed certificate",
-      chain: "The certificate is for this network",
-      "certificate.loop": "The obligations form a closed loop, each party once",
-      "view.coverage": "At least one obligation is held in full",
-      "view.own-entries": "Both of your obligations are held in full",
-      "content-hash": "The contents match the hash every party signed",
-      onchain: "The ledger was read",
-      "onchain:applied": "The ledger has applied this certificate",
-      "ledger:current": "Each obligation's recorded state is still current on the ledger",
-      verifier: "The verifier finished",
-    }[name] ?? name
-  );
+  return LABELS[name] ?? name;
+}
+
+export function isCheckLabelled(name: string): boolean {
+  if (/^entry:\d+:/.test(name)) {
+    const field = name.slice(name.lastIndexOf(":") + 1);
+    return field in ENTRY_CHECKS;
+  }
+  if (/^certificate-signature:\d+$/.test(name)) return true;
+  if (/^onchain:entry:\d+:state$/.test(name)) return true;
+  return name in LABELS;
+}
+
+export function verificationPassedHeadline(fullCount: number, totalCount: number): string {
+  if (fullCount >= totalCount) return "Every check passed.";
+  const others = totalCount - fullCount;
+  const fullNoun = fullCount === 1 ? "obligation" : "obligations";
+  const otherVerb = others === 1 ? "is" : "are";
+  return `Every check passed. Full detail for the ${fullCount} ${fullNoun} you're party to; the other ${others} ${otherVerb} covered by the signatures in the file.`;
 }
 
 export interface CheckGroup {
   label: string;
   status: CheckStatus;
+  checks: VerificationCheck[];
 }
 
 const GROUPS: { label: string; matches: (name: string) => boolean }[] = [
@@ -50,9 +72,13 @@ const GROUPS: { label: string; matches: (name: string) => boolean }[] = [
       n === "view.own-entries" || /^entry:\d+:(obligation-id|parties|obligation-signatures|currency|maturity)$/.test(n),
   },
   { label: "Amounts add up", matches: (n) => /^entry:\d+:(prior-commitment|amounts|next-commitment)$/.test(n) || n === "content-hash" },
-  { label: "Loop is closed", matches: (n) => ["view.shape", "chain", "certificate.loop", "view.coverage", "verifier"].includes(n) },
+  {
+    label: "Loop is closed",
+    matches: (n) =>
+      ["view.shape", "chain", "certificate.loop", "view.coverage", "verifier", "certificate:id", "certificate:deadline"].includes(n),
+  },
   { label: "Signed by every party", matches: (n) => n.startsWith("certificate-signature:") },
-  { label: "Ledger state is current", matches: (n) => n === "ledger:current" },
+  { label: "Ledger state is current", matches: (n) => n === "ledger:current" || n.startsWith("onchain") },
 ];
 
 function combined(statuses: CheckStatus[]): CheckStatus {
@@ -69,10 +95,10 @@ export function groupChecks(checks: VerificationCheck[]): CheckGroup[] {
   for (const group of GROUPS) {
     const members = checks.filter((c) => group.matches(c.name));
     members.forEach((c) => placed.add(c));
-    if (members.length > 0) groups.push({ label: group.label, status: combined(members.map((c) => c.status)) });
+    if (members.length > 0) groups.push({ label: group.label, status: combined(members.map((c) => c.status)), checks: members });
   }
   const rest = checks.filter((c) => !placed.has(c));
-  if (rest.length > 0) groups.push({ label: "Other checks", status: combined(rest.map((c) => c.status)) });
+  if (rest.length > 0) groups.push({ label: "Other checks", status: combined(rest.map((c) => c.status)), checks: rest });
   return groups;
 }
 

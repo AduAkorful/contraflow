@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { displayDate, displayMinorAmount } from "../../../components/netting/format";
 import type { CertificateSummary } from "../../../src/obligations/certificates";
@@ -20,23 +20,42 @@ function nextStep(c: CertificateSummary): string | null {
   return null;
 }
 
+function loopBannerTarget(certificates: CertificateSummary[], foundToken: string | null): string | null {
+  const open = certificates.filter((c) => c.status === "collecting" || c.status === "ready");
+  const unsigned = open.find((c) => c.status === "collecting" && !c.youSigned);
+  if (unsigned) return unsigned.token;
+  const ready = open.find((c) => c.status === "ready");
+  if (ready) return ready.token;
+  if (open[0]) return open[0].token;
+  return foundToken;
+}
+
 export function CertificatesPanel({ certificates }: { certificates: CertificateSummary[] }) {
   const router = useRouter();
   const [searching, setSearching] = useState(false);
   const [found, setFound] = useState<{ token: string; text: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searched = useRef(false);
 
-  async function find() {
+  async function find(opts?: { silent?: boolean }) {
     setSearching(true);
-    setFound(null);
-    setMessage(null);
-    setError(null);
+    if (!opts?.silent) {
+      setFound(null);
+      setMessage(null);
+      setError(null);
+    }
     try {
       const result = await findNettingLoop();
-      if (!result.ok) return setError(result.error);
+      if (!result.ok) {
+        if (!opts?.silent) setError(result.error);
+        return;
+      }
       const outcome = result.outcome;
-      if (!outcome.found) return setMessage(outcome.message);
+      if (!outcome.found) {
+        if (!opts?.silent) setMessage(outcome.message);
+        return;
+      }
       setFound({
         token: outcome.token,
         text: `Loop found: ${outcome.parties} parties, ${displayMinorAmount(outcome.wNet, outcome.currency)} each.`,
@@ -49,18 +68,37 @@ export function CertificatesPanel({ certificates }: { certificates: CertificateS
 
   const open = certificates.filter((c) => c.status === "collecting" || c.status === "ready");
   const closed = certificates.filter((c) => c.status !== "collecting" && c.status !== "ready");
+  const bannerToken = loopBannerTarget(certificates, found?.token ?? null);
+
+  useEffect(() => {
+    if (searched.current) return;
+    searched.current = true;
+    const hasOpen = certificates.some((c) => c.status === "collecting" || c.status === "ready");
+    if (hasOpen) return;
+    void find({ silent: true });
+    // First visit only: a later refresh would otherwise search again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="mt-8">
-      <div className="flex flex-wrap items-center gap-4">
+      {bannerToken && (
+        <p className="text-sm">
+          These obligations form a loop ·{" "}
+          <a href={`/app/c/${bannerToken}`} className="text-gold hover:underline">
+            Review &amp; sign →
+          </a>
+        </p>
+      )}
+      <div className={`flex flex-wrap items-center gap-4 ${bannerToken ? "mt-4" : ""}`}>
         <button
-          onClick={find}
+          onClick={() => void find()}
           disabled={searching}
           className="rounded-pill border border-gold/40 px-5 py-2 text-sm text-gold hover:bg-gold/10 disabled:state-disabled"
         >
           {searching ? "Searching..." : "Find a netting loop"}
         </button>
-        {found && (
+        {found && !bannerToken && (
           <p className="text-sm">
             {found.text}{" "}
             <a href={`/app/c/${found.token}`} className="text-gold hover:underline">
@@ -82,7 +120,6 @@ export function CertificatesPanel({ certificates }: { certificates: CertificateS
                   <p className="text-sm">
                     {displayMinorAmount(c.wNet, c.currency)} off each of {c.parties} obligations
                   </p>
-                  {/* The badge already shows the status, so the subtitle only appears when there's more to say. */}
                   {(nextStep(c) || c.status === "collecting" || c.status === "ready") && (
                     <p className="mt-1 text-xs text-muted">
                       {nextStep(c) ?? STATUS_TEXT[c.status]}
