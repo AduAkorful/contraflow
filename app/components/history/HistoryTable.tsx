@@ -7,6 +7,7 @@ import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { usdcBaseUnits } from "../../src/format/money";
 import { NETTING_STATUS_LABEL, nettingStatus } from "../../src/format/netting";
 import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
+import { earlyNettingReview } from "../../src/format/signing";
 import type { HistoryInvoiceView } from "../../app/app/history/actions";
 
 const EXPLORER_BASE = "https://explorer.testnet.arc.io";
@@ -19,7 +20,8 @@ function stillOwed(inv: HistoryInvoiceView): boolean {
 
 /// One row per invoice for the looked-up address. Scrolls sideways inside its box on a narrow screen
 /// rather than squeezing the columns.
-export function HistoryTable({ invoices, address }: { invoices: HistoryInvoiceView[]; address: string }) {
+export function HistoryTable({ invoices, address, loopInvoiceIds = [] }: { invoices: HistoryInvoiceView[]; address: string; loopInvoiceIds?: string[] }) {
+  const inLoop = new Set(loopInvoiceIds.map((id) => id.toLowerCase()));
   return (
     <div className="mt-8 overflow-x-auto rounded-card border border-border-subtle bg-surface-1">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
@@ -50,6 +52,8 @@ export function HistoryTable({ invoices, address }: { invoices: HistoryInvoiceVi
                 <td className="px-4 py-3.5">
                   <span className="rounded-md border border-border-input px-2 py-0.5 text-xs text-muted">
                     {NETTING_STATUS_LABEL[nettingStatus(inv.amountUsdc, inv.status === "settled" ? inv.remainingUsdc : null)]}
+                    {inLoop.has(inv.invoiceRef.toLowerCase()) ? " · in a loop" : ""}
+                    {!inv.earlyNetConsent ? ` · ${earlyNettingReview(inv.maturity, false)}` : ""}
                   </span>
                 </td>
                 <td className="px-4 py-3.5">

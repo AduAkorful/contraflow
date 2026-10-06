@@ -298,6 +298,7 @@ export interface ObligationSummary {
   maturity: string;
   description: string;
   status: ObligationStatus;
+  earlyNetConsent: boolean;
 }
 
 export async function listMine(
@@ -337,6 +338,7 @@ export async function listMine(
     maturity: row.maturity,
     description: row.description,
     status: row.status,
+    earlyNetConsent: row.earlyNetConsent,
   }));
 
   return { ok: true, proposals, obligations };

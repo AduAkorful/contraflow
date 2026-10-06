@@ -53,7 +53,7 @@ export function ReviewAndSign({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Early netting</dt>
-          <dd className="mt-1">{invoice.earlyNetConsent ? "Allowed before maturity" : "Only after maturity"}</dd>
+          <dd className="mt-1">{invoice.earlyNetConsent ? "Can be netted: anytime before its due date" : `Can be netted: only after ${formatMaturity(invoice.maturity)} (early netting off)`}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Network</dt>
@@ -62,7 +62,7 @@ export function ReviewAndSign({
       </dl>
 
       <button onClick={() => setExpanded((v) => !v)} className="mt-6 text-xs text-muted hover:underline">
-        {expanded ? "Hide raw struct" : "View raw signed struct"}
+        {expanded ? "Hide the exact data you sign" : "See the exact data you sign"}
       </button>
       {expanded && (
         <pre className="mt-3 overflow-x-auto rounded-lg bg-black/40 p-4 text-xs text-muted">

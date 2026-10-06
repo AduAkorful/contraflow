@@ -1,29 +1,20 @@
 "use client";
 
 import { useReducedMotion } from "../../../src/hooks/useReducedMotion";
+import {
+  demoEdgeAmountLabel,
+  demoNetToSettleLabel,
+  type DemoCenterView,
+  type DemoEdgeStatus,
+  type DemoEdgeView,
+} from "../../../src/demo/pageState";
 
-type EdgeStatus = "pending" | "signing" | "registered" | "settling" | "settled";
-
-export interface DemoEdge {
-  fromLabel: string;
-  toLabel: string;
-  status: EdgeStatus;
-  /// Present once this specific invoice's real amount is known (from the moment its registration
-  /// is submitted onward) — invoices carry unequal amounts on purpose, so there's no single
-  /// fixed figure to fall back to.
-  amountUsdc?: string;
-  explorerUrl?: string;
-}
-
-export type DiagramCenter =
-  | { kind: "idle" }
-  | { kind: "finding" }
-  | { kind: "proposal"; wNetUsdc: string }
-  | { kind: "settling" }
-  | { kind: "settled"; grossCancelledUsdc: string };
+export type DemoEdge = DemoEdgeView;
+export type DiagramCenter = DemoCenterView;
+type EdgeStatus = DemoEdgeStatus;
 
 const COLOR = {
-  pending: "#4b5563",
+  preview: "rgba(255,255,255,0.55)",
   signing: "#c7c7c7",
   registered: "rgba(255,255,255,0.55)",
   settling: "#f5be09",
@@ -151,7 +142,7 @@ function EdgeLine({
         y2={geometry.y2}
         stroke={color}
         strokeWidth={status === "settled" || status === "settling" ? 2.5 : 1.5}
-        strokeDasharray={status === "pending" || status === "signing" ? "4 4" : undefined}
+        strokeDasharray={status === "signing" ? "4 4" : undefined}
         markerEnd={`url(#arrow-${status})`}
         style={{ transition: "stroke 0.4s ease, stroke-width 0.4s ease" }}
       >
@@ -179,17 +170,10 @@ function EdgeLabel({
   amountUsdc?: string;
   explorerUrl?: string;
 }) {
-  // Amounts are unequal per edge — shown once known (signing onward), not before, since
-  // "pending" invoices haven't been built yet client-side.
-  // "settled" says so generically rather than implying every invoice reached $0: the real
-  // per-invoice before/after lives in the receipt below, where it's actually precise.
-  const text =
-    status === "pending" ? "—"
-    : status === "signing" ? "signing..."
-    : status === "settling" ? "settling..."
-    : status === "settled" ? "settled"
-    : `$${amountUsdc ?? "?"} · registered`;
-  const color = status === "settled" || status === "settling" ? COLOR.settled : status === "registered" ? COLOR.foreground : COLOR.muted;
+  // Amounts use the same formatter as `Money` (no `$` templates). "settled" stays generic
+  // rather than implying every invoice reached zero: before/after lives in the receipt.
+  const text = demoEdgeAmountLabel(status, amountUsdc);
+  const color = status === "settled" || status === "settling" ? COLOR.settled : status === "registered" || status === "preview" ? COLOR.foreground : COLOR.muted;
   const content = (
     <text x={geometry.labelX} y={geometry.labelY} textAnchor="middle" fontSize="10.5" fill={color} style={{ transition: "fill 0.4s ease" }}>
       {text}
@@ -227,10 +211,17 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
         <text x={CENTER.x} y={CENTER.y - 8} textAnchor="middle" fontSize="10" fill={COLOR.muted} letterSpacing="0.05em">
           NET TO SETTLE
         </text>
-        <text x={CENTER.x} y={CENTER.y + 16} textAnchor="middle" fontSize="20" fill={COLOR.foreground} fontFamily="var(--font-sans)" fontWeight={600}>
-          ${center.wNetUsdc}
+        <text x={CENTER.x} y={CENTER.y + 16} textAnchor="middle" fontSize="16" fill={COLOR.foreground} fontFamily="var(--font-sans)" fontWeight={600}>
+          {demoNetToSettleLabel(center.wNetUsdc)}
         </text>
       </g>
+    );
+  }
+  if (center.kind === "failed") {
+    return (
+      <text x={CENTER.x} y={CENTER.y} textAnchor="middle" fontSize="11" fill="#fca5a5">
+        Settle failed
+      </text>
     );
   }
   if (center.kind === "settling") {
@@ -273,7 +264,7 @@ export function CycleDiagram({ edges, center }: { edges: DemoEdge[]; center: Dia
   return (
     <svg viewBox="0 0 400 400" className="mx-auto w-full max-w-sm">
       <defs>
-        {(["pending", "signing", "registered", "settling", "settled"] as const).map((status) => (
+        {(["preview", "signing", "registered", "settling", "settled"] as const).map((status) => (
           <marker key={status} id={`arrow-${status}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill={COLOR[status]} />
           </marker>

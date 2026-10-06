@@ -9,9 +9,16 @@ import { registerInvoice, ComplianceRejectedError } from "../../../src/actions/r
 import { proposeSettlement, settleBestCycle, NoSettleableCycleError } from "../../../src/actions/settle";
 import { computeDashboardTiles } from "../../../src/receipt/dashboardTiles";
 import { getInvoice } from "../../../src/chain/readInvoices";
-import { invoiceAttestationId, signAttestation } from "../../../src/attest/signAttestation";
+import { signAttestation } from "../../../src/attest/signAttestation";
 import { buildDemoCycleInvoices } from "../../../src/fixtures/demoCycle";
 import { deriveDemoParties, MIN_DEMO_PARTIES, MAX_DEMO_PARTIES } from "../../../src/fixtures/demoIdentities";
+import {
+  DEMO_RUN_EXPIRED_MESSAGE,
+  DEMO_RUN_UNAVAILABLE_MESSAGE,
+  demoRunIdsMatch,
+  loadDemoRunInvoiceIds,
+  rememberDemoRunInvoiceId,
+} from "../../../src/demo/runIds";
 import { operatorSigner, arcPublicClient as publicClient } from "../../../src/chain/operatorEnv";
 import { upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement } from "../../../src/db/invoices";
 import { requestIp } from "../../../src/ratelimit/requestIp";
@@ -78,7 +85,11 @@ export async function registerCycleInvoiceStep(
 
     const operationId = `register:${partyCount}:${stepIndex}:${runSalt}`;
     const previous = await inspectDemoSpend(operationId);
-    if (previous.kind === "complete") return previous.result as RegisterStepResult;
+    if (previous.kind === "complete") {
+      const prior = previous.result as RegisterStepResult;
+      if (prior.ok) await rememberDemoRunInvoiceId(runSalt, prior.invoice.invoiceId);
+      return prior;
+    }
     if (previous.kind === "pending") return { ok: false, error: "This demo step is already being processed. Start a new demo if it does not finish." };
     if (previous.kind === "unavailable") return { ok: false, error: "Demo spending controls are unavailable. Try again later." };
 
@@ -150,6 +161,7 @@ export async function registerCycleInvoiceStep(
       ok: true,
       invoice: { label: invoice.label, amountUsdc: invoice.amountUsdc, invoiceId, txHash, explorerUrl: explorerTxUrl(txHash) },
     };
+    await rememberDemoRunInvoiceId(runSalt, invoiceId);
     try {
       await completeDemoSpend(claim.operationKey, result);
     } catch (cacheErr) {
@@ -243,20 +255,12 @@ export async function settleProposedCycle(runSalt: string, invoiceIds: string[],
     }
     if (invoiceIds.some((id) => !/^0x[0-9a-fA-F]{64}$/.test(id))) throw new Error("Invalid demo invoice id");
 
-    const { registry, settler, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
-    const parties = deriveDemoParties(runSalt, invoiceIds.length);
-    const fixtureInvoices = buildDemoCycleInvoices({
-      parties,
-      runSalt,
-      currency: usdc,
-      registry,
-      chainId: BigInt(ARC_TESTNET_CHAIN_ID),
-    });
-    const expectedIds = fixtureInvoices.map(({ attestation }) => invoiceAttestationId(attestation).toLowerCase());
+    const { registry, settler } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+    const recorded = await loadDemoRunInvoiceIds(runSalt);
+    if (recorded.kind === "unavailable") throw new Error(DEMO_RUN_UNAVAILABLE_MESSAGE);
+    if (recorded.kind === "missing") throw new Error(DEMO_RUN_EXPIRED_MESSAGE);
     const requestedIds = invoiceIds.map((id) => id.toLowerCase());
-    if (new Set(expectedIds).size !== invoiceIds.length ||
-        new Set(requestedIds).size !== invoiceIds.length ||
-        expectedIds.some((id) => !requestedIds.includes(id))) {
+    if (!demoRunIdsMatch(recorded.ids, requestedIds)) {
       throw new Error("These invoices do not belong to this demo run");
     }
 

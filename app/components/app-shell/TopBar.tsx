@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isSignInPrimaryPage } from "../../src/session/primarySignInPath";
+import { useSignIn } from "../wallet/useSignIn";
 import { AddressMenu } from "./AddressMenu";
 import { NetworkChip } from "./NetworkChip";
 import { SidebarNav } from "./SidebarNav";
@@ -11,7 +14,10 @@ import type { NavItem } from "./nav";
 /// Sticky bar: brand and menu button on small screens (and always when signed out), network chip and
 /// address menu on the right. The menu button opens the same list the sidebar shows.
 export function TopBar({ address, items }: { address: string | null; items: NavItem[] }) {
+  const pathname = usePathname();
+  const { start, phase } = useSignIn();
   const [menuOpen, setMenuOpen] = useState(false);
+  const hideHeaderSignIn = isSignInPrimaryPage(pathname);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -56,10 +62,15 @@ export function TopBar({ address, items }: { address: string | null; items: NavI
           <NetworkChip />
           {address ? (
             <AddressMenu address={address} />
-          ) : (
-            <Link href="/app" className="inline-flex h-8 items-center rounded-md bg-gold px-3 text-sm font-medium text-black">
+          ) : hideHeaderSignIn ? null : (
+            <button
+              type="button"
+              onClick={start}
+              disabled={phase === "connecting" || phase === "signing"}
+              className="inline-flex h-8 items-center rounded-md px-3 text-sm text-muted hover:text-foreground"
+            >
               Sign in
-            </Link>
+            </button>
           )}
         </div>
       </div>

@@ -1,12 +1,26 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
+import { useSignIn } from "./useSignIn";
 
-/// Sign-in on `/app`. A new sign-in goes on to the page the visitor was headed for (already
-/// checked by `safeNextPath` on the server). Without one, `ConnectButton` has already refreshed the
-/// page, which then shows the overview.
-export function SignInRedirect({ next }: { next: string | null }) {
+/// Sign-in on `/app`. A new sign-in stays here (the server refresh then shows Overview) or follows
+/// a validated `next`. `autoStart` reopens the modal after "Switch account".
+export function SignInRedirect({ next, autoStart = false }: { next: string | null; autoStart?: boolean }) {
   const router = useRouter();
-  return <ConnectButton onSignedIn={() => next && router.push(next)} />;
+  const { start, phase, sessionAddress } = useSignIn();
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!autoStart || started.current || phase !== "idle") return;
+    started.current = true;
+    start();
+  }, [autoStart, phase, start]);
+
+  useEffect(() => {
+    if (sessionAddress && next) router.push(next);
+  }, [sessionAddress, next, router]);
+
+  return <ConnectButton />;
 }

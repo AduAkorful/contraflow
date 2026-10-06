@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HistoryTable } from "../../../components/history/HistoryTable";
+import { SettleLoopCard } from "../../../components/settle/SettleLoopCard";
 import { lookupAddressHistory, lookupAddressSignals, type AddressSignalsResult, type HistoryInvoiceView } from "./actions";
 import {
   AddressSignalsPanel,
@@ -15,14 +16,16 @@ const SIGNALS_TITLE = "Onchain signals";
 
 /// `initialAddress` is the `?address=` link, or else the signed-in address. It is looked up on arrival
 /// so a shared link opens on the result, and every search updates the URL so the result can be shared.
-export function HistoryClient({ initialAddress }: { initialAddress: string }) {
+export function HistoryClient({ initialAddress, sessionAddress }: { initialAddress: string; sessionAddress: string | null }) {
   const router = useRouter();
   const [address, setAddress] = useState(initialAddress);
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<HistoryInvoiceView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [signals, setSignals] = useState<AddressSignalsResult | "loading" | null>(null);
+  const [loopIds, setLoopIds] = useState<string[]>([]);
   const latestLookup = useRef(0);
+  const viewingOwn = Boolean(sessionAddress && address.trim().toLowerCase() === sessionAddress.toLowerCase());
 
   async function search(value: string = address) {
     const lookedUp = value.trim();
@@ -115,7 +118,15 @@ export function HistoryClient({ initialAddress }: { initialAddress: string }) {
           <p className="mt-8 text-center text-sm text-muted">No invoices found for this address.</p>
         )}
 
-        {invoices && invoices.length > 0 && <HistoryTable invoices={invoices} address={address.trim()} />}
+        {viewingOwn && sessionAddress && (
+          <div className="mt-8">
+            <SettleLoopCard sessionAddress={sessionAddress} onLoopIds={setLoopIds} />
+          </div>
+        )}
+
+        {invoices && invoices.length > 0 && (
+          <HistoryTable invoices={invoices} address={address.trim()} loopInvoiceIds={viewingOwn ? loopIds : []} />
+        )}
       </section>
     </>
   );

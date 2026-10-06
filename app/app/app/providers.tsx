@@ -5,25 +5,25 @@
 /// email-based embedded wallets in one hosted modal) as a wagmi connector source, via
 /// `@privy-io/wagmi`'s own `createConfig`/`WagmiProvider` (a drop-in replacement for wagmi's own,
 /// required for Privy's connectors to register) — everything downstream (`useAccount`,
-/// `useSignMessage`, `useSignTypedData` in `ConnectButton`/`ComposeForm`/`LandingClient`) is
-/// unchanged, since it only depends on the wagmi hook contract, not on where the connector came
-/// from.
+/// `useSignMessage`, `useSignTypedData` in compose/landing flows) is unchanged, since it only
+/// depends on the wagmi hook contract, not on where the connector came from.
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider, createConfig } from "@privy-io/wagmi";
 import { http } from "wagmi";
+import { SessionProvider } from "../../components/session/SessionProvider";
+import { SignInProvider } from "../../components/wallet/SignInProvider";
 import { arcTestnet } from "../../src/chain/client";
 import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { gatewaySourceChains, unifiedBalanceEnabled, viemChainFor } from "../../src/kits/gatewayChains";
+import { queryClient } from "../../src/query/client";
 
 const wagmiConfig = createConfig({
   chains: [arcTestnet],
   transports: { [arcTestnet.id]: http() },
   ssr: true,
 });
-
-const queryClient = new QueryClient();
 
 /// Privy's embedded wallet can only switch to chains listed here, and "Bring USDC from another
 /// chain" deposits from the user's wallet on a source chain. wagmi's own config stays Arc-only, so
@@ -43,19 +43,28 @@ const privyChains = [
 /// project already used for Circle's UCW App ID.
 const PLACEHOLDER_APP_ID = "0000000000000000000000000";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  sessionAddress,
+}: {
+  children: React.ReactNode;
+  sessionAddress: string | null;
+}) {
   return (
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || PLACEHOLDER_APP_ID}
       config={{
-        loginMethods: ["wallet", "email"],
+        loginMethodsAndOrder: {
+          primary: ["email"],
+          overflow: ["detected_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
+        },
         appearance: {
           theme: "dark",
           accentColor: "#f5be09",
           logo: <img src="/logo-mark.png" alt="Contraflow" />,
           landingHeader: "Sign in to Contraflow",
-          loginMessage: "Use your wallet or your email. Signing in is free and sends no transaction.",
-          showWalletLoginFirst: true,
+          loginMessage: "Continue with email. We create a secure account wallet for you. Or use a crypto wallet.",
+          walletList: ["detected_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
         },
         defaultChain: arcTestnet,
         supportedChains: privyChains,
@@ -63,7 +72,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <SessionProvider initialAddress={sessionAddress}>
+            <SignInProvider>{children}</SignInProvider>
+          </SessionProvider>
+        </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>
   );

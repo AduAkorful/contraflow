@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { isAddress, type Address } from "viem";
 import { formatAddress } from "../../../src/format/address";
-import { usePrivy } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
+import { useSetActiveWallet } from "@privy-io/wagmi";
+import { useContraflowSignTypedData } from "../../../components/wallet/useContraflowSignTypedData";
+import { useSignIn } from "../../../components/wallet/useSignIn";
+import { earlyNettingHelper, invoiceSigningConfirmation } from "../../../src/format/signing";
+import { signingInLabel } from "../../../src/session/signInCopy";
+import { isEmbeddedWalletClient } from "../../../src/session/signingWallet";
 import { ReviewAndSign } from "../../../components/attest/ReviewAndSign";
 import { ComposerFrame } from "../../../components/ui/ComposerFrame";
 import { Field, SuffixInput, inputClass } from "../../../components/ui/Field";
@@ -30,22 +36,27 @@ const ROLE_OPTIONS = [
 ] as const;
 
 const NEXT_STEPS = [
-  { title: "You sign", body: "One signature in your wallet. It's free: no transaction and no gas." },
+  { title: "You sign", body: "One signature, free: no transaction and no gas." },
   { title: "Your counterparty signs", body: "They open your link, check the terms, sign and register the invoice on Arc. Registering is the only step that costs gas, paid from their wallet." },
   { title: "It's on Arc", body: "A registered invoice can be netted against other registered invoices that form a loop." },
 ] as const;
 
 export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const { address, isConnected, connector } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { signTypedData } = useContraflowSignTypedData();
   const { switchChainAsync } = useSwitchChain();
-  const { login } = usePrivy();
+  const { start } = useSignIn();
+  const { setActiveWallet } = useSetActiveWallet();
+  const { wallets } = useWallets();
+  const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
+    ? "embedded"
+    : "external";
 
   const [counterparty, setCounterparty] = useState("");
   const [amountUsd, setAmountUsd] = useState("");
   const [maturityDate, setMaturityDate] = useState("");
   const [description, setDescription] = useState("");
-  const [earlyNetConsent, setEarlyNetConsent] = useState(false);
+  const [earlyNetConsent, setEarlyNetConsent] = useState(true);
   const [role, setRole] = useState<Role>("creditor"); // default: "they owe me"
 
   const [phase, setPhase] = useState<Phase>("compose");
@@ -136,7 +147,16 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
     try {
       await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const typedData = invoiceAttestationTypedData(invoice);
-      const signatureA = await signTypedDataAsync(typedData);
+      const signatureA = await signTypedData(typedData, {
+        title: "Confirm this invoice",
+        description: invoiceSigningConfirmation({
+          youOwe: role === "debtor",
+          amountUsdc: invoice.amount,
+          counterparty: role === "debtor" ? invoice.creditor : invoice.debtor,
+          maturity: invoice.maturity,
+          earlyNetConsent: invoice.earlyNetConsent,
+        }),
+      });
       await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const encoded = encodeAttestLink({ invoice, role, signatureA });
       const url = `${window.location.origin}/app/attest/${encoded}`;
@@ -181,12 +201,21 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       <ComposerFrame step={1} next={NEXT_STEPS}>
       <ReviewAndSign invoice={invoice} viewerRole={role} description={invoiceDocument?.description}>
         <div className="flex flex-col items-center gap-3">
+          <p className="max-w-sm text-center text-xs text-muted">
+            {invoiceSigningConfirmation({
+              youOwe: role === "debtor",
+              amountUsdc: invoice.amount,
+              counterparty: role === "debtor" ? invoice.creditor : invoice.debtor,
+              maturity: invoice.maturity,
+              earlyNetConsent: invoice.earlyNetConsent,
+            })}
+          </p>
           <button
             onClick={handleSign}
             disabled={phase === "signing"}
             className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
-            {phase === "signing" ? "Sign in your wallet..." : "Sign & generate link"}
+            {phase === "signing" ? signingInLabel(signingKind) : "Sign & generate link"}
           </button>
           <button onClick={() => setPhase("compose")} className="text-xs text-muted hover:underline">
             ← Back to edit
@@ -214,10 +243,14 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           </p>
         )}
         <button
-          onClick={() => login()}
+          onClick={() => {
+            const match = wallets.find((w) => w.address.toLowerCase() === signerAddress.toLowerCase());
+            if (match) void setActiveWallet(match);
+            else start();
+          }}
           className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
         >
-          Connect wallet
+          Connect the signed-in account
         </button>
       </div>
     );
@@ -271,9 +304,12 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           )}
         </Field>
 
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" className="accent-gold" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
-          Allow this invoice to be netted before its maturity date
+        <label className="flex items-start gap-2 text-sm text-muted">
+          <input type="checkbox" className="mt-0.5 accent-gold" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
+          <span>
+            Allow this invoice to be netted before its maturity date
+            {maturityDate && <span className="mt-1 block text-xs text-faint">{earlyNettingHelper(maturityDate, earlyNetConsent)}</span>}
+          </span>
         </label>
 
         <button

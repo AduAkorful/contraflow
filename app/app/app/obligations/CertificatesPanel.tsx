@@ -64,7 +64,7 @@ export function CertificatesPanel({ certificates }: { certificates: CertificateS
           <p className="text-sm">
             {found.text}{" "}
             <a href={`/app/c/${found.token}`} className="text-gold hover:underline">
-              Review &amp; sign →
+              Open →
             </a>
           </p>
         )}

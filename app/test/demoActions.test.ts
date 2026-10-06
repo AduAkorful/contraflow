@@ -19,6 +19,10 @@ const claimDemoSpend = vi.fn();
 const completeDemoSpend = vi.fn();
 const inspectDemoSpend = vi.fn();
 
+const rememberDemoRunInvoiceId = vi.fn();
+const loadDemoRunInvoiceIds = vi.fn();
+const demoRunIdsMatch = vi.fn();
+
 vi.mock("../src/contracts/addresses", () => ({
   ARC_TESTNET_CHAIN_ID: 5042002,
   addressesForChain: () => ({
@@ -40,6 +44,13 @@ vi.mock("../src/receipt/dashboardTiles", () => ({ computeDashboardTiles }));
 vi.mock("../src/chain/readInvoices", () => ({ getInvoice }));
 vi.mock("../src/attest/signAttestation", () => ({ signAttestation, invoiceAttestationId }));
 vi.mock("../src/fixtures/demoCycle", () => ({ buildDemoCycleInvoices }));
+vi.mock("../src/demo/runIds", () => ({
+  rememberDemoRunInvoiceId,
+  loadDemoRunInvoiceIds,
+  demoRunIdsMatch,
+  DEMO_RUN_EXPIRED_MESSAGE: "This demo run has expired. Start a new one.",
+  DEMO_RUN_UNAVAILABLE_MESSAGE: "Demo run records are unavailable. Try again later.",
+}));
 vi.mock("../src/fixtures/demoIdentities", () => ({
   deriveDemoParties,
   MIN_DEMO_PARTIES: 3,
@@ -83,6 +94,9 @@ describe("public demo spend controls", () => {
       claimDemoSpend,
       completeDemoSpend,
       inspectDemoSpend,
+      rememberDemoRunInvoiceId,
+      loadDemoRunInvoiceIds,
+      demoRunIdsMatch,
     ]) fn.mockReset();
 
     requestIp.mockResolvedValue("203.0.113.8");
@@ -107,6 +121,9 @@ describe("public demo spend controls", () => {
     }]);
     signAttestation.mockResolvedValue({ debtorSignature: "0x11", creditorSignature: "0x22" });
     registerInvoice.mockResolvedValue({ invoiceId: HASH, txHash: HASH });
+    rememberDemoRunInvoiceId.mockResolvedValue(undefined);
+    loadDemoRunInvoiceIds.mockResolvedValue({ kind: "missing" });
+    demoRunIdsMatch.mockReturnValue(false);
     for (const fn of [upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement]) fn.mockResolvedValue(undefined);
   });
 
@@ -123,6 +140,7 @@ describe("public demo spend controls", () => {
       transactionLimits: expect.objectContaining({ gas: 250_000n }),
     }));
     expect(completeDemoSpend).toHaveBeenCalledWith("operation-key", result);
+    expect(rememberDemoRunInvoiceId).toHaveBeenCalledWith("run-1", HASH);
   });
 
   it("replays a prior result without spending again", async () => {
@@ -132,6 +150,7 @@ describe("public demo spend controls", () => {
     await expect(registerCycleInvoiceStep("run-1", 3, 0)).resolves.toEqual(prior);
     expect(claimDemoSpend).not.toHaveBeenCalled();
     expect(registerInvoice).not.toHaveBeenCalled();
+    expect(rememberDemoRunInvoiceId).toHaveBeenCalledWith("run-1", HASH);
   });
 
   it("does not broadcast when the budget reservation fails", async () => {
@@ -144,7 +163,8 @@ describe("public demo spend controls", () => {
 
   it("does not reserve settlement spend for a cycle that is not settleable", async () => {
     const invoiceIds = [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`];
-    buildDemoCycleInvoices.mockReturnValueOnce(invoiceIds.map((testId) => ({ attestation: { testId } })));
+    loadDemoRunInvoiceIds.mockResolvedValueOnce({ kind: "ids", ids: invoiceIds });
+    demoRunIdsMatch.mockReturnValueOnce(true);
     proposeSettlement.mockResolvedValueOnce(null);
     const result = await settleProposedCycle("run-settle", invoiceIds, {});
 
@@ -155,7 +175,8 @@ describe("public demo spend controls", () => {
 
   it("applies the same gas ceiling to settlement and replays its confirmed result", async () => {
     const invoiceIds = [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`];
-    buildDemoCycleInvoices.mockReturnValueOnce(invoiceIds.map((testId) => ({ attestation: { testId } })));
+    loadDemoRunInvoiceIds.mockResolvedValueOnce({ kind: "ids", ids: invoiceIds });
+    demoRunIdsMatch.mockReturnValueOnce(true);
     proposeSettlement.mockResolvedValueOnce({ invoiceIds, wNet: 1_000_000n });
     settleBestCycle.mockResolvedValueOnce({
       invoiceIds,
@@ -181,11 +202,49 @@ describe("public demo spend controls", () => {
     expect(completeDemoSpend).toHaveBeenCalledWith("operation-key", result);
   });
 
-  it("rejects settlement ids that are not the current demo fixture", async () => {
-    const result = await settleProposedCycle("run-settle", [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`], {});
+  it("rejects settlement ids that are not the recorded demo run", async () => {
+    const invoiceIds = [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`];
+    loadDemoRunInvoiceIds.mockResolvedValueOnce({ kind: "ids", ids: [HASH] });
+    demoRunIdsMatch.mockReturnValueOnce(false);
+    const result = await settleProposedCycle("run-settle", invoiceIds, {});
 
     expect(result).toMatchObject({ ok: false, error: "These invoices do not belong to this demo run" });
     expect(claimDemoSpend).not.toHaveBeenCalled();
     expect(proposeSettlement).not.toHaveBeenCalled();
+  });
+
+  it("settles a recorded run even after time has moved on", async () => {
+    const invoiceIds = [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`];
+    loadDemoRunInvoiceIds.mockResolvedValueOnce({ kind: "ids", ids: invoiceIds });
+    demoRunIdsMatch.mockReturnValueOnce(true);
+    proposeSettlement.mockResolvedValueOnce({ invoiceIds, wNet: 1_000_000n });
+    settleBestCycle.mockResolvedValueOnce({
+      invoiceIds,
+      wNet: 1_000_000n,
+      txHash: HASH,
+      blockNumber: 123n,
+      gasPaidWei: 456n,
+    });
+    computeDashboardTiles.mockReturnValue({
+      gasPaidWei: 456n,
+      grossCancelledUsdc: 3_000_000n,
+      cashMovedUsdc: 0n,
+      multiplier: null,
+    });
+    getInvoice.mockResolvedValue({ amountRemaining: 2_000_000n });
+
+    const result = await settleProposedCycle("run-later", invoiceIds, {});
+    expect(result.ok).toBe(true);
+    expect(buildDemoCycleInvoices).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the run record is missing", async () => {
+    const invoiceIds = [HASH, `0x${"2".repeat(64)}`, `0x${"3".repeat(64)}`];
+    loadDemoRunInvoiceIds.mockResolvedValueOnce({ kind: "missing" });
+    const result = await settleProposedCycle("run-expired", invoiceIds, {});
+
+    expect(result).toMatchObject({ ok: false, error: "This demo run has expired. Start a new one." });
+    expect(claimDemoSpend).not.toHaveBeenCalled();
+    expect(settleBestCycle).not.toHaveBeenCalled();
   });
 });

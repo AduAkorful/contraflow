@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
-import { usePrivy } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
+import { useSetActiveWallet } from "@privy-io/wagmi";
+import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
+import { useSignIn } from "../../../../components/wallet/useSignIn";
+import { earlyNettingHelper, obligationSigningConfirmation } from "../../../../src/format/signing";
+import { signingInLabel } from "../../../../src/session/signInCopy";
+import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
 import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
 import { ComposerFrame } from "../../../../components/ui/ComposerFrame";
 import { Field, inputClass } from "../../../../components/ui/Field";
@@ -33,7 +39,7 @@ const ROLE_OPTIONS = [
 ] as const;
 
 const NEXT_STEPS = [
-  { title: "You sign", body: "One signature in your wallet. It's free: no transaction and no gas." },
+  { title: "You sign", body: "One signature, free: no transaction and no gas." },
   { title: "Your counterparty signs", body: "They open your link, sign in with the wallet it names and co-sign. Its terms are shown only to the two of you." },
   { title: "It's ready to net", body: "A signed obligation can join a loop with others. One certificate, signed by everyone in the loop, nets the same amount off each." },
 ] as const;
@@ -43,9 +49,14 @@ const OTHER = "OTHER";
 
 export function ComposeObligation({ signerAddress }: { signerAddress: string }) {
   const { address, isConnected, connector } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { signTypedData } = useContraflowSignTypedData();
   const { switchChainAsync } = useSwitchChain();
-  const { login } = usePrivy();
+  const { start } = useSignIn();
+  const { setActiveWallet } = useSetActiveWallet();
+  const { wallets } = useWallets();
+  const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
+    ? "embedded"
+    : "external";
 
   const [role, setRole] = useState<Role>("creditor");
   const [counterparty, setCounterparty] = useState("");
@@ -54,7 +65,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
   const [amountInput, setAmountInput] = useState("");
   const [maturityDate, setMaturityDate] = useState("");
   const [description, setDescription] = useState("");
-  const [earlyNetConsent, setEarlyNetConsent] = useState(false);
+  const [earlyNetConsent, setEarlyNetConsent] = useState(true);
 
   const [phase, setPhase] = useState<Phase>("compose");
   const [draft, setDraft] = useState<{ document: CanonicalObligationDocument; obligation: NettingObligation } | null>(null);
@@ -103,7 +114,17 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
     try {
       const chainId = Number(appLedgerDomain().chainId);
       await prepareWalletContext(connector, signerAddress as Address, chainId, switchChainAsync);
-      const signature = await signTypedDataAsync(obligationTypedData(draft.obligation, appLedgerDomain()));
+      const signature = await signTypedData(obligationTypedData(draft.obligation, appLedgerDomain()), {
+        title: "Confirm this obligation",
+        description: obligationSigningConfirmation({
+          youOwe: role === "debtor",
+          amountMinor: draft.obligation.amount.toString(),
+          currency: draft.document.currency,
+          counterparty: role === "debtor" ? draft.document.creditor : draft.document.debtor,
+          maturity: draft.document.maturity,
+          earlyNetConsent: draft.document.earlyNetConsent,
+        }),
+      });
       await prepareWalletContext(connector, signerAddress as Address, chainId, switchChainAsync);
       const result = await createProposal({
         obligation: serializeObligation(draft.obligation),
@@ -145,7 +166,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
           {copied ? "Link copied to clipboard" : ""}
         </p>
         <p className="mt-4 text-xs text-muted">
-          It's shown only to them, after they sign in with the wallet it names. It expires in 30 days.
+          It&apos;s shown only to them, after they sign in with the account it names. It expires in 30 days.
         </p>
         <a href="/app/obligations" className="mt-4 inline-block text-xs text-gold hover:underline">
           View your obligations →
@@ -160,12 +181,22 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
       <ComposerFrame step={1} next={NEXT_STEPS}>
       <ObligationTerms document={draft.document} obligation={draft.obligation} viewerRole={role}>
         <div className="flex flex-col items-center gap-3">
+          <p className="max-w-sm text-center text-xs text-muted">
+            {obligationSigningConfirmation({
+              youOwe: role === "debtor",
+              amountMinor: draft.obligation.amount.toString(),
+              currency: draft.document.currency,
+              counterparty: role === "debtor" ? draft.document.creditor : draft.document.debtor,
+              maturity: draft.document.maturity,
+              earlyNetConsent: draft.document.earlyNetConsent,
+            })}
+          </p>
           <button
             onClick={handleSign}
             disabled={phase === "signing"}
             className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
-            {phase === "signing" ? "Sign in your wallet..." : "Sign & create link"}
+            {phase === "signing" ? signingInLabel(signingKind) : "Sign & create link"}
           </button>
           <button onClick={() => setPhase("compose")} className="text-xs text-muted hover:underline">
             ← Back to edit
@@ -186,10 +217,14 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
             : `You're signed in as ${shortAddr(signerAddress)}, but your wallet isn't connected in this tab. Reconnect it to continue.`}
         </p>
         <button
-          onClick={() => login()}
+          onClick={() => {
+            const match = wallets.find((w) => w.address.toLowerCase() === signerAddress.toLowerCase());
+            if (match) void setActiveWallet(match);
+            else start();
+          }}
           className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
         >
-          Connect wallet
+          Connect the signed-in account
         </button>
       </div>
     );
@@ -272,9 +307,12 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
           )}
         </Field>
 
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" className="accent-gold" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
-          Allow this to be netted before its maturity date
+        <label className="flex items-start gap-2 text-sm text-muted">
+          <input type="checkbox" className="mt-0.5 accent-gold" checked={earlyNetConsent} onChange={(e) => setEarlyNetConsent(e.target.checked)} />
+          <span>
+            Allow this to be netted before its maturity date
+            {maturityDate && <span className="mt-1 block text-xs text-faint">{earlyNettingHelper(maturityDate, earlyNetConsent)}</span>}
+          </span>
         </label>
 
         <button

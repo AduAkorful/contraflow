@@ -45,7 +45,7 @@ export function ObligationTerms({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Early netting</dt>
-          <dd className="mt-1">{document.earlyNetConsent ? "Allowed before maturity" : "Only after maturity"}</dd>
+          <dd className="mt-1">{document.earlyNetConsent ? "Can be netted: anytime before its due date" : `Can be netted: only after ${displayDate(document.maturity)} (early netting off)`}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Currency</dt>
@@ -59,7 +59,7 @@ export function ObligationTerms({
       </p>
 
       <button onClick={() => setExpanded((v) => !v)} className="mt-4 text-xs text-muted hover:underline">
-        {expanded ? "Hide what you sign" : "View exactly what you sign"}
+        {expanded ? "Hide the exact data you sign" : "See the exact data you sign"}
       </button>
       {expanded && (
         <pre className="mt-3 overflow-x-auto rounded-lg bg-black/40 p-4 text-xs text-muted">

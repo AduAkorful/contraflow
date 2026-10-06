@@ -15,7 +15,7 @@ const SECTIONS = [
     title: "What we store, and who can read it",
     body: [
       "For invoices, Arc publicly records the debtor and creditor addresses, amount, maturity and invoice reference. We separately store the description you write. New invoice links don't contain the description: one of the two parties must sign in before the app loads it. Older links may contain the description directly, so anyone who already has one of those links can still read it.",
-      "For offchain obligations, we store each obligation you and your counterparty sign: the parties, amount, currency, maturity, description and signatures, and its remaining balance. Only the obligation's two parties can see it in the app. For a netting certificate, each party sees only their own obligations and the amount netted.",
+      "For offchain obligations, we store each obligation you and your counterparty sign: the parties, amount, currency, maturity, description and signatures, and its remaining balance. Each obligation's terms are shown only to its two parties. Everyone in a loop sees the addresses in it. For a netting certificate, each party sees only their own obligations and the amount netted.",
       "Contraflow itself can read everything stored here, including every obligation submitted to it. It needs obligations to find loops to net.",
       "We also record which addresses have received the one-time starter gas grant.",
     ],

@@ -56,7 +56,8 @@ This is the one place these docs set out what you're trusting when you use Contr
   own signature.
 - **What's public.** For invoices, the parties, amounts and terms are public on Arc. For
   obligations, amounts, currency and descriptions never go onchain, but the addresses in each
-  certificate and the shape of the loop are public, so participation isn't anonymous.
+  certificate and the shape of the loop are public, so participation isn't anonymous. Each
+  obligation's terms are shown only to its two parties; everyone in a loop sees the addresses in it.
 - **Fees.** There's no protocol fee today. You pay Arc network gas and nothing else. That could
   change in a future version, through an upgrade.
 - **Address screening.** Contraflow screens addresses against a list it maintains. That isn't

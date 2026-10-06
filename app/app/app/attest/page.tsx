@@ -13,7 +13,7 @@ export default async function AttestComposePage() {
       <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <h1 className="heading-1">Propose an invoice</h1>
         <p className="mt-4 max-w-xl text-sm text-muted">
-          Sign a USDC invoice with your wallet and send your counterparty the link. Nothing is
+          Sign a USDC invoice and send your counterparty the link. Nothing is
           registered on Arc until they sign too.
         </p>
 
@@ -22,7 +22,7 @@ export default async function AttestComposePage() {
             <ComposeForm signerAddress={session.address} />
           </div>
         ) : (
-          <SignInGate returnTo="/app/attest" message="Sign in with your wallet first." />
+          <SignInGate title="Sign in to continue" reason="Sign in with your email or wallet first." />
         )}
       </section>
     </>

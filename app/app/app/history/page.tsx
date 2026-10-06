@@ -7,6 +7,6 @@ import { HistoryClient } from "./HistoryClient";
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ address?: string | string[] }> }) {
   const requested = (await searchParams).address;
   const fromLink = typeof requested === "string" && isAddress(requested.trim(), { strict: false }) ? requested.trim() : "";
-  const session = fromLink ? null : await getSession();
-  return <HistoryClient initialAddress={fromLink || session?.address || ""} />;
+  const session = await getSession();
+  return <HistoryClient initialAddress={fromLink || session?.address || ""} sessionAddress={session?.address ?? null} />;
 }

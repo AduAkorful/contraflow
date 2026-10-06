@@ -10,8 +10,14 @@ export async function generateMetadata() {
   return { title: (await getSession()) ? "Overview" : "Sign in" };
 }
 
-export default async function AppLandingPage({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
-  const next = safeNextPath((await searchParams).next);
+export default async function AppLandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[]; switch?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const next = safeNextPath(params.next);
+  const autoStart = params.switch === "1";
   const session = await getSession();
   // Someone already signed in who followed a sign-in link just continues.
   if (session && next) redirect(next);
@@ -39,11 +45,11 @@ export default async function AppLandingPage({ searchParams }: { searchParams: P
       <section className="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center">
         <h1 className="heading-1">Sign in to Contraflow</h1>
         <p className="mt-6 max-w-md text-muted">
-          Sign in with your wallet or your email, then record a debt with a counterparty: a USDC invoice on Arc, or an
+          Sign in with your email or a wallet, then record a debt with a counterparty: a USDC invoice on Arc, or an
           obligation in any currency. Nothing is recorded until they sign too.
         </p>
         <div className="mt-8">
-          <SignInRedirect next={next} />
+          <SignInRedirect next={next} autoStart={autoStart} />
         </div>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
           <Link href="/app/demo" className="text-gold hover:underline">

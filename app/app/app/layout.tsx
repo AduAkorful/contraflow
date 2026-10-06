@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function AppSectionLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   return (
-    <Providers>
+    <Providers sessionAddress={session?.address ?? null}>
       <AppShell address={session?.address ?? null} balanceEnabled={unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)} docsUrl={docsUrl()}>
         {children}
       </AppShell>

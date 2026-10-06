@@ -9,7 +9,7 @@ An obligation is a debt between two parties: who owes whom, the amount and curre
 date, whether it can be netted before maturity, and a description. One party proposes it and signs
 it with their wallet. Contraflow gives them a short link to send to the counterparty.
 
-Only the counterparty can open that link, after signing in with the wallet it names. Their browser
+Only the counterparty can open that link, after signing in with the account it names. Their browser
 checks the proposer's signature and the description before they see anything, and a link that
 fails either check is rejected. When they sign too, the obligation is recorded. Nothing goes
 onchain, and it costs no gas.
@@ -51,5 +51,6 @@ the ledger on Arc. Nothing is uploaded, and you don't need to sign in.
 ## What's public
 
 On Arc, anyone can see which addresses took part in each certificate, the shape of the loop (who
-owes whom), and when each obligation's state changed. The amounts, the currency and your
+owes whom), and when each obligation's state changed. Each obligation's terms are shown only to its
+two parties. Everyone in a loop sees the addresses in it. The amounts, the currency and your
 descriptions never go onchain.

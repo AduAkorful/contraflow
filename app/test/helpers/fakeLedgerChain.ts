@@ -80,5 +80,9 @@ export function fakeLedgerChain(domain: LedgerDomain) {
     return hash;
   }
 
-  return { client, states, apply, receiptWithEvent, unrelatedTx };
+  function markApplied(certificateId: Hex) {
+    applied.add(certificateId.toLowerCase());
+  }
+
+  return { client, states, apply, receiptWithEvent, unrelatedTx, markApplied };
 }

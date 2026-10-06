@@ -20,6 +20,8 @@ export interface HistoryInvoiceView {
   settleTxHash: string | null;
   wNetUsdc: string | null;
   remainingUsdc: string | null;
+  earlyNetConsent: boolean;
+  maturity: string;
 }
 
 export type HistoryLookupResult =
@@ -48,6 +50,8 @@ export async function lookupAddressHistory(address: string): Promise<HistoryLook
       settleTxHash: inv.settleTxHash,
       wNetUsdc: inv.wNetUsdc,
       remainingUsdc: inv.remainingUsdc,
+      earlyNetConsent: inv.earlyNetConsent,
+      maturity: inv.maturity,
     };
   });
 

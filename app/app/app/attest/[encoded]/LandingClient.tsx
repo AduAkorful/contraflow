@@ -5,11 +5,17 @@
 /// banner.
 
 import { useEffect, useState } from "react";
-import { useAccount, useSignTypedData, useWriteContract, usePublicClient, useSwitchChain } from "wagmi";
+import { useAccount, useWriteContract, usePublicClient, useSwitchChain } from "wagmi";
 import { recoverTypedDataAddress, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
+import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
+import { SessionBound, useSession } from "../../../../components/session/SessionProvider";
 import { ReviewAndSign } from "../../../../components/attest/ReviewAndSign";
 import { Money } from "../../../../components/ui/Money";
+import { invoiceSigningConfirmation } from "../../../../src/format/signing";
+import { signingInLabel } from "../../../../src/session/signInCopy";
+import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
+import { useWallets } from "@privy-io/react-auth";
 import { formatUsdcAmount } from "../../../../src/attest/amount";
 import { decodeAttestLink, type AttestLinkPayload } from "../../../../src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "../../../../src/attest/document";
@@ -20,7 +26,6 @@ import { ARC_TESTNET_CHAIN_ID } from "../../../../src/contracts/addresses";
 import { contraflowRegistryAbi } from "../../../../src/contracts/abi/index";
 import { arcTestnet } from "../../../../src/chain/client";
 import { checkLinkFreshness, getInvoiceDocument, requestGrant, preCheck, record } from "../actions";
-import { whoAmI } from "../../siwe/actions";
 
 type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
 const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
@@ -37,19 +42,24 @@ function serializeInvoice(invoice: AttestLinkPayload["invoice"]) {
 
 export function LandingClient({ encoded }: { encoded: string }) {
   const { address, connector } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { signTypedData } = useContraflowSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
+  const { address: sessionAddress } = useSession();
+  const { wallets } = useWallets();
+  const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
+    ? "embedded"
+    : "external";
 
   const [phase, setPhase] = useState<Phase>("verifying");
   const [payload, setPayload] = useState<AttestLinkPayload | null>(null);
   const [document, setDocument] = useState<CanonicalInvoiceDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [resultTxHash, setResultTxHash] = useState<string | null>(null);
   const [registeredRef, setRegisteredRef] = useState<string | null>(null);
   const [recordWarning, setRecordWarning] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   const viewerRole = payload ? invoiceViewerRole(payload.invoice, sessionAddress) : null;
   const mayCoSign = payload ? isInvoiceCounterparty(payload.invoice, payload.role, sessionAddress, address) : false;
@@ -125,11 +135,16 @@ export function LandingClient({ encoded }: { encoded: string }) {
       return;
     }
     if (!result.ok) {
-      setError(result.error === "Sign in first." ? result.error : "This invoice link isn't available to the signed-in wallet.");
+      if (result.error === "Sign in first.") {
+        setPhase("sign-in-required");
+        return;
+      }
+      setError("This invoice link isn't available to the signed-in wallet.");
       setPhase("invalid");
       return;
     }
     await verifyTerms(decoded, result.document);
+    setLoadedFor(signedInAddress);
   }
 
   useEffect(() => {
@@ -143,22 +158,22 @@ export function LandingClient({ encoded }: { encoded: string }) {
         return;
       }
       setPayload(decoded);
-      const who = await whoAmI();
-      setSessionAddress(who.address ?? null);
       if (decoded.version === 1) {
         await verifyTerms(decoded, decoded.document);
-      } else if (who.address) {
-        await loadPrivateTerms(decoded, who.address);
-      } else {
-        setPhase("sign-in-required");
       }
     })();
   }, [encoded]);
 
-  function handleSignedIn(signedInAddress: string) {
-    setSessionAddress(signedInAddress);
-    if (payload?.version === 2) void loadPrivateTerms(payload, signedInAddress);
-  }
+  useEffect(() => {
+    if (!payload || payload.version !== 2) return;
+    if (!sessionAddress) {
+      setDocument(null);
+      setLoadedFor(null);
+      setPhase("sign-in-required");
+      return;
+    }
+    void loadPrivateTerms(payload, sessionAddress);
+  }, [payload, sessionAddress]);
 
   async function handleSignAndRegister() {
     if (!payload || !publicClient) return;
@@ -175,7 +190,16 @@ export function LandingClient({ encoded }: { encoded: string }) {
       await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
 
       const typedData = invoiceAttestationTypedData(payload.invoice);
-      const signatureB = await signTypedDataAsync(typedData);
+      const signatureB = await signTypedData(typedData, {
+        title: "Confirm this invoice",
+        description: invoiceSigningConfirmation({
+          youOwe: payload.role !== "debtor",
+          amountUsdc: payload.invoice.amount,
+          counterparty: payload.role === "debtor" ? payload.invoice.debtor : payload.invoice.creditor,
+          maturity: payload.invoice.maturity,
+          earlyNetConsent: payload.invoice.earlyNetConsent,
+        }),
+      });
       await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
       const debtorSignature = payload.role === "debtor" ? payload.signatureA : signatureB;
       const creditorSignature = payload.role === "creditor" ? payload.signatureA : signatureB;
@@ -261,7 +285,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
         <h1 className="heading-1">Sign in to review this invoice</h1>
         <p className="mt-3 text-sm text-muted">Only one of the two invoice parties can load its description and terms.</p>
         <div className="mt-6">
-          <ConnectButton onSignedIn={handleSignedIn} />
+          <ConnectButton />
         </div>
       </div>
     );
@@ -286,7 +310,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
         </p>
         <p className="mt-3 text-xs text-muted">
           {payload ? <Money value={formatUsdcAmount(payload.invoice.amount)} className="text-foreground" /> : "This invoice"} is now registered.
-          If it ends up in a loop of registered invoices, a settlement can net it down.
+          If it forms a loop with other invoices, you'll see a Settle button on your Overview.
         </p>
         {registeredRef && (
           <p className="mt-3 text-xs text-faint">
@@ -329,7 +353,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
 
   if (!payload) return null;
 
-  return (
+  const review = (
     <>
       <h1 className="heading-1">Review this invoice</h1>
       <p className="mt-4 text-sm text-muted">
@@ -340,7 +364,7 @@ export function LandingClient({ encoded }: { encoded: string }) {
         <ReviewAndSign invoice={payload.invoice} viewerRole={viewerRole} description={document?.description}>
           {!sessionAddress ? (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-xs text-muted">Connect and sign in to continue.</p>
+              <p className="text-xs text-muted">Sign in to continue.</p>
               <ConnectButton />
             </div>
           ) : !mayCoSign ? (
@@ -351,12 +375,21 @@ export function LandingClient({ encoded }: { encoded: string }) {
             </p>
           ) : (
             <div className="flex flex-col items-center gap-3">
+              <p className="max-w-sm text-center text-xs text-muted">
+                {invoiceSigningConfirmation({
+                  youOwe: viewerRole === "debtor",
+                  amountUsdc: payload.invoice.amount,
+                  counterparty: viewerRole === "debtor" ? payload.invoice.creditor : payload.invoice.debtor,
+                  maturity: payload.invoice.maturity,
+                  earlyNetConsent: payload.invoice.earlyNetConsent,
+                })}
+              </p>
               <button
                 onClick={handleSignAndRegister}
                 disabled={phase === "signing" || phase === "submitting" || phase === "recording"}
                 className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
               >
-                {phase === "signing" && "Sign in your wallet..."}
+                {phase === "signing" && signingInLabel(signingKind)}
                 {phase === "submitting" && "Submitting to Arc..."}
                 {phase === "recording" && "Finishing up..."}
                 {phase === "ready" && "Sign & register"}
@@ -368,4 +401,9 @@ export function LandingClient({ encoded }: { encoded: string }) {
       </div>
     </>
   );
+
+  if (payload.version === 2) {
+    return <SessionBound loadedFor={loadedFor}>{review}</SessionBound>;
+  }
+  return review;
 }

@@ -5,10 +5,16 @@
 /// server returned itself (document hash first, then the proposer's signature) before showing
 /// any of it as trustworthy. A mismatch is a full stop, not a warning.
 
-import { useState } from "react";
-import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from "wagmi";
+import { useEffect, useState } from "react";
+import { useAccount, usePublicClient, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
+import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
+import { SessionBound, useSession } from "../../../../components/session/SessionProvider";
+import { obligationSigningConfirmation } from "../../../../src/format/signing";
+import { signingInLabel } from "../../../../src/session/signInCopy";
+import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
+import { useWallets } from "@privy-io/react-auth";
 import { ObligationTerms } from "../../../../components/netting/ObligationTerms";
 import { shortAddr } from "../../../../components/netting/format";
 import { appLedgerDomain } from "../../../../src/netting/domain";
@@ -37,17 +43,23 @@ const INVALID = "This proposal is invalid or has been altered. Don't sign it.";
 
 export function ProposalLanding({ token }: { token: string }) {
   const { address, isConnected, connector } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { signTypedData } = useContraflowSignTypedData();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
+  const { address: sessionAddress } = useSession();
+  const { wallets } = useWallets();
+  const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
+    ? "embedded"
+    : "external";
 
   const [phase, setPhase] = useState<Phase>("signin");
   const [proposal, setProposal] = useState<ProposalView | null>(null);
   const [obligation, setObligation] = useState<NettingObligation | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  async function load() {
+  async function load(session: Address) {
     setPhase("loading");
     setError(null);
     const result = await getProposal(token);
@@ -94,6 +106,7 @@ export function ProposalLanding({ token }: { token: string }) {
       return;
     }
     setPhase(view.viewerRole === "proposer" ? "waiting" : "ready");
+    setLoadedFor(session);
   }
 
   function fail() {
@@ -109,7 +122,18 @@ export function ProposalLanding({ token }: { token: string }) {
       const expectedSigner = proposal.proposerRole === "debtor" ? obligation.creditor : obligation.debtor;
       const chainId = Number(appLedgerDomain().chainId);
       await prepareWalletContext(connector, expectedSigner, chainId, switchChainAsync);
-      const signature = await signTypedDataAsync(obligationTypedData(obligation, appLedgerDomain()));
+      const signature = await signTypedData(obligationTypedData(obligation, appLedgerDomain()), {
+        title: "Confirm this obligation",
+        description: obligationSigningConfirmation({
+          youOwe: expectedSigner.toLowerCase() === obligation.debtor.toLowerCase(),
+          amountMinor: obligation.amount.toString(),
+          currency: proposal.document.currency,
+          counterparty:
+            expectedSigner.toLowerCase() === obligation.debtor.toLowerCase() ? obligation.creditor : obligation.debtor,
+          maturity: proposal.document.maturity,
+          earlyNetConsent: proposal.document.earlyNetConsent,
+        }),
+      });
       await prepareWalletContext(connector, expectedSigner, chainId, switchChainAsync);
       setPhase("saving");
       const result = await acceptProposal(token, signature);
@@ -133,15 +157,27 @@ export function ProposalLanding({ token }: { token: string }) {
     setPhase("closed");
   }
 
+  useEffect(() => {
+    if (!sessionAddress) {
+      setProposal(null);
+      setObligation(null);
+      setLoadedFor(null);
+      setPhase("signin");
+      return;
+    }
+    void load(sessionAddress as Address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionAddress, token]);
+
   if (phase === "signin") {
     return (
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
         <h1 className="heading-1">An obligation is waiting for you</h1>
         <p className="mt-4 text-sm text-muted">
-          Sign in with the wallet this was sent to. Its terms are only shown to the two parties named on it.
+          Sign in with the account this was sent to. Its terms are shown only to the two parties named on it.
         </p>
         <div className="mt-6">
-          <ConnectButton onSignedIn={() => void load()} onSignedOut={() => setPhase("signin")} />
+          <ConnectButton />
         </div>
       </div>
     );
@@ -157,10 +193,8 @@ export function ProposalLanding({ token }: { token: string }) {
             ? "No proposal here for this wallet. Check you're signed in with the address it was sent to."
             : message}
         </p>
-        {/* No onSignedIn here: it fires on mount for an existing session, which would reload into
-            this same screen forever. Signing out returns to the sign-in screen, which reloads. */}
         <div className="mt-4">
-          <ConnectButton onSignedOut={() => setPhase("signin")} />
+          <ConnectButton />
         </div>
       </div>
     );
@@ -185,6 +219,7 @@ export function ProposalLanding({ token }: { token: string }) {
   const walletMatches = isConnected && address !== undefined && isAddressEqual(address as Address, expectedSigner);
 
   return (
+    <SessionBound loadedFor={loadedFor}>
     <>
       <h1 className="heading-1">
         {phase === "waiting" ? "Waiting for your counterparty" : "Review this obligation"}
@@ -199,13 +234,25 @@ export function ProposalLanding({ token }: { token: string }) {
           <div className="flex flex-col items-center gap-3">
             {phase !== "waiting" &&
               (walletMatches ? (
+                <>
+                  <p className="max-w-sm text-center text-xs text-muted">
+                    {obligationSigningConfirmation({
+                      youOwe: viewerRole === "debtor",
+                      amountMinor: obligation.amount.toString(),
+                      currency: proposal.document.currency,
+                      counterparty: viewerRole === "debtor" ? obligation.creditor : obligation.debtor,
+                      maturity: proposal.document.maturity,
+                      earlyNetConsent: proposal.document.earlyNetConsent,
+                    })}
+                  </p>
                 <button
                   onClick={handleSign}
                   disabled={phase !== "ready"}
                   className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
                 >
-                  {phase === "signing" ? "Sign in your wallet..." : phase === "saving" ? "Recording..." : "Sign obligation"}
+                  {phase === "signing" ? signingInLabel(signingKind) : phase === "saving" ? "Recording..." : "Sign obligation"}
                 </button>
+                </>
               ) : (
                 <p className="text-center text-xs text-muted">
                   Connect {shortAddr(expectedSigner)} in your wallet to sign.
@@ -219,5 +266,6 @@ export function ProposalLanding({ token }: { token: string }) {
         </ObligationTerms>
       </div>
     </>
+    </SessionBound>
   );
 }

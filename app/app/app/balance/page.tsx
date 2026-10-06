@@ -26,7 +26,7 @@ export default async function BalancePage() {
         {session ? (
           <BalanceClient owner={session.address as `0x${string}`} arcChainId={ARC_TESTNET_CHAIN_ID} />
         ) : (
-          <SignInGate returnTo="/app/balance" message="Sign in with your wallet to see your balance." />
+          <SignInGate title="Sign in to continue" reason="Sign in with your email or wallet to see your balance." />
         )}
       </section>
     </>

@@ -5,10 +5,12 @@
 /// full. This page checks what the server returned in the browser (the full verifier, plus the
 /// ledger's current state) before offering to sign or apply, and stops on any failure.
 
-import { useState } from "react";
-import { useAccount, usePublicClient, useSignTypedData, useWriteContract, useSwitchChain } from "wagmi";
+import { useEffect, useRef, useState } from "react";
+import { useAccount, usePublicClient, useWriteContract, useSwitchChain } from "wagmi";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { ConnectButton } from "../../../../components/wallet/ConnectButton";
+import { useContraflowSignTypedData } from "../../../../components/wallet/useContraflowSignTypedData";
+import { SessionBound, useSession } from "../../../../components/session/SessionProvider";
 import { Address as AddressText } from "../../../../components/ui/Address";
 import { displayDate, displayMinorAmount, shortAddr } from "../../../../components/netting/format";
 import { groupChecks, statusMark, type CheckGroup } from "../../../../components/netting/checks";
@@ -16,10 +18,15 @@ import { checkAsParty } from "../../../../components/netting/partyChecks";
 import { arcTestnet } from "../../../../src/chain/client";
 import { contraflowNettingLedgerAbi } from "../../../../src/contracts/abi/index";
 import { certificateTypedData } from "../../../../src/netting/certificate";
+import { resolveCertificateCheckStage } from "../../../../src/netting/certificateStage";
 import { parseCertificateView } from "../../../../src/netting/serialize";
 import type { ChainReader } from "../../../../src/netting/signature";
 import type { CertificateView, EntryDocument } from "../../../../src/netting/types";
 import type { PartyCertificate } from "../../../../src/obligations/certificates";
+import { certificateSigningConfirmation } from "../../../../src/format/signing";
+import { signingInLabel } from "../../../../src/session/signInCopy";
+import { isEmbeddedWalletClient } from "../../../../src/session/signingWallet";
+import { useWallets } from "@privy-io/react-auth";
 import { requestGrant } from "../../attest/actions";
 import { prepareWalletContext } from "../../../../src/attest/walletContext";
 import {
@@ -38,9 +45,14 @@ const EXPLORER = arcTestnet.blockExplorers?.default.url;
 export function CertificateLanding({ token }: { token: string }) {
   const { address, isConnected, connector } = useAccount();
   const publicClient = usePublicClient();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { signTypedData } = useContraflowSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const { switchChainAsync } = useSwitchChain();
+  const { address: sessionAddress } = useSession();
+  const { wallets } = useWallets();
+  const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
+    ? "embedded"
+    : "external";
 
   const [phase, setPhase] = useState<Phase>("signin");
   const [me, setMe] = useState<Address | null>(null);
@@ -50,6 +62,9 @@ export function CertificateLanding({ token }: { token: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ledgerSyncing, setLedgerSyncing] = useState(false);
+  const [copiedReminder, setCopiedReminder] = useState(false);
+  const lastApplyHash = useRef<string | null>(null);
 
   async function load(session: Address) {
     setMe(session);
@@ -70,19 +85,45 @@ export function CertificateLanding({ token }: { token: string }) {
       return;
     }
     const status = result.certificate.status;
-    const stage = status === "applied" ? "applied" : status === "ready" ? "signed" : "proposed";
+    const resolved = await resolveCertificateCheckStage({
+      dbStatus: status,
+      certificateId: parsed.certificate.certificateId,
+      client: publicClient as unknown as ChainReader | undefined,
+      ledger: parsed.domain.verifyingContract,
+    });
+    const stage = resolved.stage;
+    setLedgerSyncing(resolved.syncing);
+    if (resolved.syncing && lastApplyHash.current) {
+      const recorded = await recordCertificateApplied(token, lastApplyHash.current);
+      if (recorded.ok) setLedgerSyncing(false);
+    }
     const checked = await checkAsParty(parsed, session, publicClient as unknown as ChainReader | undefined, stage);
     setSummary(result.certificate);
     setView(parsed);
     setGroups(groupChecks(checked.checks));
     // An expired or abandoned certificate is shown as closed, not checked for action.
-    if (!checked.ok && (status === "collecting" || status === "ready" || status === "applied")) {
+    // INVALID only against the stage the ledger confirms, so a lagging database row can't
+    // turn a successful apply into a false failure.
+    if (!checked.ok && (resolved.ledgerApplied || status === "collecting" || status === "ready" || status === "applied")) {
       setMessage(INVALID);
       setPhase("invalid");
       return;
     }
     setPhase("loaded");
   }
+
+  useEffect(() => {
+    if (!sessionAddress) {
+      setSummary(null);
+      setView(null);
+      setMe(null);
+      setPhase("signin");
+      return;
+    }
+    void load(sessionAddress as Address);
+    // load is session-and-token specific; token is a page param.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionAddress, token]);
 
   async function run(label: string, action: () => Promise<void>) {
     setError(null);
@@ -97,11 +138,19 @@ export function CertificateLanding({ token }: { token: string }) {
   }
 
   const handleSign = () =>
-    run("Sign in your wallet...", async () => {
-      if (!view || !me) return;
+    run(signingInLabel(signingKind), async () => {
+      if (!view || !me || !summary) return;
       const chainId = Number(view.domain.chainId);
       await prepareWalletContext(connector, me, chainId, switchChainAsync);
-      const signature = await signTypedDataAsync(certificateTypedData(view.certificate, view.domain));
+      const confirmation = certificateSigningConfirmation({
+        wNet: summary.wNet,
+        currency: summary.currency,
+        parties: summary.parties,
+      });
+      const signature = await signTypedData(certificateTypedData(view.certificate, view.domain), {
+        title: "Confirm this certificate",
+        description: confirmation,
+      });
       await prepareWalletContext(connector, me, chainId, switchChainAsync);
       const result = await signCertificate(token, signature);
       if (!result.ok) throw new Error(result.error);
@@ -125,6 +174,7 @@ export function CertificateLanding({ token }: { token: string }) {
       });
       setBusy("Waiting for the ledger...");
       await publicClient.waitForTransactionReceipt({ hash });
+      lastApplyHash.current = hash;
       const recorded = await recordCertificateApplied(token, hash);
       if (!recorded.ok) console.error("recordCertificateApplied failed after a confirmed transaction:", recorded.error);
       await load(me);
@@ -154,10 +204,10 @@ export function CertificateLanding({ token }: { token: string }) {
       <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 text-center sm:p-8">
         <h1 className="heading-1">A netting certificate</h1>
         <p className="mt-4 text-sm text-muted">
-          Sign in with your wallet. A certificate is only shown to the parties in its loop.
+          Sign in with your email or wallet. A certificate is only shown to the parties in its loop.
         </p>
         <div className="mt-6">
-          <ConnectButton onSignedIn={(a) => void load(a as Address)} onSignedOut={() => setPhase("signin")} />
+          <ConnectButton />
         </div>
       </div>
     );
@@ -174,9 +224,8 @@ export function CertificateLanding({ token }: { token: string }) {
             : message}
         </p>
         {phase === "invalid" && <CheckList groups={groups} />}
-        {/* No onSignedIn here: it fires on mount for an existing session and would loop. */}
         <div className="mt-4">
-          <ConnectButton onSignedOut={() => setPhase("signin")} />
+          <ConnectButton />
         </div>
       </div>
     );
@@ -184,7 +233,7 @@ export function CertificateLanding({ token }: { token: string }) {
 
   if (!summary || !view || !me) return null;
 
-  const status = summary.status;
+  const status = ledgerSyncing || summary.status === "applied" ? "applied" : summary.status;
   const signer = view.certificate.entries[summary.yourIndex]?.debtor;
   const walletMatches = isConnected && address !== undefined && signer !== undefined && isAddressEqual(address as Address, signer);
   const own = view.entries.flatMap((e, i) => (e.kind === "full" ? [{ i, doc: e.document }] : []));
@@ -195,14 +244,22 @@ export function CertificateLanding({ token }: { token: string }) {
     expired: "This certificate expired",
     abandoned: "This certificate was cancelled",
   }[status];
+  const shareUrl = typeof window === "undefined" ? `/app/c/${token}` : `${window.location.origin}/app/c/${token}`;
 
   return (
+    <SessionBound loadedFor={me}>
     <>
       <h1 className="heading-1">{heading}</h1>
+      {ledgerSyncing && (
+        <p className="mt-3 text-sm text-muted">Applied on the ledger. Updating your records…</p>
+      )}
       <p className="mt-4 text-sm text-muted">
         Nets <span className="text-foreground">{displayMinorAmount(summary.wNet, summary.currency)}</span> off every
         obligation in a loop of {summary.parties} parties. You see your own two obligations; the others are hidden from
         you, as yours are from them.
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        Each obligation&apos;s terms are shown only to its two parties. Everyone in a loop sees the addresses in it.
       </p>
 
       <div className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
@@ -214,6 +271,23 @@ export function CertificateLanding({ token }: { token: string }) {
                 {isAddressEqual(e.debtor, me) ? "You" : shortAddr(e.debtor)}
               </span>
               <span className="text-xs text-muted">owes →</span>
+              {status === "collecting" && view.signatures[i] == null && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      setCopiedReminder(true);
+                      setTimeout(() => setCopiedReminder(false), 1500);
+                    } catch {
+                      // Clipboard can be unavailable.
+                    }
+                  }}
+                  className="text-xs text-gold hover:underline"
+                >
+                  {copiedReminder ? "Copied" : "Copy reminder link"}
+                </button>
+              )}
             </li>
           ))}
           <li className={isAddressEqual(view.certificate.entries[0]!.debtor, me) ? "text-gold" : ""}>
@@ -239,7 +313,16 @@ export function CertificateLanding({ token }: { token: string }) {
           {status === "collecting" &&
             !summary.youSigned &&
             (walletMatches ? (
-              <ActionButton onClick={handleSign} busy={busy} label="Sign certificate" />
+              <>
+                <p className="max-w-sm text-center text-xs text-muted">
+                  {certificateSigningConfirmation({
+                    wNet: summary.wNet,
+                    currency: summary.currency,
+                    parties: summary.parties,
+                  })}
+                </p>
+                <ActionButton onClick={handleSign} busy={busy} label="Sign certificate" />
+              </>
             ) : (
               <p className="text-center text-xs text-muted">Connect {signer ? shortAddr(signer) : "your wallet"} to sign.</p>
             ))}
@@ -255,9 +338,16 @@ export function CertificateLanding({ token }: { token: string }) {
             </a>
           )}
           {(status === "ready" || status === "applied") && (
-            <button onClick={handleDownload} disabled={busy !== null} className="text-xs text-gold hover:underline disabled:state-disabled">
-              Download certificate
-            </button>
+            <>
+              <button onClick={handleDownload} disabled={busy !== null} className="text-xs text-gold hover:underline disabled:state-disabled">
+                Download certificate
+              </button>
+              {status === "applied" && (
+                <a href="/app/verify" className="text-xs text-gold hover:underline">
+                  Open in Verify
+                </a>
+              )}
+            </>
           )}
           {status === "collecting" && (
             <button onClick={handleDecline} disabled={busy !== null} className="text-xs text-muted hover:underline disabled:state-disabled">
@@ -272,6 +362,7 @@ export function CertificateLanding({ token }: { token: string }) {
         ← Your obligations
       </a>
     </>
+    </SessionBound>
   );
 }
 

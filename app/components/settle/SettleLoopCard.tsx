@@ -1,0 +1,207 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
+import type { Address, Hex } from "viem";
+import { Money } from "../ui/Money";
+import { prepareWalletContext } from "../../src/attest/walletContext";
+import { contraflowSettlerAbi } from "../../src/contracts/abi/index";
+import { requestGrant } from "../../app/app/attest/actions";
+import { findSettleableLoop, recordSettlement, type FindSettleableLoopResult, type InvoiceLoopView } from "../../app/app/settle/actions";
+import { settleLoopSentence } from "../../src/settle/copy";
+
+type Phase = "loading" | "none" | "incomplete" | "loop" | "settling" | "pending" | "reverted" | "done";
+
+export function SettleLoopCard({ sessionAddress, onLoopIds }: { sessionAddress: string; onLoopIds?: (ids: string[]) => void }) {
+  const router = useRouter();
+  const { connector } = useAccount();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [loop, setLoop] = useState<InvoiceLoopView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
+  async function refresh() {
+    const result = await findSettleableLoop();
+    applyResult(result);
+  }
+
+  function applyResult(result: FindSettleableLoopResult) {
+    if (result.kind === "error") {
+      setPhase("incomplete");
+      setError(result.error);
+      onLoopIds?.([]);
+      return;
+    }
+    if (result.kind === "none") {
+      setPhase("none");
+      setLoop(null);
+      setError(null);
+      onLoopIds?.([]);
+      return;
+    }
+    if (result.kind === "incomplete") {
+      setPhase("incomplete");
+      setLoop(null);
+      setError(null);
+      onLoopIds?.([]);
+      return;
+    }
+    setLoop(result);
+    setPhase("loop");
+    setError(null);
+    onLoopIds?.(result.invoiceIds);
+  }
+
+  useEffect(() => {
+    void refresh();
+    // One check on mount; Settle retriggers refresh after a stale simulation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function settle() {
+    if (!loop || !publicClient || inFlight.current) return;
+    inFlight.current = true;
+    setError(null);
+    let submittedHash: `0x${string}` | null = null;
+    let writeAttempted = false;
+    try {
+      setPhase("settling");
+      const me = sessionAddress as Address;
+      await prepareWalletContext(connector, me, loop.chainId, switchChainAsync);
+      await requestGrant().catch(() => undefined);
+      await prepareWalletContext(connector, me, loop.chainId, switchChainAsync);
+
+      const wNet = BigInt(loop.wNet);
+      const invoiceIds = loop.invoiceIds as Hex[];
+      try {
+        await publicClient.simulateContract({
+          address: loop.settler,
+          abi: contraflowSettlerAbi,
+          functionName: "settle",
+          args: [invoiceIds, wNet],
+          account: me,
+        });
+      } catch {
+        setError("This loop changed. Refresh to see the current one.");
+        inFlight.current = false;
+        await refresh();
+        return;
+      }
+
+      await prepareWalletContext(connector, me, loop.chainId, switchChainAsync);
+      writeAttempted = true;
+      const hash = await writeContractAsync({
+        address: loop.settler,
+        abi: contraflowSettlerAbi,
+        functionName: "settle",
+        args: [invoiceIds, wNet],
+      });
+      submittedHash = hash;
+      setTxHash(hash);
+
+      let receipt;
+      try {
+        receipt = await publicClient.waitForTransactionReceipt({ hash });
+      } catch {
+        setError("The transaction was submitted, but Arc has not confirmed its status yet. Check the transaction before trying again.");
+        setPhase("pending");
+        return;
+      }
+      if (receipt.status !== "success") {
+        setError("Arc confirmed that this settlement reverted. Nothing was netted.");
+        setPhase("reverted");
+        return;
+      }
+
+      await recordSettlement(hash);
+      router.push(`/app/receipt/${hash}`);
+      setPhase("done");
+    } catch (err) {
+      if (submittedHash) {
+        setError("The transaction was submitted, but follow-up confirmation failed. Check its status before trying again.");
+        setPhase("pending");
+      } else if ((err as { code?: unknown })?.code === 4001) {
+        setError("You cancelled in your wallet. Nothing was submitted.");
+        setPhase("loop");
+      } else if (writeAttempted) {
+        setError("Your wallet did not return a transaction hash. Check Arc for a pending settlement before trying again.");
+        setPhase("pending");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to settle.");
+        setPhase("loop");
+      }
+    } finally {
+      inFlight.current = false;
+    }
+  }
+
+  if (phase === "loading") {
+    return (
+      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
+        <h2 className="text-sm font-semibold">Ready to net</h2>
+        <p className="mt-2 text-sm text-muted">Checking for loops…</p>
+      </section>
+    );
+  }
+
+  if (phase === "none") {
+    return (
+      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
+        <h2 className="text-sm font-semibold">Ready to net</h2>
+        <p className="mt-2 text-sm text-muted">No loop to net yet</p>
+      </section>
+    );
+  }
+
+  if (phase === "incomplete" && !loop) {
+    return (
+      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
+        <h2 className="text-sm font-semibold">Ready to net</h2>
+        <p className="mt-2 text-sm text-muted">{error ?? "Couldn't check for loops right now"}</p>
+      </section>
+    );
+  }
+
+  if (phase === "pending" || phase === "reverted") {
+    return (
+      <section className="rounded-card border border-border-subtle bg-surface-1 px-5 py-4">
+        <h2 className="text-sm font-semibold">Ready to net</h2>
+        <p className="mt-2 text-sm font-medium">{phase === "pending" ? "Settlement status needs checking" : "Settlement reverted"}</p>
+        {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+        {txHash && (
+          <a href={`/app/receipt/${txHash}`} className="mt-3 inline-block text-sm text-gold hover:underline">
+            Open transaction →
+          </a>
+        )}
+      </section>
+    );
+  }
+
+  if (!loop) return null;
+
+  return (
+    <section className="rounded-card border border-gold/30 bg-gold/[0.06] px-5 py-4">
+      <h2 className="text-sm font-semibold">Ready to net</h2>
+      <p className="mt-2 text-sm text-muted">
+        {settleLoopSentence(loop.invoiceIds.length, loop.wNet)}
+      </p>
+      <p className="mt-2 text-xs text-muted">
+        Anyone in the loop can settle. Network fee about <Money value="0.004" />, paid from your account.
+      </p>
+      <button
+        type="button"
+        onClick={() => void settle()}
+        disabled={phase === "settling"}
+        className="mt-4 rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
+      >
+        {phase === "settling" ? "Settling…" : "Settle"}
+      </button>
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+    </section>
+  );
+}

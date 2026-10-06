@@ -22,7 +22,7 @@ export default async function NewObligationPage() {
             <ComposeObligation signerAddress={session.address} />
           </div>
         ) : (
-          <SignInGate returnTo="/app/obligations/new" message="Sign in with your wallet first." />
+          <SignInGate title="Sign in to continue" reason="Sign in with your email or wallet first." />
         )}
       </section>
     </>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Address } from "../../../components/ui/Address";
 import { displayDate, displayMajorAmount, displayMinorAmount } from "../../../components/netting/format";
+import { earlyNettingReview } from "../../../src/format/signing";
 import type { ObligationSummary, ProposalSummary } from "../../../src/obligations/service";
 import { closeObligation, withdrawProposal } from "./actions";
 
@@ -115,7 +116,8 @@ export function ObligationsList({
                   <p className="mt-1 truncate text-xs text-muted">
                     {displayMinorAmount(o.amount, o.currency)}
                     {o.remaining !== o.amount && <> · {displayMinorAmount(o.remaining, o.currency)} remaining</>} · due{" "}
-                    {displayDate(o.maturity)} · {o.description}
+                    {displayDate(o.maturity)}
+                    {!o.earlyNetConsent ? <> · {earlyNettingReview(o.maturity, false)}</> : null} · {o.description}
                   </p>
                   {o.status === "out_of_sync" && <p className="mt-1 text-xs text-muted">{OUT_OF_SYNC_EXPLAINED}</p>}
                 </div>
