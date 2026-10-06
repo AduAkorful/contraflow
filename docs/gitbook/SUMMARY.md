@@ -5,7 +5,7 @@
 * [Offchain obligations](offchain-obligations.md)
 * [Using the app](using-the-app.md)
 * [FAQ](faq.md)
-* [API](api/README.md)
+* [API](api.md)
 
 ## Reference
 
