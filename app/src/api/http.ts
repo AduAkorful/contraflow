@@ -190,7 +190,8 @@ async function runAuthenticated(
   const req: ApiRequest = { params: await context.params, query: new URL(request.url).searchParams, body };
   if (ctx.usage) {
     const fromBody = body && typeof body === "object" ? (body as { party?: unknown }).party : undefined;
-    const candidate = req.params.address ?? req.query.get("party") ?? fromBody;
+    // Next passes no params object to a route without dynamic segments.
+    const candidate = req.params?.address ?? req.query.get("party") ?? fromBody;
     ctx.usage.party = typeof candidate === "string" ? candidate : null;
   }
 

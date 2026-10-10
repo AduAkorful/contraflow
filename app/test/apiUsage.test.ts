@@ -108,6 +108,13 @@ describe("usage counting at the API wrapper", () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled();
   });
 
+  it("serves a route that receives no params object", async () => {
+    const handler = route(async () => ({ status: 200, body: {} }));
+    const res = await handler(new Request("https://app.test/api/v1/tenant"), { params: Promise.resolve(undefined as never) });
+    await flush();
+    expect(res.status).toBe(200);
+  });
+
   it("never changes the response when the count fails", async () => {
     mocks.recordUsage.mockRejectedValue(new Error("db down"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
