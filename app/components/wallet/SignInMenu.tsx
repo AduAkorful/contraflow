@@ -1,15 +1,33 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { useSignIn } from "./signInContext";
 
 type View = "home" | "email" | "code";
 
-const rowClass =
-  "flex w-full items-center rounded-lg border border-border-input px-3 py-2.5 text-left text-sm text-foreground hover:bg-surface-2";
+const inputClass =
+  "w-full rounded-xl border border-border-input bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted focus:border-gold";
+const primaryClass =
+  "w-full rounded-pill bg-gold px-4 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.01] disabled:state-disabled disabled:scale-100";
 
-/// Top-right sign-in control. The panel drops open under the button. A click anywhere else, or
-/// Escape, closes it. Email stays in the panel. A wallet opens the short wallet list.
+function Icon({ d, className = "size-5" }: { d: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
+const MAIL = "M4 6h16v12H4zM4 7l8 6 8-6";
+const WALLET = "M3 7a2 2 0 0 1 2-2h13v4M3 7v10a2 2 0 0 0 2 2h14V9H5a2 2 0 0 1-2-2zM16 14h2";
+const CHEVRON = "M9 6l6 6-6 6";
+const CLOSE = "M6 6l12 12M18 6L6 18";
+
+/// Top-right sign-in control. The button opens a centred dialog (like most wallet apps): email on
+/// top, then a wallet. A click on the backdrop, the close button or Escape closes it. Email stays in
+/// the dialog; a wallet opens the short wallet list.
 export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
   const { menuOpen, openMenu, closeMenu, phase, error, sendEmailCode, submitEmailCode, startWallet, sessionAddress } =
     useSignIn();
@@ -18,7 +36,8 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
   const [code, setCode] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [mounted, setMounted] = useState(false);
   const titleId = useId();
   const opened = useRef(false);
 
@@ -38,16 +57,18 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") closeMenu();
     }
-    function onPointer(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) closeMenu();
-    }
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onPointer);
+    const trigger = triggerRef.current;
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onPointer);
+      document.body.style.overflow = previous;
+      trigger?.focus();
     };
   }, [menuOpen, closeMenu]);
+
+  useEffect(() => setMounted(true), []);
 
   if (sessionAddress) return null;
 
@@ -83,9 +104,139 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
     if (message) setLocalError(message);
   }
 
+  const dialog = (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) closeMenu();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative w-full max-w-[26rem] rounded-card border border-border-subtle bg-surface-1 p-6 shadow-2xl sm:p-8"
+      >
+        <button
+          type="button"
+          onClick={closeMenu}
+          aria-label="Close"
+          className="absolute right-4 top-4 rounded-full p-1.5 text-muted hover:bg-surface-2 hover:text-foreground"
+        >
+          <Icon d={CLOSE} className="size-5" />
+        </button>
+
+        <div className="flex flex-col items-center text-center">
+          <Image src="/logo-mark.png" alt="" width={44} height={44} className="size-11" />
+          <h2 id={titleId} className="mt-4 text-xl font-medium">
+            {view === "code" ? "Check your email" : "Sign in to Contraflow"}
+          </h2>
+          <p className="mt-1.5 text-sm text-muted">
+            {view === "code"
+              ? `We sent a code to ${email}.`
+              : "Use your email or a wallet. Signing in sends nothing onchain."}
+          </p>
+        </div>
+
+        {view === "code" ? (
+          <form className="mt-6 grid gap-3" onSubmit={onSubmitCode}>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="······"
+              aria-label="Code from the email"
+              className={`${inputClass} text-center text-xl tracking-[0.4em]`}
+            />
+            <button type="submit" disabled={waiting} className={primaryClass}>
+              {waiting ? "Checking…" : "Continue"}
+            </button>
+            <div className="flex items-center justify-between text-xs text-muted">
+              <button type="button" className="hover:text-foreground" onClick={() => { setCode(""); setLocalError(null); setView("home"); }}>
+                Use a different email
+              </button>
+              <button
+                type="button"
+                className="hover:text-foreground disabled:state-disabled"
+                disabled={waiting}
+                onClick={async () => {
+                  setBusy(true);
+                  setLocalError(null);
+                  const message = await sendEmailCode(email.trim());
+                  setBusy(false);
+                  if (message) setLocalError(message);
+                }}
+              >
+                Resend code
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <form className="mt-6 grid gap-3" onSubmit={onSendEmail}>
+              <label className="relative block">
+                <span className="sr-only">Email address</span>
+                <Icon d={MAIL} className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted" />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@company.com"
+                  className={`${inputClass} pl-12`}
+                />
+              </label>
+              <button type="submit" disabled={waiting} className={primaryClass}>
+                {waiting ? "Sending the code…" : "Continue with email"}
+              </button>
+            </form>
+
+            <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-muted" aria-hidden="true">
+              <span className="h-px flex-1 bg-border-subtle" />
+              or
+              <span className="h-px flex-1 bg-border-subtle" />
+            </div>
+
+            <button
+              type="button"
+              onClick={startWallet}
+              className="group flex w-full items-center gap-3 rounded-xl border border-border-input px-4 py-3 text-left hover:border-white/40 hover:bg-surface-2"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-gold">
+                <Icon d={WALLET} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Continue with a wallet</span>
+                <span className="block truncate text-xs text-muted">MetaMask, Coinbase, Rainbow and more</span>
+              </span>
+              <Icon d={CHEVRON} className="size-4 text-muted group-hover:text-foreground" />
+            </button>
+          </>
+        )}
+
+        {shownError && (
+          <p role="alert" className="mt-3 text-center text-sm text-danger">
+            {shownError}
+          </p>
+        )}
+
+        <p className="mt-6 text-center text-xs text-muted">
+          By continuing you agree to the{" "}
+          <Link href="/terms" className="underline hover:text-foreground" onClick={closeMenu}>Terms</Link> and{" "}
+          <Link href="/privacy" className="underline hover:text-foreground" onClick={closeMenu}>Privacy Policy</Link>.
+          Sign-in by <span className="text-foreground">Privy</span>.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
-    <div ref={rootRef} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => (menuOpen ? closeMenu() : openMenu())}
         aria-expanded={menuOpen}
@@ -94,72 +245,7 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
       >
         Sign in
       </button>
-      {menuOpen && (
-        <div
-          role="dialog"
-          aria-labelledby={titleId}
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(22rem,calc(100vw-2rem))] rounded-card border border-border-subtle bg-surface-1 p-4 text-left shadow-lg"
-        >
-          <p id={titleId} className="text-center text-sm font-medium">
-            {view === "code" ? "Enter the code" : view === "email" ? "Continue with email" : "Sign in"}
-          </p>
-          {view === "home" && (
-            <div className="mt-3 grid gap-2">
-              <button type="button" className={rowClass} onClick={() => setView("email")}>
-                Continue with email
-              </button>
-              <button type="button" className={rowClass} onClick={startWallet}>
-                Use a crypto wallet
-              </button>
-              <p className="px-1 text-center text-xs text-muted">Nothing is sent onchain.</p>
-            </div>
-          )}
-          {view === "email" && (
-            <form className="mt-3 grid gap-2" onSubmit={onSendEmail}>
-              <input
-                type="email"
-                autoComplete="email"
-                autoFocus
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@email.com"
-                className="rounded-lg border border-border-input bg-bg px-3 py-2.5 text-sm"
-              />
-              <button type="submit" disabled={waiting} className="rounded-pill bg-gold px-3 py-2.5 text-sm font-medium text-black disabled:state-disabled">
-                {waiting ? "Sending the code…" : "Send code"}
-              </button>
-              <button type="button" className="text-xs text-muted hover:text-foreground" onClick={() => setView("home")}>
-                Back
-              </button>
-            </form>
-          )}
-          {view === "code" && (
-            <form className="mt-3 grid gap-2" onSubmit={onSubmitCode}>
-              <p className="text-center text-xs text-muted">We sent a code to {email}.</p>
-              <input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="Code"
-                className="rounded-lg border border-border-input bg-bg px-3 py-2.5 text-center text-sm tracking-widest"
-              />
-              <button type="submit" disabled={waiting} className="rounded-pill bg-gold px-3 py-2.5 text-sm font-medium text-black disabled:state-disabled">
-                {waiting ? "Checking…" : "Continue"}
-              </button>
-              <button type="button" className="text-xs text-muted hover:text-foreground" onClick={() => setView("email")}>
-                Use a different email
-              </button>
-            </form>
-          )}
-          {shownError && (
-            <p role="alert" className="mt-2 text-center text-xs text-danger">
-              {shownError}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
+      {menuOpen && mounted ? createPortal(dialog, document.body) : null}
+    </>
   );
 }

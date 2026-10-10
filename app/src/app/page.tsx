@@ -1,5 +1,6 @@
 import { Hero } from "@/components/sections/hero";
 import { HowItWorks } from "@/components/sections/how-it-works";
+import { LiveStats } from "@/components/sections/live-stats";
 import { Cta } from "@/components/sections/cta";
 import { MarketingPage } from "@/components/marketing/MarketingPage";
 
@@ -13,6 +14,7 @@ export default function HomePage() {
     <MarketingPage>
       <Hero />
       <HowItWorks />
+      <LiveStats />
       <Cta />
     </MarketingPage>
   );

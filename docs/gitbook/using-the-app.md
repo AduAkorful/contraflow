@@ -14,8 +14,7 @@ first transaction. Every transaction after that is sent from your own wallet.
 
 After you sign in, Overview shows your position first (USDC from your invoice history, then each
 obligation currency), then any loop that's ready to net, then what's waiting on you beside recent
-activity. Send an invoice and record a debt are further down. Network stats sit collapsed at the
-bottom.
+activity. Send an invoice and record a debt are further down. Overview shows only your own details.
 
 ## Invoices on Arc
 

@@ -88,7 +88,7 @@ wallet on Arc. You don't need gas on Arc for the move, and Circle's fees are sho
 
 ## Protocol stats
 
-The stats on the home page and in the app are counted from the contracts' own events, read from
+The stats on the home page are counted from the contracts' own events, read from
 the Arc explorer. They aren't estimates, and nothing is entered by hand.
 
 - **Invoices registered** and **face value registered** count every invoice registered with the

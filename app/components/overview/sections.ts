@@ -4,5 +4,4 @@ export const OVERVIEW_SECTION_ORDER = [
   "Waiting on you",
   "Recent activity",
   "Actions",
-  "Network stats",
 ] as const;

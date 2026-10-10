@@ -13,7 +13,6 @@ describe("Overview sections", () => {
       "Waiting on you",
       "Recent activity",
       "Actions",
-      "Network stats",
     ]);
   });
 

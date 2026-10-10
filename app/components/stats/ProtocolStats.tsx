@@ -1,6 +1,6 @@
 "use client";
 
-/// Protocol-wide totals counted from contract events. Shown on `/app` (collapsed on Overview).
+/// Protocol-wide totals counted from contract events. Shown on Overview, collapsed.
 /// If the stats can't be loaded it shows no figures at all: a zero here would be a false statement,
 /// not a placeholder.
 
@@ -8,35 +8,49 @@ import { useEffect, useState } from "react";
 import { loadProtocolStats, type ProtocolStatsResult } from "../../src/app/app/stats/actions";
 import type { StatTile, StatsView } from "../../src/stats/view";
 
-function Tile({ tile, size }: { tile: StatTile; size: "lg" | "sm" }) {
+/// "120.00 USDC" reads better as a figure with a quiet unit, and it keeps the figure on one line.
+function splitUnit(value: string): { figure: string; unit: string | null } {
+  const match = /^(.*\S)\s+(USDC)$/.exec(value);
+  return match ? { figure: match[1]!, unit: match[2]! } : { figure: value, unit: null };
+}
+
+function Figure({ tile, className }: { tile: StatTile; className: string }) {
+  const { figure, unit } = splitUnit(tile.value);
   return (
-    <div className="rounded-card border border-border-subtle bg-surface-1 p-5">
-      <dt className="text-xs text-muted">{tile.label}</dt>
-      <dd
-        className={size === "lg" ? "mt-2 text-2xl font-semibold tabular-nums" : "mt-1.5 text-lg tabular-nums"}
-        title={tile.exact}
-        aria-label={`${tile.label}: ${tile.exact}`}
-      >
-        {tile.value}
-        {tile.note ? <p className="mt-2 text-xs font-normal leading-relaxed text-muted">{tile.note}</p> : null}
-      </dd>
-    </div>
+    <span className={className} title={tile.exact} aria-label={`${tile.label}: ${tile.exact}`}>
+      {figure}
+      {unit && <span className="ml-1.5 text-sm font-normal text-muted">{unit}</span>}
+    </span>
   );
 }
 
 function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "full" }) {
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-4">
         {view.headline.map((tile) => (
-          <Tile key={tile.label} tile={tile} size="lg" />
+          <div key={tile.label} className="bg-surface-1 p-5">
+            <dt className="text-xs text-muted">{tile.label}</dt>
+            <dd className="mt-2">
+              <Figure tile={tile} className="block text-2xl font-semibold tabular-nums" />
+              {tile.note ? <p className="mt-2 text-xs leading-relaxed text-muted">{tile.note}</p> : null}
+            </dd>
+          </div>
         ))}
       </dl>
 
       {variant === "full" && (
-        <dl className="mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+        <dl className="mt-4 divide-y divide-border-subtle rounded-card border border-border-subtle bg-surface-1">
           {view.detail.map((tile) => (
-            <Tile key={tile.label} tile={tile} size="sm" />
+            <div key={tile.label} className="flex items-baseline justify-between gap-6 px-5 py-3">
+              <div className="min-w-0">
+                <dt className="text-sm">{tile.label}</dt>
+                {tile.note ? <p className="mt-0.5 text-xs text-muted">{tile.note}</p> : null}
+              </div>
+              <dd className="shrink-0 text-right">
+                <Figure tile={tile} className="text-base tabular-nums" />
+              </dd>
+            </div>
           ))}
         </dl>
       )}
@@ -99,9 +113,9 @@ function Skeleton({ variant }: { variant: "headline" | "full" }) {
         ))}
       </div>
       {variant === "full" && (
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5" aria-hidden="true">
+        <div className="mt-4 space-y-px" aria-hidden="true">
           {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="animate-skeleton h-[84px] rounded-card" />
+            <div key={i} className="animate-skeleton h-12 rounded-card" />
           ))}
         </div>
       )}

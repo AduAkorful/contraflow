@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { isAddress, type Address } from "viem";
-import { formatAddress } from "@/src/format/address";
 import { useWallets } from "@privy-io/react-auth";
-import { useSetActiveWallet } from "@privy-io/wagmi";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
-import { useSignIn } from "@/components/wallet/useSignIn";
+import { useSignerWallet } from "@/components/wallet/useSignerWallet";
+import { SignerWalletNotice } from "@/components/wallet/SignerWalletNotice";
 import { earlyNettingHelper, invoiceSigningConfirmation } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
@@ -44,11 +43,10 @@ const NEXT_STEPS = [
 ] as const;
 
 export function ComposeForm({ signerAddress }: { signerAddress: string }) {
-  const { address, isConnected, connector } = useAccount();
+  const { address, connector } = useAccount();
   const { signTypedData } = useContraflowSignTypedData();
   const { switchChainAsync } = useSwitchChain();
-  const { start } = useSignIn();
-  const { setActiveWallet } = useSetActiveWallet();
+  const signerWallet = useSignerWallet(signerAddress);
   const { wallets } = useWallets();
   const signingKind = isEmbeddedWalletClient(wallets.find((w) => w.address.toLowerCase() === address?.toLowerCase())?.walletClientType)
     ? "embedded"
@@ -218,9 +216,10 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
               earlyNetConsent: invoice.earlyNetConsent,
             })}
           </p>
+          <SignerWalletNotice wallet={signerWallet} signerAddress={signerAddress} />
           <button
             onClick={handleSign}
-            disabled={phase === "signing"}
+            disabled={phase === "signing" || signerWallet.state !== "ready"}
             className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
             {phase === "signing" ? signingInLabel(signingKind) : "Sign & generate link"}
@@ -233,35 +232,6 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
         </div>
       </ReviewAndSign>
       </ComposerFrame>
-    );
-  }
-
-  if (!isConnected || address?.toLowerCase() !== signerAddress.toLowerCase()) {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-card border border-border-subtle bg-surface-1 p-6 text-center">
-        {isConnected ? (
-          <p className="text-sm text-muted">
-            Your connected wallet ({formatAddress(address ?? "")}) doesn&apos;t match the address you
-            signed in with ({formatAddress(signerAddress)}). Switch accounts in your wallet, or connect
-            the right one below.
-          </p>
-        ) : (
-          <p className="text-sm text-muted">
-            You&apos;re signed in as {formatAddress(signerAddress)}, but your wallet isn&apos;t connected
-            in this tab. Reconnect it to continue.
-          </p>
-        )}
-        <button
-          onClick={() => {
-            const match = wallets.find((w) => w.address.toLowerCase() === signerAddress.toLowerCase());
-            if (match) void setActiveWallet(match);
-            else start();
-          }}
-          className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
-        >
-          Connect the signed-in account
-        </button>
-      </div>
     );
   }
 

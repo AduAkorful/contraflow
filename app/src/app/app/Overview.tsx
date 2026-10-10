@@ -16,7 +16,6 @@ import {
 import { ReadyToNet } from "@/components/settle/ReadyToNet";
 import { ObligationLoopBanner } from "@/components/obligations/ObligationLoopBanner";
 import { OVERVIEW_SECTION_ORDER } from "@/components/overview/sections";
-import { ProtocolStats } from "@/components/stats/ProtocolStats";
 
 const RECENT_INVOICES = 5;
 
@@ -224,13 +223,6 @@ export async function Overview({ address }: { address: string }) {
             Record a debt (any currency)
           </Link>
         </div>
-
-        <details className="rounded-card border border-border-subtle bg-surface-1" data-section={OVERVIEW_SECTION_ORDER[5]}>
-          <summary className="cursor-pointer px-5 py-3 text-sm font-semibold">{OVERVIEW_SECTION_ORDER[5]}</summary>
-          <div className="border-t border-border-subtle px-5 py-4">
-            <ProtocolStats variant="full" />
-          </div>
-        </details>
       </div>
     </section>
   );
