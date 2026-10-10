@@ -3,7 +3,8 @@
 
 import { postgresWebhookStore } from "../db/webhooks";
 import { redis } from "../upstash/client";
-import { deliverDue, fanOutChanges, fetchPoster } from "./webhookPipeline";
+import { safePoster } from "./safePoster";
+import { deliverDue, fanOutChanges } from "./webhookPipeline";
 
 const LOCK_KEY = "api:webhooks:lock";
 const LOCK_SECONDS = 60;
@@ -20,7 +21,7 @@ export async function runWebhookPipeline(): Promise<{
   try {
     const now = new Date();
     const events = await fanOutChanges(postgresWebhookStore, now);
-    const { delivered, failed, suppressed } = await deliverDue(postgresWebhookStore, now, fetchPoster);
+    const { delivered, failed, suppressed } = await deliverDue(postgresWebhookStore, now, safePoster);
     return { ran: true, events, delivered, failed, suppressed };
   } finally {
     await redis().del(LOCK_KEY).catch(() => {

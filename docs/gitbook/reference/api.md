@@ -43,7 +43,7 @@ Authorization: Bearer cfk_test_…
 ```
 
 * **Test and live keys.** Keys starting `cfk_test_` work against Arc testnet. `cfk_live_` keys work against Arc mainnet once Contraflow is deployed there; until then they get `403 live_unavailable`. The network always comes from the key, never from the request.
-* **Issuing keys.** Sign in and create a test key at `/app/api-keys`. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime. Live keys, and webhook endpoints, are still issued with the operator script.
+* **Issuing keys.** Sign in and create a test key at `/app/api-keys`. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime. Live keys are still issued by request.
 * **Failures.** A missing, malformed, unknown or revoked key gets `401 unauthorized`, with `WWW-Authenticate: Bearer realm="Contraflow API"`. The scheme is case-insensitive (`Bearer` or `bearer`).
 * **Request id.** Send `X-Request-Id` (1–128 visible ASCII characters) and the same value comes back on every response. If you omit it, Contraflow generates one.
 * **CORS.** Browser clients may call the API from any origin. Allowed headers: `Authorization`, `Content-Type`, `Idempotency-Key`, `X-Request-Id`. Wrong methods return JSON `405 method_not_allowed` with `Allow`.
@@ -489,7 +489,7 @@ Scope: `read`. **200:** `{ "fileName": "contraflow-certificate-1f00cc58.json", "
 
 ## Webhooks
 
-Contraflow registers one HTTPS endpoint per tenant and gives you a signing secret (`whsec_…`), shown once. Events:
+A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. Set, replace, roll and remove it on `/app/api-keys`, which also sends a test event and lists the latest deliveries (live-key tenants are set up by Contraflow). The URL must be public HTTPS on the default port: embedded credentials, private, loopback, link-local and cloud-metadata addresses, and names that resolve to them are refused when you save and again on every delivery. Redirects are not followed and count as a failed attempt; a request times out after 10 seconds. Events:
 
 | Type                    | When                                            |
 | ----------------------- | ----------------------------------------------- |

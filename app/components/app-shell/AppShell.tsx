@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { appNavItems } from "./nav";
+import { GrantNotice } from "./GrantNotice";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
 
@@ -53,6 +54,7 @@ export function AppShell({
         </aside>
       )}
 
+      <GrantNotice />
       <div className="flex min-w-0 flex-col">
         <TopBar address={address} items={address ? items : signedOutItems} />
         <main id="main" className="flex-1">

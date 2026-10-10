@@ -59,6 +59,12 @@ debt under any legal or accounting standard; that depends on the parties' agreem
 
 ## Webhooks
 
+Register one HTTPS endpoint on the **API keys** page of the app, where the signing secret is shown once. You can
+replace the endpoint, roll the secret (the old one also signs for 24 hours), remove it, send a test event and see the
+latest deliveries there. The URL must be a public HTTPS address on the default port: private, loopback and
+link-local addresses are refused, and redirects are not followed. Live keys, which are issued by request, get their
+endpoint from Contraflow.
+
 Contraflow sends signed events to your registered URL:
 
 - `obligation.recorded`

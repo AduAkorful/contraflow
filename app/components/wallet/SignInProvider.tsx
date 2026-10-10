@@ -16,6 +16,9 @@ import {
 import { useSetActiveWallet } from "@privy-io/wagmi";
 import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { requestNonce, signIn, whoAmI } from "../../src/app/app/siwe/actions";
+import { requestGrant } from "../../src/app/app/grant/actions";
+import { starterGrantToast } from "../../src/attest/grantCopy";
+import { postGrantNotice } from "../../src/attest/grantNotice";
 import { buildSiweMessage } from "../../src/siwe/message";
 import { connectedButUnsignedHint, signingInLabel } from "../../src/session/signInCopy";
 import { loginCreatesEmbeddedWallet, pickSigningWallet } from "../../src/session/signingWallet";
@@ -196,6 +199,17 @@ export function SignInProvider({
         setIdentity({ address: result.address, email: emailOf(params.user), kind: pick.kind });
         setPhase("signed-in");
         setMenuOpen(false);
+        // Not awaited: the grant waits for a receipt, and sign-in is already done. The page that
+        // shows next picks the message up from `postGrantNotice`.
+        void requestGrant()
+          .then((grant) => {
+            if (grant.ok && !grant.alreadyGranted && grant.amountUsdc) {
+              postGrantNotice(starterGrantToast(grant.amountUsdc, APP_CHAIN_ID));
+            }
+          })
+          .catch(() => {
+            // The request before the first transaction is the fallback.
+          });
         if (pathname.startsWith("/app")) router.refresh();
         else router.push("/app");
       } catch (err) {

@@ -6,7 +6,10 @@ import { postgresOwnKeyStore } from "@/src/db/ownKeys";
 import { getTenantUsage } from "@/src/db/usage";
 import { pageMeta } from "@/src/site/pageMeta";
 import { getSession } from "@/src/session/getSession";
+import { postgresOwnWebhookStore } from "@/src/db/ownWebhook";
+import type { OwnDeliveryView, OwnWebhookView } from "@/src/api/ownWebhook";
 import { ApiKeysPanel } from "./ApiKeysPanel";
+import { WebhookPanel } from "./WebhookPanel";
 
 export const metadata = pageMeta(
   "/app/api-keys",
@@ -19,6 +22,9 @@ export default async function ApiKeysPage() {
   let tenant: OwnTenantView | null = null;
   let unavailable = false;
   let usage: TenantUsage | null = null;
+  let webhook: OwnWebhookView | null = null;
+  let deliveries: OwnDeliveryView[] = [];
+  let webhookUnavailable = false;
   if (session) {
     try {
       tenant = await postgresOwnKeyStore.list(session.address.toLowerCase());
@@ -26,6 +32,12 @@ export default async function ApiKeysPage() {
       unavailable = true;
     }
     if (tenant) {
+      try {
+        const owner = session.address.toLowerCase();
+        [webhook, deliveries] = await Promise.all([postgresOwnWebhookStore.get(owner), postgresOwnWebhookStore.recent(owner)]);
+      } catch {
+        webhookUnavailable = true;
+      }
       // The tenant comes from the signed-in address, never from a request value.
       const now = new Date();
       const range = parseUsageRange(null, null, now);
@@ -58,6 +70,7 @@ export default async function ApiKeysPage() {
       ) : (
         <>
           <ApiKeysPanel tenant={tenant} />
+          {tenant && <WebhookPanel webhook={webhook} deliveries={deliveries} unavailable={webhookUnavailable} suspended={tenant.status === "suspended"} />}
           {tenant && <UsagePanel usage={usage} />}
         </>
       )}

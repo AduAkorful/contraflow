@@ -165,7 +165,7 @@ export async function enqueueWebhookTest(tenantId: Hex, chainId: number): Promis
     id: eventId,
     type: "webhook.test",
     created: Math.floor(Date.now() / 1000),
-    chainId: String(chainId),
+    chainId,
     data: { ok: true },
   });
   await postgresWebhookStore.insertEvent({ eventId, tenantId, type: "webhook.test", body });

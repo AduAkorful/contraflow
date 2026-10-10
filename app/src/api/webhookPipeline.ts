@@ -153,9 +153,3 @@ export async function deliverDue(
   }
   return suppressed > 0 ? { delivered, failed, suppressed } : { delivered, failed };
 }
-
-/// Redirects count as failures, like Stripe's, so a webhook is never sent somewhere unregistered.
-export const fetchPoster: Poster = async (url, body, headers) => {
-  const res = await fetch(url, { method: "POST", body, headers, redirect: "manual", signal: AbortSignal.timeout(10_000) });
-  return res.status;
-};

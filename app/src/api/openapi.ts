@@ -906,7 +906,7 @@ export const OPENAPI = {
         tags: ["Webhooks"],
         summary: "Netting events",
         description:
-          "Sent to your registered URL with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff for 3 days. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
+          "Sent to your endpoint, which you register on the API keys page of the app (public HTTPS only; redirects are not followed), with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff for 3 days. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
         requestBody: {
           content: {
             "application/json": { schema: { $ref: "#/components/schemas/WebhookEvent" } },
