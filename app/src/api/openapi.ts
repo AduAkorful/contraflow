@@ -406,7 +406,7 @@ export const OPENAPI = {
         tags: ["Webhooks"],
         summary: "Set or replace the webhook endpoint",
         description:
-          "Registers one HTTPS URL. Replacing it issues a new signing secret and clears the old one. The secret is returned once: send an `Idempotency-Key` so a retry returns the same secret, and roll it if a response was lost. The URL must be public HTTPS on the default port; private, loopback, link-local and metadata addresses, and names that resolve to them, are refused when saved and on every delivery. Redirects are not followed. Anyone holding the key can redirect this tenant's future events, so treat it as a secret. No party permission required.",
+          "Registers one HTTPS URL. Replacing it issues a new signing secret; the old one also signs for 24 hours. The secret is returned once: send an `Idempotency-Key` so a retry returns the same secret, and roll it if a response was lost. The URL must be public HTTPS on the default port; private, loopback, link-local and metadata addresses, and names that resolve to them, are refused when saved and on every delivery. Redirects are not followed. Anyone holding the key can redirect this tenant's future events, so treat it as a secret. No party permission required.",
         parameters: [idempotencyKey],
         requestBody: {
           required: true,
@@ -930,7 +930,7 @@ export const OPENAPI = {
         required: ["secret"],
         properties: {
           url: { type: "string" },
-          secret: { type: "string", description: "`whsec_…`, shown once." },
+          secret: { type: "string", description: "`whsec_…`, shown once.", example: "whsec_Hq3…" },
           previousSecretValidFor: { type: "string", description: "Present after a roll." },
         },
       },
@@ -998,7 +998,7 @@ export const OPENAPI = {
         tags: ["Webhooks"],
         summary: "Netting events",
         description:
-          "Sent to your endpoint, which you register on the API keys page of the app (public HTTPS only; redirects are not followed), with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff for 3 days. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
+          "Sent to your endpoint, which you register on the API keys page of the app (public HTTPS only; redirects are not followed), with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff (1, 2, 4… minutes, up to 6 hours) for 3 days, but a retry only runs when the pipeline does: after any authenticated API request and at the daily job, so with no traffic it can wait about a day. `certificate.*` events carry `currency`, `wNetMinor`, `wNetDisplay` and, once applied, `appliedTxHash`. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
         requestBody: {
           content: {
             "application/json": { schema: { $ref: "#/components/schemas/WebhookEvent" } },

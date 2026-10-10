@@ -90,7 +90,7 @@ export function WebhookPanel({
             className="mt-4 flex flex-col gap-3 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
-              run(() => saveOwnWebhook(url), webhook ? "Endpoint updated with a new signing secret." : "Endpoint saved.");
+              run(() => saveOwnWebhook(url), webhook ? "Endpoint updated with a new signing secret. The old secret also signs for 24 hours." : "Endpoint saved.");
             }}
           >
             <label className="flex-1">
@@ -112,6 +112,12 @@ export function WebhookPanel({
               {pending ? "Working…" : webhook ? "Replace endpoint" : "Save endpoint"}
             </button>
           </form>
+
+          {webhook && (
+            <p className="mt-2 text-sm text-muted">
+              Replacing the endpoint creates a new signing secret. The old one also signs for 24 hours, then stops.
+            </p>
+          )}
 
           {error && <p className="mt-3 text-sm text-muted">{error}</p>}
           {notice && !error && <p className="mt-3 text-sm text-muted">{notice}</p>}
@@ -143,6 +149,11 @@ export function WebhookPanel({
               )}
             </div>
           )}
+
+          <p className="mt-4 text-sm text-muted">
+            A failed delivery is retried when the API is next called and at least once a day, so a retry can wait up to a
+            day if nothing calls the API.
+          </p>
 
           {deliveries.length > 0 && (
             <ul className="mt-5 divide-y divide-border-subtle rounded-card border border-border-subtle text-sm">

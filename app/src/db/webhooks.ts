@@ -36,13 +36,18 @@ export const postgresWebhookStore: WebhookStore = {
       return row ? { parties: [getAddress(row.debtor), getAddress(row.creditor)] } : null;
     }
     const rows = (await withDbRetry(
-      () => sql()`SELECT c.token, e.debtor, e.creditor FROM netting_certificates c
+      () => sql()`SELECT c.token, c.currency, c.w_net, c.applied_tx_hash, e.debtor, e.creditor FROM netting_certificates c
                   JOIN netting_certificate_entries e ON e.certificate_id = c.certificate_id
                   WHERE c.certificate_id = ${change.refId}`,
-    )) as { token: string; debtor: string; creditor: string }[];
+    )) as { token: string; currency: string; w_net: string; applied_tx_hash: string | null; debtor: string; creditor: string }[];
     if (rows.length === 0) return null;
     const parties = [...new Set(rows.flatMap((r) => [r.debtor, r.creditor]))].map((a) => getAddress(a));
-    return { parties, token: rows[0]!.token };
+    const first = rows[0]!;
+    return {
+      parties,
+      token: first.token,
+      certificate: { currency: first.currency, wNet: first.w_net, appliedTxHash: first.applied_tx_hash },
+    };
   },
 
   async readersOf(chainId, parties, nowSeconds) {

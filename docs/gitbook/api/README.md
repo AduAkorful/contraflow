@@ -58,9 +58,9 @@ Contraflow records the netting and does not touch your customers' accounting. Wh
 obligation in the loop is reduced by the netted amount in Contraflow's records and the ledger commits to the new
 state. No USDC moves except gas.
 
-Updating the books is the platform's step. Key it on `certificate.applied`, then read the party's obligations
-(`GET /parties/{address}/obligations`, where `remainingMinor` is what is still owed) or the certificate
-(`wNetMinor` is the amount netted) and post the reduction in the party's ERP or ledger. Contraflow does not post
+Updating the books is the platform's step. Key it on `certificate.applied`, the event carries the amount netted (`wNetMinor`, `wNetDisplay`), the `currency` and the `appliedTxHash`, so
+you can post the reduction in the party's ERP or ledger without another call. Read
+`GET /parties/{address}/obligations` (`remainingMinor`) if you need what is still owed. Contraflow does not post
 entries for you.
 
 A certificate is a signed record that works alongside the parties' agreements. It does not by itself discharge a
@@ -84,5 +84,5 @@ Contraflow sends signed events to your registered URL:
 
 Each request carries `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `<t>.<raw body>` with your
 `whsec_` secret, the same scheme Stripe uses. Verify it against the raw body, reject timestamps more than five
-minutes old, and de-duplicate by the event's `id`. Failed deliveries are retried with backoff for three days.
+minutes old, and de-duplicate by the event's `id`. A failed delivery is retried with backoff (1, 2, 4… minutes, up to 6 hours) for three days, but retries only run when the pipeline does: after any authenticated API request and at the daily job, so with no traffic a retry can wait about a day. Call the API, for example `GET /webhooks/endpoint`, on your own timer to retry sooner.
 Events only name parties that gave you the read scope.

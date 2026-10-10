@@ -525,16 +525,20 @@ A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. 
     "certificateId": "0x1f00cc58f52f7a85ada8fcbeca335feba55fab73f59418145b62de4f3574b4e7",
     "token": "zWa9t3gHKtmQZY3uiBvJQg",
     "status": "applied",
-    "parties": ["0x504da6d1Cb3cFc170330E2844Da610b2850dFA18"]
+    "parties": ["0x504da6d1Cb3cFc170330E2844Da610b2850dFA18"],
+    "currency": "USD",
+    "wNetMinor": "10000",
+    "wNetDisplay": "100.00",
+    "appliedTxHash": "0x9d4c…"
   }
 }
 ```
 
-`obligation.recorded` carries `{ "obligationId": "0x…", "parties": [ … ] }` in `data`.
+Certificate events carry `currency`, `wNetMinor` and `wNetDisplay` (the amount netted); `appliedTxHash` is the apply transaction on `certificate.applied` and `null` before that, or if the hash wasn't recorded. `obligation.recorded` carries `{ "obligationId": "0x…", "parties": [ … ] }` in `data`.
 
 ### Updating your books
 
-`certificate.applied` is the event to key your accounting on. Contraflow reduces each obligation in the loop by `wNetMinor` in its own records and the ledger commits to the new state; it does not post anything to a party's accounting system. Fetch the certificate (`wNetMinor`, `wNetDisplay`) or the party's obligations (`remainingMinor`) and record the reduction in your own ledger. Applying a certificate does not by itself discharge a debt under any legal or accounting standard.
+`certificate.applied` is the event to key your accounting on. It carries the amount netted (`wNetMinor`, `wNetDisplay`), the `currency` and the `appliedTxHash`, so you can post the entry without another call. Contraflow reduces each obligation in the loop by that amount in its own records and the ledger commits to the new state; it does not post anything to a party's accounting system. Read the party's obligations (`remainingMinor`) if you need what is still owed. Applying a certificate does not by itself discharge a debt under any legal or accounting standard.
 
 ### Verifying a webhook
 
@@ -560,7 +564,7 @@ function verify(header: string, rawBody: string, secret: string, now = Date.now(
 * **Verify against the raw body.** Do it before parsing, since re-serialised JSON won't match.
 * **De-duplicate.** Use the event `id`: a delivery can arrive more than once.
 * **Respond quickly.** Return any 2xx; anything else, a redirect or a timeout (10 seconds) is a failure.
-* **Retries.** Failed deliveries retry after 1, 2, 4… minutes, capped at 6 hours between tries, for up to 3 days.
+* **Retries.** A failed delivery becomes due again after 1, 2, 4… minutes (capped at 6 hours between tries) and stops after 3 days. Due retries only run when the delivery pipeline does: after any authenticated API request, after a web-app obligation write, and at the daily 04:15 UTC job. With no other traffic, a retry can wait until the next daily run, about 24 hours. To retry sooner, make any authenticated call on your own timer, for example `GET /webhooks/endpoint`; it also shows the latest delivery outcomes.
 * **Order.** Events aren't guaranteed to arrive in order. Use the certificate's `status`, or read it back through the API.
 
 ### Webhook endpoint (API)
@@ -570,9 +574,11 @@ A platform can manage its tenant's single endpoint without the app. These calls 
 | Method and path | What it does |
 | --- | --- |
 | `GET /webhooks/endpoint` | `{ "endpoint": { "url", "secretRollingUntil" } or null, "recentDeliveries": [ … ] }`. Never returns a secret |
-| `POST /webhooks/endpoint` | Body `{ "url": "https://…" }`. Sets or replaces the endpoint and returns `{ "url", "secret" }`; the old secret stops signing |
+| `POST /webhooks/endpoint` | Body `{ "url": "https://…" }`. Sets or replaces the endpoint and returns **200** `{ "url", "secret" }`; when replacing, the old secret also signs for 24 hours |
 | `POST /webhooks/endpoint/secret` | Returns `{ "secret", "previousSecretValidFor": "24 hours" }`. The old secret also signs for 24 hours |
 | `DELETE /webhooks/endpoint` | Removes the endpoint and drops queued events. **204** |
+
+**200 examples.** `POST /webhooks/endpoint`: `{ "url": "https://hooks.example.com/contraflow", "secret": "whsec_…" }`. `POST /webhooks/endpoint/secret`: `{ "secret": "whsec_…", "previousSecretValidFor": "24 hours" }`. `GET /webhooks/endpoint`: `{ "endpoint": { "url": "https://hooks.example.com/contraflow", "secretRollingUntil": null }, "recentDeliveries": [ { "eventId": "evt_…", "type": "certificate.applied", "status": "delivered", "attempts": 1, "createdAt": "1790000000", "statusCode": 200, "error": null } ] }`.
 
 A URL that isn't public HTTPS on the default port, or that names or resolves to a private, loopback, link-local or metadata address, answers **422** `invalid_request` and nothing is stored. Rolling or removing with no endpoint answers **422** `no_webhook`. Treat the API key as a secret: whoever holds it can point this tenant's future events elsewhere. The same endpoint can also be managed at `/app/api-keys` for tenants you created there.
 

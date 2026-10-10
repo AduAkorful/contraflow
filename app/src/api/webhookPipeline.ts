@@ -5,7 +5,7 @@
 /// A Redis lock keeps two runs from overlapping.
 
 import type { Address, Hex } from "viem";
-import { apiChainId } from "./wire";
+import { amountFieldsFromMinor, apiChainId } from "./wire";
 import {
   eventTypeFor,
   RETRY_WINDOW_SECONDS,
@@ -27,6 +27,9 @@ export interface ChangeContext {
   parties: Address[];
   /// The certificate's short-link token, which API calls take.
   token?: string;
+  /// Certificate events: the netted amount (minor units), its currency, and the apply transaction
+  /// once it is known. A certificate applied before its hash was recorded has `null`.
+  certificate?: { currency: string; wNet: string; appliedTxHash: string | null };
 }
 
 export interface DueEvent {
@@ -66,6 +69,16 @@ export type Poster = (url: string, body: string, headers: Record<string, string>
 const CHANGE_BATCH = 200;
 const DELIVERY_BATCH = 25;
 
+function certificateEventAmounts(c: { currency: string; wNet: string; appliedTxHash: string | null }) {
+  try {
+    const net = amountFieldsFromMinor(c.wNet, c.currency);
+    return { currency: c.currency, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay, appliedTxHash: c.appliedTxHash };
+  } catch {
+    // An event must still go out if a currency can't be formatted; the minor-unit amount is exact.
+    return { currency: c.currency, wNetMinor: c.wNet, appliedTxHash: c.appliedTxHash };
+  }
+}
+
 /// Deterministic, so a change fanned out twice (after a crash) yields the same event IDs.
 export function eventIdFor(changeId: string, tenantId: Hex): string {
   return `evt_${changeId}_${tenantId.slice(2, 18).toLowerCase()}`;
@@ -82,7 +95,13 @@ export async function fanOutChanges(store: WebhookStore, now: Date): Promise<num
       const data =
         change.kind === "obligation"
           ? { obligationId: change.refId, parties: reader.parties }
-          : { certificateId: change.refId, token: context?.token, status: change.status, parties: reader.parties };
+          : {
+              certificateId: change.refId,
+              token: context?.token,
+              status: change.status,
+              parties: reader.parties,
+              ...(context?.certificate ? certificateEventAmounts(context.certificate) : {}),
+            };
       const body = JSON.stringify({ id: eventId, type, created: Math.floor(now.getTime() / 1000), chainId: apiChainId(change.chainId), data });
       await store.insertEvent({ eventId, tenantId: reader.tenantId, type: type!, body });
       created++;

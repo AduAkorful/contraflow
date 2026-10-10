@@ -36,7 +36,7 @@ export const postgresOwnWebhookStore: OwnWebhookStore = {
                   SELECT t.tenant_id, ${url}, ${secret} FROM tenants t
                   WHERE t.owner_address = ${owner} AND t.status = 'active'
                   ON CONFLICT (tenant_id) DO UPDATE SET url = EXCLUDED.url, secret = EXCLUDED.secret,
-                    previous_secret = NULL, previous_expires_at = NULL
+                    previous_secret = webhook_endpoints.secret, previous_expires_at = now() + interval '24 hours'
                   RETURNING tenant_id`,
     )) as unknown[];
     if (rows.length === 1) return "saved";

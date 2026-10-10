@@ -65,6 +65,7 @@ function memoryWebhookStore(opts: {
   parties?: Record<string, Address[]>;
   readers?: { tenantId: Hex; parties: Address[] }[];
   due?: DueEvent[];
+  certificate?: { currency: string; wNet: string; appliedTxHash: string | null };
 }) {
   const events = new Map<string, { tenantId: Hex; type: string; body: string }>();
   const completed: string[] = [];
@@ -72,7 +73,7 @@ function memoryWebhookStore(opts: {
   const store: WebhookStore = {
     claimChanges: async () => opts.changes ?? [],
     completeChange: async (id) => void completed.push(id),
-    changeContext: async (c) => (opts.parties?.[c.refId] ? { parties: opts.parties[c.refId]!, token: "tok" } : null),
+    changeContext: async (c) => (opts.parties?.[c.refId] ? { parties: opts.parties[c.refId]!, token: "tok", certificate: opts.certificate } : null),
     readersOf: async (_chain, parties) =>
       (opts.readers ?? [])
         .map((r) => ({ tenantId: r.tenantId, parties: r.parties.filter((p) => parties.includes(p)) }))
@@ -94,6 +95,30 @@ describe("fanOutChanges", () => {
     refId,
     chainId: "5042002",
     status,
+  });
+
+  it("puts the netted amount, currency and transaction hash on certificate events", async () => {
+    const hash = `0x${"ab".repeat(32)}`;
+    const { store, events } = memoryWebhookStore({
+      changes: [change("9", "certificate", "0xcert", "applied")],
+      parties: { "0xcert": [A, B] },
+      readers: [{ tenantId: TENANT_1, parties: [A] }],
+      certificate: { currency: "USD", wNet: "12345", appliedTxHash: hash },
+    });
+    await fanOutChanges(store, NOW);
+    const data = JSON.parse(events.get(eventIdFor("9", TENANT_1))!.body).data;
+    expect(data).toMatchObject({ status: "applied", currency: "USD", wNetMinor: "12345", wNetDisplay: "123.45", appliedTxHash: hash });
+  });
+
+  it("leaves the transaction hash null when it isn't known yet", async () => {
+    const { store, events } = memoryWebhookStore({
+      changes: [change("10", "certificate", "0xcert", "applied")],
+      parties: { "0xcert": [A] },
+      readers: [{ tenantId: TENANT_1, parties: [A] }],
+      certificate: { currency: "USD", wNet: "100", appliedTxHash: null },
+    });
+    await fanOutChanges(store, NOW);
+    expect(JSON.parse(events.get(eventIdFor("10", TENANT_1))!.body).data.appliedTxHash).toBeNull();
   });
 
   it("sends each tenant an event naming only the parties it holds read permission for", async () => {
