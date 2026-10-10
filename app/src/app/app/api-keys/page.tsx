@@ -1,6 +1,9 @@
 import { SignInGate } from "@/components/wallet/SignInGate";
 import type { OwnTenantView } from "@/src/api/ownKeys";
+import { UsagePanel } from "@/components/api/UsagePanel";
+import { parseUsageRange, type TenantUsage } from "@/src/api/usage";
 import { postgresOwnKeyStore } from "@/src/db/ownKeys";
+import { getTenantUsage } from "@/src/db/usage";
 import { pageMeta } from "@/src/site/pageMeta";
 import { getSession } from "@/src/session/getSession";
 import { ApiKeysPanel } from "./ApiKeysPanel";
@@ -15,11 +18,29 @@ export default async function ApiKeysPage() {
   const session = await getSession();
   let tenant: OwnTenantView | null = null;
   let unavailable = false;
+  let usage: TenantUsage | null = null;
   if (session) {
     try {
       tenant = await postgresOwnKeyStore.list(session.address.toLowerCase());
     } catch {
       unavailable = true;
+    }
+    if (tenant) {
+      // The tenant comes from the signed-in address, never from a request value.
+      const now = new Date();
+      const range = parseUsageRange(null, null, now);
+      if (range.ok) {
+        try {
+          usage = await getTenantUsage({
+            tenantId: tenant.tenantId,
+            from: range.from,
+            to: range.to,
+            nowSeconds: BigInt(Math.floor(now.getTime() / 1000)),
+          });
+        } catch {
+          usage = null;
+        }
+      }
     }
   }
 
@@ -35,7 +56,10 @@ export default async function ApiKeysPage() {
       ) : unavailable ? (
         <p className="mt-8 text-sm text-muted">API keys aren&apos;t available right now.</p>
       ) : (
-        <ApiKeysPanel tenant={tenant} />
+        <>
+          <ApiKeysPanel tenant={tenant} />
+          {tenant && <UsagePanel usage={usage} />}
+        </>
       )}
     </section>
   );

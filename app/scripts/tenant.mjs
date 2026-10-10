@@ -7,6 +7,7 @@
 //   node --env-file=.env.local scripts/tenant.mjs revoke-key <keyPrefix>
 //   node --env-file=.env.local scripts/tenant.mjs set-webhook <tenantId> <https-url>
 //   node --env-file=.env.local scripts/tenant.mjs roll-webhook-secret <tenantId>
+//   node --env-file=.env.local scripts/tenant.mjs usage <tenantId> [days]
 //   node --env-file=.env.local scripts/tenant.mjs list
 // A new key is printed once and never stored; only its SHA-256 hash is. The key format must stay
 // identical to `src/api/keys.ts` (`cfk_<mode>_` + 32 random bytes, base64url).
@@ -87,7 +88,21 @@ async function list() {
   }
 }
 
+async function usage(tenantId, days = "30") {
+  if (!tenantId) throw new Error("Usage: usage <tenantId> [days]");
+  const n = Math.min(90, Math.max(1, Number.parseInt(days, 10) || 30));
+  const rows = await sql`SELECT operation, status_class, error_code, sum(count)::int AS n
+                         FROM tenant_usage_daily
+                         WHERE tenant_id = ${tenantId.toLowerCase()} AND day > (now() AT TIME ZONE 'utc')::date - ${n}::int
+                         GROUP BY operation, status_class, error_code ORDER BY operation, status_class, error_code`;
+  if (rows.length === 0) console.log(`No recorded calls in the last ${n} days.`);
+  for (const r of rows) console.log(`${r.operation} ${r.status_class} ${r.error_code || "-"} ${r.n}`);
+  const keys = await sql`SELECT prefix, last_used_at, revoked_at FROM tenant_api_keys WHERE tenant_id = ${tenantId.toLowerCase()}`;
+  for (const k of keys) console.log(`key ${k.prefix} last used ${k.last_used_at ?? "never"}${k.revoked_at ? " (revoked)" : ""}`);
+}
+
 const commands = {
+  usage: () => usage(args[0], args[1]),
   create: () => create(args[0]),
   "issue-key": () => issueKey(args[0], args[1]),
   "revoke-key": () => revokeKey(args[0]),
@@ -96,7 +111,7 @@ const commands = {
   list,
 };
 if (!commands[command]) {
-  console.error("Commands: create, issue-key, revoke-key, set-webhook, roll-webhook-secret, list");
+  console.error("Commands: create, issue-key, revoke-key, set-webhook, roll-webhook-secret, usage, list");
   process.exit(1);
 }
 try {

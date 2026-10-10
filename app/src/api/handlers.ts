@@ -17,6 +17,7 @@ import type * as obligationService from "../obligations/service";
 import { ApiError, requirePartyScope, type ApiCaller, type IdempotencyContext, type TenantStore } from "./auth";
 import { permissionTypedData, parsePermissionGrant, validatePermission } from "./permissions";
 import { paginatePartyLists, parsePageCursor, parsePageLimit } from "./pagination";
+import { parseUsageRange, type TenantUsage, type UsageRecord } from "./usage";
 import { amountFieldsFromMajor, amountFieldsFromMinor, apiChainId, unixSeconds } from "./wire";
 
 export interface ApiDeps {
@@ -35,6 +36,10 @@ export interface ApiDeps {
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
   enqueueWebhookTest(tenantId: Hex, chainId: number): Promise<{ eventId: string } | { error: "no_endpoint" }>;
+  /// Counts a call for the tenant's usage view. Best-effort: optional so a deployment without it
+  /// still serves the API.
+  recordUsage?(record: UsageRecord): Promise<void>;
+  getUsage?(query: { tenantId: string; from: string; to: string; party?: string; cursor?: string; nowSeconds: bigint }): Promise<TenantUsage>;
 }
 
 export interface ApiRequest {
@@ -166,6 +171,25 @@ export async function getTenant(caller: ApiCaller, _req: ApiRequest, deps: ApiDe
       webhookConfigured: tenant.webhookConfigured,
     },
   };
+}
+
+export async function getUsage(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  if (!deps.getUsage) throw new ApiError(503, "unavailable", "Usage isn't available right now.");
+  const range = parseUsageRange(req.query.get("from"), req.query.get("to"), new Date(Number(deps.nowSeconds()) * 1000));
+  if (!range.ok) throw new ApiError(422, "invalid_request", range.message);
+  const partyParam = req.query.get("party");
+  const party = partyParam ? partyFrom(partyParam) : undefined;
+  const cursorParam = req.query.get("cursor");
+  if (cursorParam !== null && !isAddress(cursorParam)) throw new ApiError(422, "invalid_request", "cursor is not valid.");
+  const usage = await deps.getUsage({
+    tenantId: caller.tenantId,
+    from: range.from,
+    to: range.to,
+    party,
+    cursor: cursorParam ?? undefined,
+    nowSeconds: deps.nowSeconds(),
+  });
+  return { status: 200, body: usage };
 }
 
 export async function testWebhook(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {

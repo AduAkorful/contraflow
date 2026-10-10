@@ -63,6 +63,14 @@ export type RegisterStepResult =
   | { ok: true; invoice: RegisteredInvoiceView }
   | { ok: false; error: string };
 
+/// A step that already ran returns its stored result. Its invoice ID is recorded again so the
+/// settle step can bind to it even if the first recording was lost.
+async function replayRegisterStep(runSalt: string, stored: unknown): Promise<RegisterStepResult> {
+  const prior = stored as RegisterStepResult;
+  if (prior.ok) await rememberDemoRunInvoiceId(runSalt, prior.invoice.invoiceId);
+  return prior;
+}
+
 /// Registers exactly one invoice of an N-party closed cycle for real, live — called once per
 /// party by the client, sequentially, so each real registration can be shown as it lands rather
 /// than all at once at the end. `runSalt`/`partyCount` must be identical across all calls in one
@@ -85,11 +93,7 @@ export async function registerCycleInvoiceStep(
 
     const operationId = `register:${partyCount}:${stepIndex}:${runSalt}`;
     const previous = await inspectDemoSpend(operationId);
-    if (previous.kind === "complete") {
-      const prior = previous.result as RegisterStepResult;
-      if (prior.ok) await rememberDemoRunInvoiceId(runSalt, prior.invoice.invoiceId);
-      return prior;
-    }
+    if (previous.kind === "complete") return replayRegisterStep(runSalt, previous.result);
     if (previous.kind === "pending") return { ok: false, error: "This demo step is already being processed. Start a new demo if it does not finish." };
     if (previous.kind === "unavailable") return { ok: false, error: "Demo spending controls are unavailable. Try again later." };
 
@@ -120,7 +124,7 @@ export async function registerCycleInvoiceStep(
       callerIp: await requestIp(),
       limits: DEMO_REGISTER_TRANSACTION_LIMITS,
     });
-    if (claim.kind === "complete") return claim.result as RegisterStepResult;
+    if (claim.kind === "complete") return replayRegisterStep(runSalt, claim.result);
     if (claim.kind !== "reserved") {
       return { ok: false, error: demoSpendError(claim.kind) };
     }

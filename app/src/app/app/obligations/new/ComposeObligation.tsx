@@ -17,7 +17,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { shortAddr } from "@/components/netting/format";
 import { randomBlinding } from "@/src/netting/commitment";
 import { formatAmount, isIsoCurrency, parseAmount } from "@/src/netting/currency";
-import { appLedgerDomain } from "@/src/netting/domain";
+import { appLedgerDomain, ledgerChainId } from "@/src/netting/domain";
 import {
   obligationDocumentProblem,
   obligationFromDocument,
@@ -112,7 +112,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
     setError(null);
     setPhase("signing");
     try {
-      const chainId = Number(appLedgerDomain().chainId);
+      const chainId = ledgerChainId();
       await prepareWalletContext(connector, signerAddress as Address, chainId, switchChainAsync);
       const signature = await signTypedData(obligationTypedData(draft.obligation, appLedgerDomain()), {
         title: "Confirm this obligation",

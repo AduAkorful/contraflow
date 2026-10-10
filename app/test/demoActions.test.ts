@@ -153,6 +153,15 @@ describe("public demo spend controls", () => {
     expect(rememberDemoRunInvoiceId).toHaveBeenCalledWith("run-1", HASH);
   });
 
+  it("records the run's invoice ID when the reservation finds the step already finished", async () => {
+    const prior = { ok: true, invoice: { label: "A", amountUsdc: "1", invoiceId: HASH, txHash: HASH, explorerUrl: "url" } };
+    claimDemoSpend.mockResolvedValueOnce({ kind: "complete", result: prior });
+
+    await expect(registerCycleInvoiceStep("run-1", 3, 0)).resolves.toEqual(prior);
+    expect(registerInvoice).not.toHaveBeenCalled();
+    expect(rememberDemoRunInvoiceId).toHaveBeenCalledWith("run-1", HASH);
+  });
+
   it("does not broadcast when the budget reservation fails", async () => {
     claimDemoSpend.mockResolvedValueOnce({ kind: "budget_exceeded" });
     const result = await registerCycleInvoiceStep("run-1", 3, 0);

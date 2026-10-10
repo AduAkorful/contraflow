@@ -4,7 +4,7 @@ import type { Address, Hex } from "viem";
 import { getSession } from "@/src/session/getSession";
 import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { redis } from "@/src/upstash/client";
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { fetchContractLogsBounded } from "@/src/blockscout/client";
 import { fetchNettableInvoiceEdges } from "@/src/chain/readInvoices";
 import { defaultComplianceProvider, filterFlaggedInvoices } from "@/src/compliance";
@@ -62,7 +62,7 @@ export async function findSettleableLoop(): Promise<FindSettleableLoopResult> {
     return { kind: "error", error: "Couldn't check for loops right now." };
   }
 
-  const chainId = ARC_TESTNET_CHAIN_ID;
+  const chainId = APP_CHAIN_ID;
   const { registry, settler } = addressesForChain(chainId);
 
   let scan;
@@ -81,14 +81,20 @@ export async function findSettleableLoop(): Promise<FindSettleableLoopResult> {
     // Cache misses are fine; a limiter failure already failed closed above.
   }
 
-  const result = await findInvoiceLoopFor(party, {
-    fetchLogs: async () => scan,
-    fetchNettable: (ids) => fetchNettableInvoiceEdges(arcPublicClient(), registry, ids),
-    filterFlagged: async (edges) => {
-      const { clearInvoices } = await filterFlaggedInvoices(edges, defaultComplianceProvider());
-      return clearInvoices;
-    },
-  });
+  let result: InvoiceLoopResult;
+  try {
+    result = await findInvoiceLoopFor(party, {
+      fetchLogs: async () => scan,
+      fetchNettable: (ids) => fetchNettableInvoiceEdges(arcPublicClient(), registry, ids),
+      filterFlagged: async (edges) => {
+        const { clearInvoices } = await filterFlaggedInvoices(edges, defaultComplianceProvider());
+        return clearInvoices;
+      },
+    });
+  } catch (err) {
+    console.error("Loop search failed:", err);
+    return { kind: "error", error: "Couldn't check for loops right now." };
+  }
   const view = viewFrom(result, chainId, settler);
   try {
     await redis().set(cacheKey, view, { ex: CACHE_TTL_SECONDS });
@@ -116,8 +122,11 @@ export async function recordSettlement(txHash: string): Promise<RecordSettlement
   if (!receipt) return { ok: false, error: "No settlement found for that transaction." };
 
   const party = session.address.toLowerCase();
+  // Membership must be proven from a row that names its parties; with none named, the caller's
+  // place in the loop can't be confirmed, so nothing is written and reconciliation backfills.
   const named = receipt.invoices.filter((row) => row.debtor && row.creditor);
-  const inLoop = named.length === 0 || named.some((row) => row.debtor?.toLowerCase() === party || row.creditor?.toLowerCase() === party);
+  if (named.length === 0) return { ok: false, error: "Couldn't confirm this settlement yet." };
+  const inLoop = named.some((row) => row.debtor?.toLowerCase() === party || row.creditor?.toLowerCase() === party);
   if (!inLoop) return { ok: false, error: "No settlement found for that transaction." };
 
   try {

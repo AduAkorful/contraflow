@@ -17,7 +17,7 @@ import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
 import { ObligationTerms } from "@/components/netting/ObligationTerms";
 import { shortAddr } from "@/components/netting/format";
-import { appLedgerDomain } from "@/src/netting/domain";
+import { appLedgerDomain, ledgerChainId } from "@/src/netting/domain";
 import { hashObligationDocument, obligationMatchesDocument } from "@/src/netting/document";
 import { obligationId, obligationTypedData } from "@/src/netting/obligation";
 import { prepareWalletContext } from "@/src/attest/walletContext";
@@ -120,7 +120,7 @@ export function ProposalLanding({ token }: { token: string }) {
     setPhase("signing");
     try {
       const expectedSigner = proposal.proposerRole === "debtor" ? obligation.creditor : obligation.debtor;
-      const chainId = Number(appLedgerDomain().chainId);
+      const chainId = ledgerChainId();
       await prepareWalletContext(connector, expectedSigner, chainId, switchChainAsync);
       const signature = await signTypedData(obligationTypedData(obligation, appLedgerDomain()), {
         title: "Confirm this obligation",

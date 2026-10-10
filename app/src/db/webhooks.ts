@@ -114,11 +114,13 @@ export const postgresWebhookStore: WebhookStore = {
         )) as { status: string }[];
         return tenantRows[0]?.status === "active";
       }
-      if (typeof body.chainId !== "string" || !/^\d+$/.test(body.chainId) || !Array.isArray(body.data?.parties)) return false;
+      // The event body carries the chain ID as a JSON number; stored rows from before that change may hold a string.
+      const bodyChainId = typeof body.chainId === "number" && Number.isSafeInteger(body.chainId) ? String(body.chainId) : body.chainId;
+      if (typeof bodyChainId !== "string" || !/^\d+$/.test(bodyChainId) || !Array.isArray(body.data?.parties)) return false;
       if (body.data.parties.length === 0 || body.data.parties.some((party) => typeof party !== "string" || !isAddress(party))) {
         return false;
       }
-      chainId = body.chainId;
+      chainId = bodyChainId;
       parties = [...new Set((body.data.parties as string[]).map((party) => party.toLowerCase()))];
     } catch {
       return false;

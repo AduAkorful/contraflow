@@ -156,7 +156,17 @@ erDiagram
     text tenant_id FK
     text mode "test, live"
     text prefix "for display"
+    timestamptz last_used_at "stamped at most once a minute"
     timestamptz revoked_at
+  }
+  tenant_usage_daily {
+    text tenant_id PK, FK
+    date day PK "UTC"
+    text operation PK "OpenAPI operationId"
+    text party PK "acting party, empty if none"
+    text status_class PK "2xx, 4xx, 5xx"
+    text error_code PK
+    int count "counts only; kept 90 days"
   }
   tenant_permissions {
     text permission_id PK
@@ -208,6 +218,7 @@ erDiagram
   }
   tenants ||--o{ tenant_api_keys : has
   tenants ||--o{ tenant_permissions : "granted by parties"
+  tenants ||--o{ tenant_usage_daily : counts
   tenants ||--o| webhook_endpoints : has
   tenants ||--o{ webhook_events : receives
   webhook_events ||--o{ webhook_deliveries : attempts

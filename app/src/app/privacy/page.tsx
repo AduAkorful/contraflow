@@ -31,6 +31,12 @@ const SECTIONS = [
     ],
   },
   {
+    title: "API usage records",
+    body: [
+      "For each API tenant, we keep daily counts of its calls: which operation, which party it acted for, whether the call succeeded and, if not, the error code. We don't keep request contents, amounts, descriptions or IP addresses in these counts. They are kept for 90 days and are shown only to that tenant.",
+    ],
+  },
+  {
     title: "What's public onchain",
     body: [
       "Arc is a public blockchain. For invoices, the debtor and creditor addresses, the amount and the terms are public once registered, along with every settlement.",

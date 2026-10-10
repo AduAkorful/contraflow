@@ -20,7 +20,7 @@ import type { CertificateView, LedgerDomain } from "../netting/types";
 import type { CertificateRow, CertificateStatus, CertificateStore } from "./certificateStore";
 import { OPEN_CERTIFICATE_STATUSES } from "./certificateStore";
 import { findAndProposeLoop, readStateOf } from "./proposeLoop";
-import { isProposalToken } from "./proposalToken";
+import { isShareToken } from "../share/shareToken";
 import type { Result } from "./service";
 
 export { CERTIFICATE_LIFETIME_SECONDS, type SearchOutcome } from "./proposeLoop";
@@ -134,7 +134,7 @@ export function createCertificateService(deps: CertificateServiceDeps) {
 
   /// The certificate behind a token, for one of its parties, brought up to date with the ledger.
   async function partyRow(session: Address, token: unknown, kind: "read" | "write"): Promise<Result<{ row: CertificateRow }>> {
-    if (!isProposalToken(token)) return { ok: false, error: NOT_FOUND };
+    if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
     if (await deps.rateLimited(kind, session)) return { ok: false, error: RATE_LIMITED };
     const row = await store.getCertificateByToken(token);
     if (!row || !onThisLedger(row) || !isParty(row, session)) return { ok: false, error: NOT_FOUND };

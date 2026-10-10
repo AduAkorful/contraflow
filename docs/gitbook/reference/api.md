@@ -106,6 +106,52 @@ Every error has the same shape:
 
 **200:** `{ "tenantId", "name", "status", "mode", "chainId", "webhookConfigured" }`. `chainId` is a JSON number. No party permission required.
 
+### GET `/usage`
+
+Your own usage: daily counts of this tenant's calls, the last use of each key, and per-party permission and webhook state. No party permission required.
+
+| Query    | Constraint                                                  |
+| -------- | ----------------------------------------------------------- |
+| `from`   | `yyyy-mm-dd`, UTC. Default: 29 days before `to`             |
+| `to`     | `yyyy-mm-dd`, UTC. Default: today. At most 90 days from `from` |
+| `party`  | Optional address: only this party                           |
+| `cursor` | Optional: the previous page's `nextCursor`. Parties page 50 at a time |
+
+```json
+{
+  "from": "2026-09-11",
+  "to": "2026-10-10",
+  "totals": {
+    "requests": 41,
+    "byStatusClass": { "2xx": 38, "4xx": 3, "5xx": 0 },
+    "byOperation": [{ "operation": "createObligationProposal", "requests": 3, "errors": 0 }],
+    "topErrorCodes": [{ "code": "not_found", "count": 2 }]
+  },
+  "daily": [{ "day": "2026-10-10", "requests": 41, "errors": 3 }],
+  "keys": [{ "prefix": "cfk_test_3tfj", "mode": "test", "lastUsedAt": "2026-10-10T18:09:26.000Z", "revoked": false }],
+  "parties": [
+    {
+      "party": "0x4e71b023324bb2f66fe3e4153bc4b40fb913b24f",
+      "requests": 14,
+      "errors": 1,
+      "lastRequestDay": "2026-10-10",
+      "permission": { "status": "live", "scopes": 7, "expiresAt": "1791100000" },
+      "webhooks": { "sent": 4, "failed": 0, "suppressed": 0, "lastError": null }
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+* **What is recorded.** Per day: the operation, the party you acted for, the status class and the error code. Never request contents, amounts, descriptions or IP addresses. Counts are kept for 90 days and are visible only to your tenant.
+* **Party attribution.** A call is counted under a party only if the request reached that party. A call answered 401, 403 or 404 is counted without one, so probing an address creates no row.
+* **`permission.status`** is `live`, `expiring` (within 7 days), `expired`, `revoked` or `none`. It is read from your newest grant for that party.
+* **`webhooks`** counts events in the range that named the party. `suppressed` means the party's read permission was no longer active when the event was due. `lastError` is the latest failure or suppression reason.
+* **Approximate.** Recording started when this endpoint shipped and a failed count never fails your call, so a total can run slightly low. Days are UTC.
+* **422** `invalid_request`: a bad date, a range over 90 days, a date in the future, or a malformed `cursor`.
+
+The same data appears under **Usage** on [API keys](https://contraflow.vercel.app/app/api-keys) when you are signed in with the address that owns the tenant.
+
 ## Permissions
 
 ### GET `/permissions`
@@ -257,7 +303,40 @@ Known hashes (debtor `0xe05fcc23807536bee418f142d19fa0d21bb0cff7`, creditor `0x0
 
 * `maturity` is midnight UTC of the date.
 * `salt` is 32 random bytes.
-* The proposer signs the `NettingObligation` typed data under the ledger's domain.
+* The proposer signs the `NettingObligation` typed data under the ledger's domain. Its fields are `obligation` exactly as submitted, in this order:
+
+| Field             | Type      | Value                                                  |
+| ----------------- | --------- | ------------------------------------------------------ |
+| `documentHash`    | `bytes32` | Hash of the canonical document, as above               |
+| `debtor`          | `address` |                                                        |
+| `creditor`        | `address` |                                                        |
+| `currency`        | `string`  | ISO 4217 code                                          |
+| `amount`          | `uint256` | Minor units, e.g. `10000` for 100.00 USD               |
+| `maturity`        | `uint64`  | Unix seconds at midnight UTC                           |
+| `earlyNetConsent` | `bool`    |                                                        |
+| `salt`            | `bytes32` | 32 random bytes                                        |
+
+The domain is `{ name: "ContraflowNettingLedger", version: "1", chainId, verifyingContract }`, with the chain ID and ledger address of the key's chain (see [Contracts](contracts.md)). Pass `amount` and `maturity` to viem as `bigint`, not strings. A string hashes to a different digest.
+
+```ts
+const signature = await account.signTypedData({
+  domain: { name: "ContraflowNettingLedger", version: "1", chainId: 5042002, verifyingContract: ledgerAddress },
+  types: {
+    NettingObligation: [
+      { name: "documentHash", type: "bytes32" },
+      { name: "debtor", type: "address" },
+      { name: "creditor", type: "address" },
+      { name: "currency", type: "string" },
+      { name: "amount", type: "uint256" },
+      { name: "maturity", type: "uint64" },
+      { name: "earlyNetConsent", type: "bool" },
+      { name: "salt", type: "bytes32" },
+    ],
+  },
+  primaryType: "NettingObligation",
+  message: { ...obligation, amount: BigInt(obligation.amount), maturity: BigInt(obligation.maturity) },
+});
+```
 
 **201:** the proposal, with `typedData`, the exact payload the counterparty signs:
 

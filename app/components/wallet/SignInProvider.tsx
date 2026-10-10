@@ -14,7 +14,7 @@ import {
   type User,
 } from "@privy-io/react-auth";
 import { useSetActiveWallet } from "@privy-io/wagmi";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { requestNonce, signIn, whoAmI } from "../../src/app/app/siwe/actions";
 import { buildSiweMessage } from "../../src/siwe/message";
 import { connectedButUnsignedHint, signingInLabel } from "../../src/session/signInCopy";
@@ -179,7 +179,7 @@ export function SignInProvider({
           address: checksummed,
           statement: "Sign in to Contraflow.",
           uri,
-          chainId: ARC_TESTNET_CHAIN_ID,
+          chainId: APP_CHAIN_ID,
           nonce,
           issuedAt: now.toISOString(),
           expirationTime: new Date(now.getTime() + 5 * 60_000).toISOString(),

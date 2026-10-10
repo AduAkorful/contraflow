@@ -87,7 +87,9 @@ export function registeredInvoiceEdges(logs: readonly DecodedLog[]): InvoiceEdge
 
 export function proposeInvoiceLoop(edges: readonly InvoiceEdge[], caller: Address): InvoiceLoopResult {
   const me = lower(caller);
-  const neighbourhood = neighbourhoodInvoiceEdges(edges, me);
+  // The solver compares addresses as exact strings, and onchain reads return checksummed ones,
+  // so every edge is lowercased to match the lowercased caller.
+  const neighbourhood = neighbourhoodInvoiceEdges(edges, me).map((e) => ({ ...e, debtor: lower(e.debtor), creditor: lower(e.creditor) }));
   if (neighbourhood.length === 0) return { kind: "none" };
   if (partiesOf(neighbourhood).size > INVOICE_SEARCH_MAX_VERTICES) return { kind: "incomplete" };
 

@@ -22,7 +22,8 @@ import { formatUsdcAmount, parseUsdcAmount, UsdcAmountError } from "@/src/attest
 import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import { starterGrantToast } from "@/src/attest/grantCopy";
-import { requestGrant, nextNonceFor, saveInvoiceDocument, createInvoiceLink } from "./actions";
+import { nextNonceFor, saveInvoiceDocument, createInvoiceLink } from "./actions";
+import { requestGrant } from "../grant/actions";
 
 type Phase = "compose" | "review" | "signing" | "done";
 type Role = "debtor" | "creditor";

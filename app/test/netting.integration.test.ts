@@ -13,6 +13,7 @@ import { obligationId, obligationKey } from "../src/netting/obligation";
 import { checkSignature } from "../src/netting/signature";
 import type { CertificateView, LedgerDomain } from "../src/netting/types";
 import { verifyCertificateView } from "../src/netting/verify";
+import { resolveCertificateCheckStage } from "../src/netting/certificateStage";
 import { startAnvil, type AnvilInstance } from "./helpers/anvil";
 import { deployMockErc1271WalletLocally, deployNettingLedgerLocally } from "./helpers/localDeploy";
 import { signCertificate, signedCertificate, signedLoop } from "./helpers/netting";
@@ -155,6 +156,24 @@ describe("netting module against the compiled ledger", () => {
     });
     expect(firstAgain.ok).toBe(true);
     expect(firstAgain.checks.find((c) => c.name === "onchain:entry:0:state")?.detail).toBe("Netted again since");
+  });
+
+  it("right after an apply, a party's reload checks against the ledger, not a lagging ready row", async () => {
+    const { view, fixture } = await signedCertificate({ domain, amounts: [500_00n, 800_00n, 650_00n], wNet: 200_00n });
+    await applyOnchain(view);
+    const partyView = viewForParty(view, fixture.parties[0]!.address);
+
+    // The database row has not caught up: it still says ready.
+    const resolved = await resolveCertificateCheckStage({
+      dbStatus: "ready",
+      certificateId: view.certificate.certificateId,
+      client: publicClient(),
+      ledger: domain.verifyingContract,
+    });
+    expect(resolved).toEqual({ stage: "applied", ledgerApplied: true, syncing: true });
+
+    const atLedgerStage = await verifyCertificateView(partyView, { now: await nowOnChain(), stage: resolved.stage, client: publicClient() });
+    expect(atLedgerStage.checks.filter((c) => c.status !== "pass")).toEqual([]);
   });
 
   it("reports an unapplied certificate as not applied", async () => {

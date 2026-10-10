@@ -37,6 +37,15 @@ describe("proposeInvoiceLoop", () => {
     expect(proposeInvoiceLoop(five, D).kind).toBe("loop");
   });
 
+  it("finds the loop when chain reads return checksummed addresses", () => {
+    const X = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
+    const Y = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as Address;
+    const Z = "0x90F79bf6EB2c4f870365E785982E1f101E93b906" as Address;
+    const loop = [edge(X, Y, 10n), edge(Y, Z, 10n), edge(Z, X, 10n)];
+    expect(proposeInvoiceLoop(loop, X).kind).toBe("loop");
+    expect(proposeInvoiceLoop(loop, X.toLowerCase() as Address).kind).toBe("loop");
+  });
+
   it("ignores a loop that does not contain the caller", () => {
     const others = [edge(B, C, 100n), edge(C, D, 100n), edge(D, B, 100n)];
     expect(proposeInvoiceLoop(others, A)).toEqual({ kind: "none" });
@@ -108,7 +117,7 @@ describe("neighbourhoodInvoiceEdges", () => {
 describe("settleLoopSentence", () => {
   it("prints grouped USDC, never a $ template", () => {
     expect(settleLoopSentence(3, "40000000")).toBe(
-      "3 invoices form a loop: 40.00 USDC netted from each, 120.00 USDC of debt cancelled, no cash moves",
+      "3 invoices form a loop: 40.00 USDC netted from each, 120.00 USDC netted in total, no cash moves",
     );
   });
 });

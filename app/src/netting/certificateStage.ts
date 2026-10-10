@@ -15,6 +15,9 @@ export interface CertificateStageResolution {
 
 /// Prefer the ledger over the database. After apply, a lagging `ready` row would otherwise run the
 /// "ledger state is current" check against the pre-apply commitments and show a false failure.
+/// The ledger stores only an applied flag per certificate ID. The content hash is matched at the
+/// `applied` stage itself: the verifier requires a `CertificateApplied` event carrying this
+/// certificate's ID and content hash, so an ID applied with other contents fails there.
 export async function resolveCertificateCheckStage(params: {
   dbStatus: CertificateDbStatus;
   certificateId: Hex;

@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
-import type { Address, Hex } from "viem";
+import { BaseError, ContractFunctionRevertedError, type Address, type Hex } from "viem";
 import { Money } from "../ui/Money";
 import { prepareWalletContext } from "../../src/attest/walletContext";
+import { prepareToSubmit } from "../../src/attest/submitAsParty";
+import { starterGrantToast } from "../../src/attest/grantCopy";
 import { contraflowSettlerAbi } from "../../src/contracts/abi/index";
-import { requestGrant } from "../../src/app/app/attest/actions";
 import { findSettleableLoop, recordSettlement, type FindSettleableLoopResult, type InvoiceLoopView } from "../../src/app/app/settle/actions";
 import { settleLoopSentence } from "../../src/settle/copy";
 
@@ -31,10 +32,17 @@ export function SettleLoopCard({
   const [loop, setLoop] = useState<InvoiceLoopView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [grantNote, setGrantNote] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   async function refresh() {
-    const result = await findSettleableLoop();
+    let result: FindSettleableLoopResult;
+    try {
+      result = await findSettleableLoop();
+    } catch (err) {
+      console.error("Loop check failed:", err);
+      result = { kind: "error", error: "Couldn't check for loops right now." };
+    }
     applyResult(result);
   }
 
@@ -80,9 +88,8 @@ export function SettleLoopCard({
     try {
       setPhase("settling");
       const me = sessionAddress as Address;
-      await prepareWalletContext(connector, me, loop.chainId, switchChainAsync);
-      await requestGrant().catch(() => undefined);
-      await prepareWalletContext(connector, me, loop.chainId, switchChainAsync);
+      const grant = await prepareToSubmit(connector, me, loop.chainId, switchChainAsync);
+      if (grant.ok && !grant.alreadyGranted && grant.amountUsdc) setGrantNote(starterGrantToast(grant.amountUsdc, loop.chainId));
 
       const wNet = BigInt(loop.wNet);
       const invoiceIds = loop.invoiceIds as Hex[];
@@ -94,7 +101,8 @@ export function SettleLoopCard({
           args: [invoiceIds, wNet],
           account: me,
         });
-      } catch {
+      } catch (err) {
+        if (!isContractRevert(err)) throw new Error("Couldn't reach Arc to check this settlement. Nothing was submitted. Try again.");
         setError("This loop changed. Refresh to see the current one.");
         inFlight.current = false;
         await refresh();
@@ -214,7 +222,12 @@ export function SettleLoopCard({
       >
         {phase === "settling" ? "Settling…" : "Settle"}
       </button>
+      {grantNote && <p className="mt-3 text-xs text-muted">{grantNote}</p>}
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
     </Frame>
   );
+}
+
+function isContractRevert(err: unknown): boolean {
+  return err instanceof BaseError && err.walk((e) => e instanceof ContractFunctionRevertedError) instanceof ContractFunctionRevertedError;
 }

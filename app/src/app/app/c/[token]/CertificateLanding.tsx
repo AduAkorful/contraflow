@@ -11,23 +11,24 @@ import { isAddressEqual, type Address, type Hex } from "viem";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
 import { SessionBound, useSession } from "@/components/session/SessionProvider";
-import { Address as AddressText } from "@/components/ui/Address";
 import { displayDate, displayMinorAmount, shortAddr } from "@/components/netting/format";
-import { groupChecks, statusMark, type CheckGroup } from "@/components/netting/checks";
+import { groupChecks, type CheckGroup } from "@/components/netting/checks";
 import { checkAsParty } from "@/components/netting/partyChecks";
+import { ActionButton, CheckList, LoopParties, OwnObligation } from "@/components/netting/CertificateParts";
 import { arcTestnet } from "@/src/chain/client";
 import { contraflowNettingLedgerAbi } from "@/src/contracts/abi/index";
 import { certificateTypedData } from "@/src/netting/certificate";
+import { ledgerChainId } from "@/src/netting/domain";
 import { resolveCertificateCheckStage } from "@/src/netting/certificateStage";
 import { parseCertificateView } from "@/src/netting/serialize";
 import type { ChainReader } from "@/src/netting/signature";
-import type { CertificateView, EntryDocument } from "@/src/netting/types";
+import type { CertificateView } from "@/src/netting/types";
 import type { PartyCertificate } from "@/src/obligations/certificates";
 import { certificateSigningConfirmation } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
-import { requestGrant } from "../../attest/actions";
+import { prepareToSubmit } from "@/src/attest/submitAsParty";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import {
   declineCertificate,
@@ -39,6 +40,8 @@ import {
 
 type Phase = "signin" | "loading" | "not-found" | "invalid" | "loaded";
 
+const SYNC_RETRY_LIMIT = 3;
+const SYNC_RETRY_DELAY_MS = 3_000;
 const INVALID = "This certificate failed a check in your browser. Don't sign or apply it.";
 const EXPLORER = arcTestnet.blockExplorers?.default.url;
 
@@ -63,12 +66,12 @@ export function CertificateLanding({ token }: { token: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ledgerSyncing, setLedgerSyncing] = useState(false);
-  const [copiedReminder, setCopiedReminder] = useState(false);
   const lastApplyHash = useRef<string | null>(null);
+  const syncRetries = useRef(0);
 
-  async function load(session: Address) {
+  async function load(session: Address, quiet = false) {
     setMe(session);
-    setPhase("loading");
+    if (!quiet) setPhase("loading");
     setError(null);
     const result = await getCertificate(token);
     if (!result.ok) {
@@ -96,6 +99,11 @@ export function CertificateLanding({ token }: { token: string }) {
     if (resolved.syncing && lastApplyHash.current) {
       const recorded = await recordCertificateApplied(token, lastApplyHash.current);
       if (recorded.ok) setLedgerSyncing(false);
+    } else if (resolved.syncing && syncRetries.current < SYNC_RETRY_LIMIT) {
+      // Without this tab's apply hash (e.g. after a reload), each read already moves the
+      // record toward the ledger server-side, so reading again shortly is the retry.
+      syncRetries.current += 1;
+      setTimeout(() => void load(session, true), SYNC_RETRY_DELAY_MS);
     }
     const checked = await checkAsParty(parsed, session, publicClient as unknown as ChainReader | undefined, stage);
     setSummary(result.certificate);
@@ -140,7 +148,7 @@ export function CertificateLanding({ token }: { token: string }) {
   const handleSign = () =>
     run(signingInLabel(signingKind), async () => {
       if (!view || !me || !summary) return;
-      const chainId = Number(view.domain.chainId);
+      const chainId = ledgerChainId(view.domain);
       await prepareWalletContext(connector, me, chainId, switchChainAsync);
       const confirmation = certificateSigningConfirmation({
         wNet: summary.wNet,
@@ -160,11 +168,9 @@ export function CertificateLanding({ token }: { token: string }) {
   const handleApply = () =>
     run("Preparing...", async () => {
       if (!view || !me || !publicClient) return;
-      const chainId = Number(view.domain.chainId);
-      await prepareWalletContext(connector, me, chainId, switchChainAsync);
+      const chainId = ledgerChainId(view.domain);
       // One-time starter gas for a wallet that has none. Anything after that is the party's own.
-      await requestGrant().catch(() => undefined);
-      await prepareWalletContext(connector, me, chainId, switchChainAsync);
+      await prepareToSubmit(connector, me, chainId, switchChainAsync);
       setBusy("Confirm in your wallet...");
       const hash = await writeContractAsync({
         address: view.domain.verifyingContract,
@@ -262,36 +268,12 @@ export function CertificateLanding({ token }: { token: string }) {
 
       <div className="mt-8 rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
         <p className="text-xs uppercase tracking-wide text-muted">The loop</p>
-        <ol className="mt-3 flex flex-wrap items-center gap-2 font-mono text-sm">
-          {view.certificate.entries.map((e, i) => (
-            <li key={i} className="flex items-center gap-2">
-              <span className={isAddressEqual(e.debtor, me) ? "text-gold" : ""}>
-                {isAddressEqual(e.debtor, me) ? "You" : shortAddr(e.debtor)}
-              </span>
-              <span className="text-xs text-muted">owes →</span>
-              {status === "collecting" && view.signatures[i] == null && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(shareUrl);
-                      setCopiedReminder(true);
-                      setTimeout(() => setCopiedReminder(false), 1500);
-                    } catch {
-                      // Clipboard can be unavailable.
-                    }
-                  }}
-                  className="text-xs text-gold hover:underline"
-                >
-                  {copiedReminder ? "Copied" : "Copy reminder link"}
-                </button>
-              )}
-            </li>
-          ))}
-          <li className={isAddressEqual(view.certificate.entries[0]!.debtor, me) ? "text-gold" : ""}>
-            {isAddressEqual(view.certificate.entries[0]!.debtor, me) ? "You" : shortAddr(view.certificate.entries[0]!.debtor)}
-          </li>
-        </ol>
+        <LoopParties
+          entries={view.certificate.entries}
+          me={me}
+          awaiting={status === "collecting" ? view.signatures.map((sig) => sig == null) : null}
+          shareUrl={shareUrl}
+        />
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {own.map(({ i, doc }) => (
@@ -361,51 +343,5 @@ export function CertificateLanding({ token }: { token: string }) {
       </a>
     </>
     </SessionBound>
-  );
-}
-
-function OwnObligation({ doc, me, currency }: { doc: EntryDocument; me: Address; currency: string }) {
-  const youOwe = isAddressEqual(doc.obligation.debtor, me);
-  const counterparty = youOwe ? doc.obligation.creditor : doc.obligation.debtor;
-  return (
-    <div className="rounded-lg border border-white/10 p-4 text-sm">
-      <p>
-        {youOwe ? "You owe" : "Owed to you by"} <AddressText address={counterparty} />
-      </p>
-      <p className="mt-2">
-        <span className="text-muted">{displayMinorAmount(doc.remainingBefore.toString(), currency)}</span>
-        {" → "}
-        <span className="text-gold">{displayMinorAmount(doc.remainingAfter.toString(), currency)}</span>
-      </p>
-      <p className="mt-1 text-xs text-muted">Due {displayDate(doc.obligation.maturity.toString())}</p>
-    </div>
-  );
-}
-
-function CheckList({ groups }: { groups: CheckGroup[] }) {
-  return (
-    <ul className="mt-3 flex flex-col gap-1 text-left text-sm">
-      {groups.map((g) => (
-        <li key={g.label} className="flex items-center gap-2">
-          <span aria-hidden className={g.status === "pass" ? "text-gold" : g.status === "fail" ? "text-red-300" : "text-muted"}>
-            {statusMark(g.status)}
-          </span>
-          <span>{g.label}</span>
-          {g.status !== "pass" && <span className="text-xs text-muted">({g.status === "fail" ? "failed" : "couldn't check"})</span>}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ActionButton({ onClick, busy, label }: { onClick: () => void; busy: string | null; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={busy !== null}
-      className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
-    >
-      {busy ?? label}
-    </button>
   );
 }

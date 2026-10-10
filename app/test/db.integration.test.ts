@@ -31,6 +31,7 @@ describe.skipIf(!url)("Postgres adapter and stores (real database)", () => {
     stores.certificates = await import("../src/db/certificates");
     stores.tenants = await import("../src/db/tenants");
     stores.webhooks = await import("../src/db/webhooks");
+    stores.usage = await import("../src/db/usage");
     stores.client = await import("../src/db/client");
   });
 
@@ -314,6 +315,44 @@ describe.skipIf(!url)("Postgres adapter and stores (real database)", () => {
       expect(claimed.map((c: { refId: string }) => c.refId)).toContain(input.obligationId);
       expect(await store.claimChanges(10)).toEqual([]); // leased until completed
       for (const change of claimed) await store.completeChange(change.changeId);
+    });
+
+    it("usage: counts accumulate per key, the key stamp is throttled, and tenants are isolated", async () => {
+      const { recordUsage, getTenantUsage, purgeOldUsage } = stores.usage;
+      const a = hex(32);
+      const b = hex(32);
+      const keyHash = hex(32).slice(2);
+      const party = address().toLowerCase();
+      await db`INSERT INTO tenants (tenant_id, name) VALUES (${a}, 'usage a'), (${b}, 'usage b')`;
+      await db`INSERT INTO tenant_api_keys (key_hash, tenant_id, mode, prefix) VALUES (${keyHash}, ${a}, 'test', 'cfk_test_use1')`;
+      const rec = (tenantId: Hex, over: Record<string, unknown> = {}) =>
+        recordUsage({ tenantId, operation: "findLoop", party, statusClass: "2xx", errorCode: "", keyHash: null, ...over });
+      await Promise.all([rec(a, { keyHash }), rec(a), rec(a, { statusClass: "4xx", errorCode: "not_found", party: "" }), rec(b)]);
+      await rec(a, { keyHash }); // inside the throttle window: the stamp must not move
+
+      const [first] = (await db`SELECT last_used_at FROM tenant_api_keys WHERE key_hash = ${keyHash}`) as { last_used_at: string }[];
+      expect(first?.last_used_at).not.toBeNull();
+      await rec(a, { keyHash });
+      const [second] = (await db`SELECT last_used_at FROM tenant_api_keys WHERE key_hash = ${keyHash}`) as { last_used_at: string }[];
+      expect(new Date(second!.last_used_at).getTime()).toBe(new Date(first!.last_used_at).getTime());
+
+      const today = new Date().toISOString().slice(0, 10);
+      const usage = await getTenantUsage({ tenantId: a, from: today, to: today, nowSeconds: BigInt(Math.floor(Date.now() / 1000)) });
+      expect(usage.totals.requests).toBe(5);
+      expect(usage.totals.byStatusClass).toEqual({ "2xx": 4, "4xx": 1, "5xx": 0 });
+      expect(usage.totals.topErrorCodes).toEqual([{ code: "not_found", count: 1 }]);
+      expect(usage.parties).toHaveLength(1);
+      expect(usage.parties[0]).toMatchObject({ party, requests: 4, permission: { status: "none" } });
+      expect(usage.keys[0]).toMatchObject({ prefix: "cfk_test_use1", revoked: false });
+
+      const other = await getTenantUsage({ tenantId: b, from: today, to: today, nowSeconds: 0n });
+      expect(other.totals.requests).toBe(1);
+
+      await db`INSERT INTO tenant_usage_daily (tenant_id, day, operation, status_class, count)
+               VALUES (${a}, (now() AT TIME ZONE 'utc')::date - 120, 'findLoop', '2xx', 9)`;
+      expect(await purgeOldUsage()).toBeGreaterThanOrEqual(1);
+      const left = (await db`SELECT count(*)::int AS n FROM tenant_usage_daily WHERE tenant_id = ${a} AND day < (now() AT TIME ZONE 'utc')::date - 90`) as { n: number }[];
+      expect(left[0]?.n).toBe(0);
     });
   });
 });

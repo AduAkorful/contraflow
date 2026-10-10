@@ -6,20 +6,20 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useWriteContract, usePublicClient, useSwitchChain } from "wagmi";
-import { recoverTypedDataAddress, hashTypedData, type Address } from "viem";
+import { hashTypedData, type Address } from "viem";
 import { ConnectButton } from "@/components/wallet/ConnectButton";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
 import { SessionBound, useSession } from "@/components/session/SessionProvider";
 import { ReviewAndSign } from "@/components/attest/ReviewAndSign";
 import { RegisterProgress } from "@/components/attest/RegisterProgress";
-import { Money } from "@/components/ui/Money";
+import { RegisteredCard, RegistrationStatusCard } from "@/components/attest/RegistrationOutcome";
 import { invoiceSigningConfirmation } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
-import { formatUsdcAmount } from "@/src/attest/amount";
 import { decodeAttestLink, parseAttestLinkObject, type AttestLinkPayload } from "@/src/attest/link";
-import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "@/src/attest/document";
+import type { CanonicalInvoiceDocument } from "@/src/attest/document";
+import { ALTERED_LINK, verifyLinkTerms } from "@/src/attest/verifyLinkTerms";
 import { invoiceAttestationTypedData } from "@/src/attest/signAttestation";
 import { invoiceViewerRole, isInvoiceCounterparty } from "@/src/attest/viewer";
 import { prepareWalletContext } from "@/src/attest/walletContext";
@@ -27,7 +27,8 @@ import { starterGrantToast } from "@/src/attest/grantCopy";
 import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
 import { contraflowRegistryAbi } from "@/src/contracts/abi/index";
 import { arcTestnet } from "@/src/chain/client";
-import { checkLinkFreshness, getInvoiceDocument, getInvoiceLink, requestGrant, preCheck, record } from "../actions";
+import { checkLinkFreshness, getInvoiceDocument, getInvoiceLink, preCheck, record } from "../actions";
+import { requestGrant } from "../../grant/actions";
 
 type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
 const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
@@ -68,51 +69,12 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
   const mayCoSign = payload ? isInvoiceCounterparty(payload.invoice, payload.role, sessionAddress, address) : false;
 
   async function verifyTerms(decoded: AttestLinkPayload, terms: CanonicalInvoiceDocument) {
-    // Always compare the canonical document before recovering or trusting either signature.
-    let documentHash: string;
-    try {
-      documentHash = hashInvoiceDocument(terms);
-    } catch {
-      setError("This link is invalid or has been altered.");
-      setPhase("invalid");
+    const checked = await verifyLinkTerms(decoded, terms, checkLinkFreshness);
+    if (!checked.ok) {
+      setError(checked.error);
+      setPhase(checked.phase);
       return;
     }
-    if (documentHash !== decoded.invoice.invoiceRef) {
-      setError("This link is invalid or has been altered.");
-      setPhase("invalid");
-      return;
-    }
-
-    const claimedSignerAddress = decoded.role === "debtor" ? decoded.invoice.debtor : decoded.invoice.creditor;
-    let recovered: string;
-    try {
-      recovered = await recoverTypedDataAddress({
-        ...invoiceAttestationTypedData(decoded.invoice),
-        signature: decoded.signatureA,
-      });
-    } catch {
-      setError("This link is invalid or has been altered.");
-      setPhase("invalid");
-      return;
-    }
-    if (recovered.toLowerCase() !== claimedSignerAddress.toLowerCase()) {
-      setError("This link is invalid or has been altered.");
-      setPhase("invalid");
-      return;
-    }
-
-    const freshness = await checkLinkFreshness(decoded.invoice.debtor, decoded.invoice.creditor, decoded.invoice.nonce.toString());
-    if (!freshness.ok) {
-      setError(freshness.error);
-      setPhase("error");
-      return;
-    }
-    if (!freshness.fresh) {
-      setError("This invoice is no longer current — it may already be registered, or a newer one exists for this pair.");
-      setPhase("stale");
-      return;
-    }
-
     setDocument(terms);
     setPhase("ready");
   }
@@ -153,7 +115,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
   useEffect(() => {
     if (token) return;
     if (!encoded) {
-      setError("This link is invalid or has been altered.");
+      setError(ALTERED_LINK);
       setPhase("invalid");
       return;
     }
@@ -162,7 +124,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
       try {
         decoded = decodeAttestLink(encoded);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "This link is invalid or has been altered.");
+        setError(err instanceof Error ? err.message : ALTERED_LINK);
         setPhase("invalid");
         return;
       }
@@ -198,7 +160,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
       try {
         decoded = parseAttestLinkObject(result.payload);
       } catch {
-        setError("This link is invalid or has been altered.");
+        setError(ALTERED_LINK);
         setPhase("invalid");
         return;
       }
@@ -340,71 +302,21 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
 
   if (phase === "done" && resultTxHash) {
     return (
-      <div className="animate-card-entrance rounded-card border border-gold/30 bg-gold/[0.06] p-6 text-center">
-        <p className="flex items-center justify-center gap-1.5 text-sm">
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true" className="text-gold">
-            <path
-              d="M3 8.5 L6.5 12 L13 4"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="animate-check-draw"
-              pathLength={32}
-            />
-          </svg>
-          Invoice registered on Arc
-        </p>
-        <div className="mt-4">
-          <RegisterProgress step={3} txHash={resultTxHash} explorerBase={ARC_EXPLORER} />
-        </div>
-        {grantNote && <p className="mt-3 text-xs text-muted">{grantNote}</p>}
-        <p className="mt-3 text-xs text-muted">
-          {payload ? <Money value={formatUsdcAmount(payload.invoice.amount)} className="text-foreground" /> : "This invoice"} is now registered.
-          If it forms a loop with other invoices, you'll see a Settle button on your Overview.
-        </p>
-        {registryId && (
-          <p className="mt-3 text-xs text-faint">
-            Invoice ID <span className="break-all font-mono text-muted">{registryId}</span>
-          </p>
-        )}
-        {payload?.invoice.invoiceRef && (
-          <p className="mt-1 text-xs text-faint">
-            Document hash <span className="break-all font-mono text-muted">{payload.invoice.invoiceRef}</span>
-          </p>
-        )}
-        {recordWarning && <p className="mt-3 text-xs text-muted">{recordWarning}</p>}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
-          {sessionAddress && (
-            <a href={`/app/history?address=${sessionAddress}`} className="text-gold hover:underline">
-              See it in your history →
-            </a>
-          )}
-          {ARC_EXPLORER && (
-            <a href={`${ARC_EXPLORER}/tx/${resultTxHash}`} target="_blank" rel="noreferrer" className="text-muted hover:underline">
-              View transaction →
-            </a>
-          )}
-          <a href="/app/attest" className="text-muted hover:underline">
-            Send another invoice →
-          </a>
-        </div>
-      </div>
+      <RegisteredCard
+        txHash={resultTxHash}
+        explorerBase={ARC_EXPLORER}
+        amount={payload ? payload.invoice.amount : null}
+        registryId={registryId}
+        documentHash={payload?.invoice.invoiceRef ?? null}
+        grantNote={grantNote}
+        recordWarning={recordWarning}
+        sessionAddress={sessionAddress}
+      />
     );
   }
 
-  if ((phase === "pending" || phase === "reverted") ) {
-    return (
-      <div className="animate-card-entrance rounded-card border border-white/10 bg-white/[0.02] p-6 text-center">
-        <p className="text-sm font-medium">{phase === "pending" ? "Registration status needs checking" : "Registration reverted"}</p>
-        <p className="mt-2 text-sm text-muted">{error}</p>
-        {resultTxHash && ARC_EXPLORER && (
-          <a href={`${ARC_EXPLORER}/tx/${resultTxHash}`} target="_blank" rel="noreferrer" className="mt-4 inline-block text-xs text-gold hover:underline">
-            Check transaction on Arc →
-          </a>
-        )}
-      </div>
-    );
+  if (phase === "pending" || phase === "reverted") {
+    return <RegistrationStatusCard status={phase} error={error} txHash={resultTxHash} explorerBase={ARC_EXPLORER} />;
   }
 
   if (!payload) return null;

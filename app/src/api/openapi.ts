@@ -88,6 +88,7 @@ export const API_INDEX = {
     { method: "GET", path: "/", description: "This index" },
     { method: "GET", path: "/openapi.json", description: "OpenAPI 3.1 document" },
     { method: "GET", path: "/tenant", description: "This tenant" },
+    { method: "GET", path: "/usage", description: "This tenant's call counts, keys and per-party state" },
     { method: "GET", path: "/permissions/typed-data", description: "Build a permission to sign" },
     { method: "GET", path: "/permissions", description: "List stored permissions" },
     { method: "POST", path: "/permissions", description: "Store a signed permission" },
@@ -112,6 +113,7 @@ export const OPENAPI = {
   info: {
     title: "Contraflow API",
     version: "1.0.0",
+    license: { name: "Proprietary", url: "https://contraflow.vercel.app/terms" },
     description:
       "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. List and summary responses name amounts `amountMinor` (an ISO 4217 minor-unit integer string) and `amountDisplay` (the same amount in major units). Their timestamps are unix-second strings. `chainId` is a JSON number on the tenant, an apply transaction, a webhook event, and a proposal's domain. Signed obligation documents, EIP-712 fields, and `contraflow-netting-certificate/1` files keep their own field names. In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers in those signed payloads stay decimal strings. Authorization is case-insensitive `Bearer`. There is no invoice or settlement API.",
   },
@@ -120,11 +122,11 @@ export const OPENAPI = {
     { url: "/api/v1", description: "Same origin" },
   ],
   tags: [
-    { name: "Tenant" },
-    { name: "Permissions" },
-    { name: "Obligations" },
-    { name: "Certificates" },
-    { name: "Webhooks" },
+    { name: "Tenant", description: "The tenant your API key belongs to." },
+    { name: "Permissions", description: "Signed, scoped, expiring permissions a party grants your tenant." },
+    { name: "Obligations", description: "Offchain obligations between two parties, proposed and co-signed by them." },
+    { name: "Certificates", description: "Netting loops, each party's certificate signature, and the calldata to apply one on Arc." },
+    { name: "Webhooks", description: "Signed event delivery to your endpoint." },
   ],
   security: [{ apiKey: [] }],
   paths: {
@@ -135,6 +137,22 @@ export const OPENAPI = {
         summary: "This tenant",
         description: "Name, status, key mode, chain, and whether a webhook URL is registered. No party permission required.",
         responses: { ...ok({ $ref: "#/components/schemas/Tenant" }), ...authErrors, ...errors("404") },
+      }),
+    },
+    "/usage": {
+      get: op({
+        operationId: "getUsage",
+        tags: ["Tenant"],
+        summary: "Your usage",
+        description:
+          "Daily counts of this tenant's own API calls by operation, status class and error code, the last use of each key, and, per party, the permission state and webhook delivery counts. Counts only: no request contents. Days are UTC, the range is at most 90 days and defaults to the last 30, and recording started when this endpoint shipped. Counts are best-effort and can run slightly low. No party permission required.",
+        parameters: [
+          { name: "from", in: "query", schema: { type: "string" }, description: "yyyy-mm-dd, UTC." },
+          { name: "to", in: "query", schema: { type: "string" }, description: "yyyy-mm-dd, UTC. Defaults to today." },
+          { name: "party", in: "query", schema: { $ref: "#/components/schemas/Address" }, description: "Only this party." },
+          { name: "cursor", in: "query", schema: { $ref: "#/components/schemas/Address" }, description: "The previous page's `nextCursor`." },
+        ],
+        responses: { ...ok({ $ref: "#/components/schemas/TenantUsage" }), ...authErrors, ...errors("422") },
       }),
     },
     "/permissions/typed-data": {
@@ -405,6 +423,91 @@ export const OPENAPI = {
               message: { type: "string" },
             },
           },
+        },
+      },
+      TenantUsage: {
+        type: "object",
+        required: ["from", "to", "totals", "daily", "keys", "parties", "nextCursor"],
+        properties: {
+          from: { type: "string" },
+          to: { type: "string" },
+          totals: {
+            type: "object",
+            required: ["requests", "byStatusClass", "byOperation", "topErrorCodes"],
+            properties: {
+              requests: { type: "integer" },
+              byStatusClass: {
+                type: "object",
+                properties: { "2xx": { type: "integer" }, "4xx": { type: "integer" }, "5xx": { type: "integer" } },
+              },
+              byOperation: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["operation", "requests", "errors"],
+                  properties: { operation: { type: "string" }, requests: { type: "integer" }, errors: { type: "integer" } },
+                },
+              },
+              topErrorCodes: {
+                type: "array",
+                items: { type: "object", required: ["code", "count"], properties: { code: { type: "string" }, count: { type: "integer" } } },
+              },
+            },
+          },
+          daily: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["day", "requests", "errors"],
+              properties: { day: { type: "string" }, requests: { type: "integer" }, errors: { type: "integer" } },
+            },
+          },
+          keys: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["prefix", "mode", "lastUsedAt", "revoked"],
+              properties: {
+                prefix: { type: "string" },
+                mode: { type: "string", enum: ["test", "live"] },
+                lastUsedAt: { type: ["string", "null"], description: "ISO 8601." },
+                revoked: { type: "boolean" },
+              },
+            },
+          },
+          parties: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["party", "requests", "errors", "lastRequestDay", "permission", "webhooks"],
+              properties: {
+                party: { $ref: "#/components/schemas/Address" },
+                requests: { type: "integer" },
+                errors: { type: "integer" },
+                lastRequestDay: { type: ["string", "null"] },
+                permission: {
+                  type: "object",
+                  required: ["status", "scopes", "expiresAt"],
+                  properties: {
+                    status: { type: "string", enum: ["live", "expiring", "expired", "revoked", "none"] },
+                    scopes: { type: ["integer", "null"] },
+                    expiresAt: { type: ["string", "null"], description: "Unix seconds." },
+                  },
+                },
+                webhooks: {
+                  type: "object",
+                  required: ["sent", "failed", "suppressed", "lastError"],
+                  properties: {
+                    sent: { type: "integer" },
+                    failed: { type: "integer" },
+                    suppressed: { type: "integer" },
+                    lastError: { type: ["string", "null"] },
+                  },
+                },
+              },
+            },
+          },
+          nextCursor: { type: ["string", "null"] },
         },
       },
       Tenant: {

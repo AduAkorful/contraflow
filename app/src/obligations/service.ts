@@ -26,7 +26,7 @@ import { ZERO_HASH } from "../netting/commitment";
 import { appLedgerDomain } from "../netting/domain";
 import { OBLIGATION_DOCUMENT_FORMAT, type CanonicalObligationDocument } from "../netting/document";
 import { obligationId } from "../netting/obligation";
-import { newProposalToken, isProposalToken } from "./proposalToken";
+import { newShareToken, isShareToken } from "../share/shareToken";
 import { parseObligationJson, serializeObligation, type SerializedObligation } from "../netting/serialize";
 import {
   counterpartyRole,
@@ -119,7 +119,7 @@ export async function createProposal(session: Address, input: CreateProposalInpu
   if (alreadyRecorded) return { ok: false, error: new DuplicateObligationError().message };
 
   const token = await insertProposal({
-    token: newProposalToken(),
+    token: newShareToken(),
     obligationId: obligationId(obligation, domain),
     chainId: domain.chainId.toString(),
     ledger: domain.verifyingContract,
@@ -154,7 +154,7 @@ function stateOf(status: string, expiresAt: Date, now: Date): ProposalState {
 
 /// The proposal behind a token, for one of its two parties only.
 export async function getProposal(session: Address, token: unknown): Promise<Result<{ proposal: ProposalView }>> {
-  if (!isProposalToken(token)) return { ok: false, error: NOT_FOUND };
+  if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
   if (await rateLimited("read", session, READ_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
 
   const row = await getProposalByToken(token);
@@ -204,7 +204,7 @@ export async function getProposalForObligation(session: Address, obligationInput
 /// The counterparty's signature completes the obligation. The stored proposal is re-validated
 /// from scratch, exactly as if it had just been submitted.
 export async function acceptProposal(session: Address, token: unknown, signature: unknown): Promise<Result> {
-  if (!isProposalToken(token)) return { ok: false, error: NOT_FOUND };
+  if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
   if (await rateLimited("write", session, WRITE_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
   if (typeof signature !== "string" || !isHex(signature)) return { ok: false, error: "Invalid signature." };
 
@@ -279,7 +279,7 @@ export async function acceptProposal(session: Address, token: unknown, signature
 
 /// Withdraw (proposer) or decline (counterparty) an open proposal. Idempotent.
 export async function withdrawProposal(session: Address, token: unknown): Promise<Result> {
-  if (!isProposalToken(token)) return { ok: false, error: NOT_FOUND };
+  if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
   if (await rateLimited("write", session, WRITE_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
   const row = await getProposalByToken(token);
   if (!row) return { ok: false, error: NOT_FOUND };

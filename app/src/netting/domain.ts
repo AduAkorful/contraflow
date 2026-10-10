@@ -58,3 +58,8 @@ export function appLedgerDomain(): LedgerDomain {
     verifyingContract: addressesForChain(ARC_TESTNET_CHAIN_ID).nettingLedger,
   };
 }
+
+/// The wallet-facing chain ID of a ledger domain (the app's own ledger by default).
+export function ledgerChainId(domain: LedgerDomain = appLedgerDomain()): number {
+  return Number(domain.chainId);
+}

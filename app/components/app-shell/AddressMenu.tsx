@@ -1,34 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useExportWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useDisconnect } from "wagmi";
 import { queryClient } from "../../src/query/client";
 import { signOut } from "../../src/app/app/siwe/actions";
 import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
 import { explorerAddressUrl } from "../../src/blockscout/explorer";
 import { checksumAddress, formatAddress } from "../../src/format/address";
-import { isEmbeddedWalletClient } from "../../src/session/signingWallet";
 import { signOutEverywhere } from "../session/signOutEverywhere";
 
-/// The signed-in address with copy, explorer, export (embedded wallets), switch account and
-/// sign-out. Closes on Escape and on any click outside.
+/// The signed-in address with copy, explorer, switch account and sign-out. Closes on Escape and on any click outside.
 export function AddressMenu({ address }: { address: string }) {
   const { user, logout } = usePrivy();
-  const { wallets } = useWallets();
-  const { exportWallet } = useExportWallet();
   const { disconnectAsync } = useDisconnect();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const full = checksumAddress(address);
   const explorer = explorerAddressUrl(ARC_TESTNET_CHAIN_ID, full);
   const email = user?.email?.address ?? null;
-  const embedded = wallets.some(
-    (w) => w.address.toLowerCase() === address.toLowerCase() && isEmbeddedWalletClient(w.walletClientType),
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -68,15 +60,6 @@ export function AddressMenu({ address }: { address: string }) {
     if (!result.ok) setSignOutError(result.error);
   }
 
-  async function handleExport() {
-    setExportError(null);
-    try {
-      await exportWallet({ address: full });
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Couldn't export this wallet.");
-    }
-  }
-
   const item = "block w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-surface-2 hover:text-foreground";
   return (
     <div ref={root} className="relative">
@@ -100,7 +83,7 @@ export function AddressMenu({ address }: { address: string }) {
               {email}
               <span className="mt-1 block text-faint">
                 Account wallet {formatAddress(full)}{" "}
-                <span className="cursor-help" title="Created when you signed in with email. You can export its key to another wallet.">
+                <span className="cursor-help" title="Created for you when you signed in with email. It signs for this account.">
                   (what&apos;s this?)
                 </span>
               </span>
@@ -114,11 +97,6 @@ export function AddressMenu({ address }: { address: string }) {
               View on explorer
             </a>
           )}
-          {embedded && (
-            <button role="menuitem" type="button" onClick={() => void handleExport()} className={item}>
-              Export wallet
-            </button>
-          )}
           <button role="menuitem" type="button" onClick={() => void handleSignOut("switch")} className={item}>
             Switch account
           </button>
@@ -128,11 +106,6 @@ export function AddressMenu({ address }: { address: string }) {
           {signOutError && (
             <p role="alert" className="px-3 py-2 text-xs text-danger">
               {signOutError}
-            </p>
-          )}
-          {exportError && (
-            <p role="alert" className="px-3 py-2 text-xs text-danger">
-              {exportError}
             </p>
           )}
         </div>

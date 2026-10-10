@@ -13,7 +13,7 @@ import {
   OBLIGATION_DOCUMENT_FORMAT,
   type CanonicalObligationDocument,
 } from "../src/netting/document";
-import { isProposalToken, newProposalToken } from "../src/obligations/proposalToken";
+import { isShareToken, newShareToken } from "../src/share/shareToken";
 
 // The same keys as the Solidity known vectors (0xA11CE, 0xB0B).
 const alice = privateKeyToAccount(numberToHex(0xa11ce, { size: 32 })).address;
@@ -149,16 +149,16 @@ describe("obligationFromDocument / obligationMatchesDocument", () => {
 
 describe("proposal tokens", () => {
   it("are 22 URL-safe characters and distinct", () => {
-    const tokens = new Set(Array.from({ length: 200 }, newProposalToken));
+    const tokens = new Set(Array.from({ length: 200 }, newShareToken));
     expect(tokens.size).toBe(200);
     for (const token of tokens) {
       expect(token).toMatch(/^[A-Za-z0-9_-]{22}$/);
-      expect(isProposalToken(token)).toBe(true);
+      expect(isShareToken(token)).toBe(true);
     }
   });
   it("rejects anything else", () => {
     for (const bad of ["", "short", "a".repeat(23), "abc/def+ghi=jklmnopqrs", 42, null]) {
-      expect(isProposalToken(bad)).toBe(false);
+      expect(isShareToken(bad)).toBe(false);
     }
   });
 });

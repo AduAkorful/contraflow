@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createArcPublicClient } from "../chain/client";
 import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 import { claimIdempotency, completeIdempotency, completeIdempotencyFromEffect, postgresTenantStore, tagProposalTenant } from "../db/tenants";
+import { getTenantUsage, recordUsage } from "../db/usage";
 import { enqueueWebhookTest } from "../db/webhooks";
 import { appLedgerDomain } from "../netting/domain";
 import { certificateService } from "../obligations/certificateDefaults";
@@ -24,6 +25,8 @@ export function apiDeps(): ApiDeps {
     certificates: certificateService(),
     tagProposal: tagProposalTenant,
     enqueueWebhookTest,
+    recordUsage,
+    getUsage: getTenantUsage,
   };
   return cached;
 }

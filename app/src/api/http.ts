@@ -9,7 +9,10 @@ import { ApiError, authenticate, type ApiCaller } from "./auth";
 import type { ApiDeps, ApiRequest, ApiResponse } from "./handlers";
 import { apiDeps, idempotency } from "./deps";
 import { jsonSafe } from "./json";
+import { hashApiKey } from "./keys";
 import { withApiLimitBucket } from "./limitBucket";
+import { operationOf } from "./operations";
+import { attributedParty, statusClassOf } from "./usage";
 import { runWebhookPipelineQuietly } from "./webhookRunner";
 
 type Handler = (caller: ApiCaller, req: ApiRequest, deps: ApiDeps) => Promise<ApiResponse>;
@@ -56,6 +59,8 @@ interface ReplyContext {
   rateLimit?: { limit: number; remaining: number; reset: number };
   retryAfter?: number;
   wwwAuthenticate?: boolean;
+  /// Set once the caller is known. The response is counted for this tenant when it is sent.
+  usage?: { tenantId: `0x${string}`; operation: string; party: string | null; keyHash: string | null };
 }
 
 function replyHeaders(ctx: ReplyContext, extra?: Record<string, string>): Record<string, string> {
@@ -75,7 +80,34 @@ function replyHeaders(ctx: ReplyContext, extra?: Record<string, string>): Record
   return headers;
 }
 
+/// Counts the response against the tenant, off the response path. Best-effort and isolated: a
+/// failed count must never change what the caller receives.
+function countUsage(ctx: ReplyContext, status: number, body: unknown) {
+  const usage = ctx.usage;
+  if (!usage) return;
+  const errorCode =
+    status >= 400 && body && typeof body === "object" && typeof (body as { error?: { code?: unknown } }).error?.code === "string"
+      ? ((body as { error: { code: string } }).error.code)
+      : "";
+  ctx.usage = undefined;
+  after(async () => {
+    try {
+      await apiDeps().recordUsage?.({
+        tenantId: usage.tenantId,
+        operation: usage.operation,
+        party: attributedParty(status, usage.party),
+        statusClass: statusClassOf(status),
+        errorCode,
+        keyHash: usage.keyHash,
+      });
+    } catch (error) {
+      console.error("API usage count failed", error instanceof Error ? error.message : error);
+    }
+  });
+}
+
 function reply(ctx: ReplyContext, status: number, body: unknown): Response {
+  countUsage(ctx, status, body);
   if (status === 204) return new Response(null, { status, headers: replyHeaders(ctx) });
   return Response.json(body, { status, headers: replyHeaders(ctx) });
 }
@@ -109,6 +141,8 @@ async function run(handler: Handler, request: Request, context: RouteContext, op
   const ctx: ReplyContext = { requestId: requestIdOf(request), allowMethods };
   try {
     const caller = await authenticate(request.headers.get("authorization"), apiDeps().store);
+    const token = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization") ?? "")?.[1];
+    ctx.usage = { tenantId: caller.tenantId, operation: operationOf(handler), party: null, keyHash: token ? hashApiKey(token) : null };
     return await withApiLimitBucket(caller.tenantId, () => runAuthenticated(handler, request, context, options, caller, ctx));
   } catch (error) {
     if (error instanceof ApiError && error.status < 500) return errorReply(ctx, error);
@@ -154,6 +188,11 @@ async function runAuthenticated(
     }
   }
   const req: ApiRequest = { params: await context.params, query: new URL(request.url).searchParams, body };
+  if (ctx.usage) {
+    const fromBody = body && typeof body === "object" ? (body as { party?: unknown }).party : undefined;
+    const candidate = req.params.address ?? req.query.get("party") ?? fromBody;
+    ctx.usage.party = typeof candidate === "string" ? candidate : null;
+  }
 
   const key = request.method === "POST" ? request.headers.get("idempotency-key") : null;
   if (key === null) {

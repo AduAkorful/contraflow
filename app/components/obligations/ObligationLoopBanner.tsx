@@ -14,9 +14,12 @@ export function ObligationLoopBanner({ certificates }: { certificates: Certifica
     searched.current = true;
     const hasOpen = certificates.some((c) => c.status === "collecting" || c.status === "ready");
     if (hasOpen) return;
-    void findNettingLoop().then((result) => {
-      if (result.ok && result.outcome.found) setFoundToken(result.outcome.token);
-    });
+    findNettingLoop()
+      .then((result) => {
+        if (result.ok && result.outcome.found) setFoundToken(result.outcome.token);
+      })
+      // The search is a convenience here; /app/obligations offers it again with its errors shown.
+      .catch((err) => console.error("Obligation loop search failed:", err));
   }, [certificates]);
 
   const token = loopBannerTarget(certificates, foundToken);

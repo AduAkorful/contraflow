@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encodeAttestLink, serializeAttestLink } from "../src/attest/link";
 import type { InvoiceAttestation } from "../src/attest/signAttestation";
-import { newProposalToken } from "../src/obligations/proposalToken";
+import { newShareToken } from "../src/share/shareToken";
 
 const { insertInvoiceLink, getInvoiceLinkByToken } = vi.hoisted(() => ({
   insertInvoiceLink: vi.fn(),
@@ -26,7 +26,7 @@ const INVOICE: InvoiceAttestation = {
 };
 
 const encoded = encodeAttestLink({ invoice: INVOICE, role: "debtor", signatureA: "0xabc123" });
-const token = newProposalToken();
+const token = newShareToken();
 
 describe("createInvoiceShareLink", () => {
   beforeEach(() => {

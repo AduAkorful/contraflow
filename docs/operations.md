@@ -100,6 +100,7 @@ node --env-file=app/.env.local app/scripts/tenant.mjs issue-key <tenantId> test
 node --env-file=app/.env.local app/scripts/tenant.mjs set-webhook <tenantId> https://acme.example/contraflow
 node --env-file=app/.env.local app/scripts/tenant.mjs roll-webhook-secret <tenantId>
 node --env-file=app/.env.local app/scripts/tenant.mjs revoke-key <keyPrefix>
+node --env-file=app/.env.local app/scripts/tenant.mjs usage <tenantId> [days]
 node --env-file=app/.env.local app/scripts/tenant.mjs list
 ```
 
@@ -108,6 +109,9 @@ node --env-file=app/.env.local app/scripts/tenant.mjs list
 - **Shown once.** Keys and webhook secrets are printed once and never stored in the clear (webhook secrets are
   stored, since signing needs them). Send them to the tenant over a secure channel.
 - **Key limit.** A tenant can hold at most two active keys.
+- **Usage.** `usage` prints a tenant's recorded calls (operation, status class, error code, count) for the last 1–90 days and
+  each key's last use. The same counts reach the tenant at `GET /api/v1/usage`, and its owner at `/app/api-keys`. Counts are
+  kept 90 days; the daily cron deletes older rows.
 - **Live keys.** `live` keys only work once mainnet addresses are in `app/src/contracts/addresses.ts`.
 - **Webhook URLs.** They must be `https` (plain `http` is allowed for `localhost` only).
 

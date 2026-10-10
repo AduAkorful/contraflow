@@ -1,11 +1,11 @@
 /// Server-only short invoice links. The token is a handle: only a signed-in debtor or creditor
-/// receives the payload. Non-parties get "Not found", never "Forbidden". Pre-sign-in address
-/// disclosure is D4 and is not implemented here.
+/// receives the payload. Non-parties get "Not found", never "Forbidden", and signed-out
+/// viewers are not told who the parties are.
 
 import type { Address } from "viem";
 import { decodeAttestLink, serializeAttestLink } from "./link";
 import { insertInvoiceLink, getInvoiceLinkByToken } from "../db/invoiceLinks";
-import { isProposalToken, newProposalToken } from "../obligations/proposalToken";
+import { isShareToken, newShareToken } from "../share/shareToken";
 
 const NOT_FOUND = "Not found.";
 
@@ -29,7 +29,7 @@ export async function createInvoiceShareLink(
     return { ok: false, error: NOT_FOUND };
   }
   const token = await insertInvoiceLink({
-    token: newProposalToken(),
+    token: newShareToken(),
     payload: serializeAttestLink({
       invoice: payload.invoice,
       role: payload.role,
@@ -45,7 +45,7 @@ export async function getInvoiceShareLink(
   session: Address,
   token: unknown,
 ): Promise<Result<{ payload: unknown }>> {
-  if (!isProposalToken(token)) return { ok: false, error: NOT_FOUND };
+  if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
   const row = await getInvoiceLinkByToken(token);
   if (!row) return { ok: false, error: NOT_FOUND };
   if (row.expiresAt.getTime() <= Date.now()) return { ok: false, error: NOT_FOUND };

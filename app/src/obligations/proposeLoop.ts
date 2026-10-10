@@ -17,7 +17,7 @@ import type { NettingObligation } from "../netting/types";
 import { verifyCertificateView } from "../netting/verify";
 import type { CertificateServiceDeps } from "./certificates";
 import { findBestLoop, neighbourhoodParties, type CandidateObligation } from "./loopSearch";
-import { newProposalToken } from "./proposalToken";
+import { newShareToken } from "../share/shareToken";
 import type { Result } from "./service";
 
 export const CERTIFICATE_LIFETIME_SECONDS = 7n * 24n * 60n * 60n;
@@ -250,7 +250,7 @@ export async function findAndProposeLoop(
       throw new Error(`findAndProposeLoop: built a certificate that fails its own checks: ${failed.join(", ")}`);
     }
 
-    const token = (deps.newToken ?? newProposalToken)();
+    const token = (deps.newToken ?? newShareToken)();
     const inserted = await store.insertCertificate({
       certificateId: view.certificate.certificateId,
       token,
