@@ -16,6 +16,8 @@ import type { CertificateService } from "../obligations/certificates";
 import type * as obligationService from "../obligations/service";
 import { ApiError, requirePartyScope, type ApiCaller, type IdempotencyContext, type TenantStore } from "./auth";
 import { permissionTypedData, parsePermissionGrant, validatePermission } from "./permissions";
+import { removeOwnWebhook, rollOwnWebhookSecret, setOwnWebhook, type OwnWebhookStore } from "./ownWebhook";
+import type { ResolveAll } from "./webhookUrl";
 import { paginatePartyLists, parsePageCursor, parsePageLimit } from "./pagination";
 import { parseUsageRange, type TenantUsage, type UsageRecord } from "./usage";
 import { amountFieldsFromMajor, amountFieldsFromMinor, apiChainId, unixSeconds } from "./wire";
@@ -35,6 +37,12 @@ export interface ApiDeps {
     "listCertificates" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
+  /// The tenant's webhook endpoint, keyed by tenant id. Plain `http://localhost` receivers are
+  /// accepted only where `allowLocalWebhooks` is set (never in production).
+  webhookEndpoint: OwnWebhookStore;
+  allowLocalWebhooks?: boolean;
+  /// Hostname lookup for endpoint validation; defaults to DNS.
+  resolveWebhookHost?: ResolveAll;
   enqueueWebhookTest(tenantId: Hex, chainId: number): Promise<{ eventId: string } | { error: "no_endpoint" }>;
   /// Counts a call for the tenant's usage view. Best-effort: optional so a deployment without it
   /// still serves the API.
@@ -190,6 +198,49 @@ export async function getUsage(caller: ApiCaller, req: ApiRequest, deps: ApiDeps
     nowSeconds: deps.nowSeconds(),
   });
   return { status: 200, body: usage };
+}
+
+function unixOf(iso: string | null): string | null {
+  return iso === null ? null : String(Math.floor(new Date(iso).getTime() / 1000));
+}
+
+export async function getWebhookEndpoint(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const [endpoint, deliveries] = await Promise.all([deps.webhookEndpoint.get(caller.tenantId), deps.webhookEndpoint.recent(caller.tenantId)]);
+  return {
+    status: 200,
+    body: {
+      endpoint: endpoint ? { url: endpoint.url, secretRollingUntil: unixOf(endpoint.rollingUntil) } : null,
+      recentDeliveries: deliveries.map((d) => ({
+        eventId: d.eventId,
+        type: d.type,
+        status: d.status,
+        attempts: d.attempts,
+        createdAt: unixOf(d.createdAt),
+        statusCode: d.statusCode,
+        error: d.error,
+      })),
+    },
+  };
+}
+
+export async function setWebhookEndpoint(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const url = field(req.body, "url");
+  if (typeof url !== "string") throw new ApiError(422, "invalid_request", "url must be a string.");
+  const result = await setOwnWebhook(caller.tenantId, url, deps.webhookEndpoint, { allowLocalHttp: deps.allowLocalWebhooks === true, resolve: deps.resolveWebhookHost });
+  if (!result.ok) throw new ApiError(422, "invalid_request", result.error);
+  return { status: 200, body: { url: url.trim(), secret: result.secret } };
+}
+
+export async function rollWebhookSecret(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const result = await rollOwnWebhookSecret(caller.tenantId, deps.webhookEndpoint);
+  if (!result.ok) throw new ApiError(422, "no_webhook", result.error);
+  return { status: 200, body: { secret: result.secret, previousSecretValidFor: "24 hours" } };
+}
+
+export async function deleteWebhookEndpoint(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const result = await removeOwnWebhook(caller.tenantId, deps.webhookEndpoint);
+  if (!result.ok) throw new ApiError(422, "no_webhook", "No webhook endpoint is registered for this tenant.");
+  return { status: 204, body: null };
 }
 
 export async function testWebhook(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {

@@ -105,6 +105,10 @@ export const API_INDEX = {
     { method: "POST", path: "/certificates/{token}/transactions", description: "Report an apply transaction" },
     { method: "GET", path: "/certificates/{token}/export", description: "Export a certificate view" },
     { method: "POST", path: "/webhooks/test", description: "Enqueue a test webhook event" },
+    { method: "GET", path: "/webhooks/endpoint", description: "Read the webhook endpoint and recent deliveries" },
+    { method: "POST", path: "/webhooks/endpoint", description: "Set or replace the webhook endpoint" },
+    { method: "DELETE", path: "/webhooks/endpoint", description: "Remove the webhook endpoint" },
+    { method: "POST", path: "/webhooks/endpoint/secret", description: "Roll the signing secret" },
   ],
 };
 
@@ -386,6 +390,55 @@ export const OPENAPI = {
           "Queues a `webhook.test` event for this tenant's registered HTTPS endpoint and runs the delivery pipeline after the response. Delivery also runs from `after()` on other authenticated API requests and from the daily Hobby cron at 04:15 UTC — not from a per-minute schedule. 422 `no_webhook` if no endpoint is registered.",
         parameters: [idempotencyKey],
         responses: { ...ok({ $ref: "#/components/schemas/WebhookTest" }, "202"), ...jsonErrors },
+      }),
+    },
+    "/webhooks/endpoint": {
+      get: op({
+        operationId: "getWebhookEndpoint",
+        tags: ["Webhooks"],
+        summary: "Read the webhook endpoint",
+        description:
+          "The tenant's single endpoint (or `null`), whether a rolled secret is still also signing, and the ten latest deliveries. The signing secret is never returned here. No party permission required.",
+        responses: { ...ok({ $ref: "#/components/schemas/WebhookEndpoint" }), ...authErrors },
+      }),
+      post: op({
+        operationId: "setWebhookEndpoint",
+        tags: ["Webhooks"],
+        summary: "Set or replace the webhook endpoint",
+        description:
+          "Registers one HTTPS URL. Replacing it issues a new signing secret and clears the old one. The secret is returned once: send an `Idempotency-Key` so a retry returns the same secret, and roll it if a response was lost. The URL must be public HTTPS on the default port; private, loopback, link-local and metadata addresses, and names that resolve to them, are refused when saved and on every delivery. Redirects are not followed. Anyone holding the key can redirect this tenant's future events, so treat it as a secret. No party permission required.",
+        parameters: [idempotencyKey],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["url"],
+                properties: { url: { type: "string", format: "uri", maxLength: 2048 } },
+              },
+            },
+          },
+        },
+        responses: { ...ok({ $ref: "#/components/schemas/WebhookSecret" }), ...jsonErrors },
+      }),
+      delete: op({
+        operationId: "deleteWebhookEndpoint",
+        tags: ["Webhooks"],
+        summary: "Remove the webhook endpoint",
+        description: "Removes the endpoint and drops its queued events. 422 `no_webhook` if none is registered.",
+        responses: { "204": { description: "No content" }, ...authErrors, ...errors("422") },
+      }),
+    },
+    "/webhooks/endpoint/secret": {
+      post: op({
+        operationId: "rollWebhookSecret",
+        tags: ["Webhooks"],
+        summary: "Roll the signing secret",
+        description:
+          "Issues a new secret, returned once. The previous secret also signs for 24 hours, so you can switch without dropping events. 422 `no_webhook` if no endpoint is registered.",
+        parameters: [idempotencyKey],
+        responses: { ...ok({ $ref: "#/components/schemas/WebhookSecret" }), ...jsonErrors },
       }),
     },
   },
@@ -870,6 +923,45 @@ export const OPENAPI = {
           value: { type: "string" },
           data: { $ref: "#/components/schemas/Hex" },
           note: { type: "string" },
+        },
+      },
+      WebhookSecret: {
+        type: "object",
+        required: ["secret"],
+        properties: {
+          url: { type: "string" },
+          secret: { type: "string", description: "`whsec_…`, shown once." },
+          previousSecretValidFor: { type: "string", description: "Present after a roll." },
+        },
+      },
+      WebhookEndpoint: {
+        type: "object",
+        required: ["endpoint", "recentDeliveries"],
+        properties: {
+          endpoint: {
+            type: ["object", "null"],
+            required: ["url", "secretRollingUntil"],
+            properties: {
+              url: { type: "string" },
+              secretRollingUntil: { type: ["string", "null"], description: "Unix seconds while the previous secret also signs." },
+            },
+          },
+          recentDeliveries: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["eventId", "type", "status", "attempts", "createdAt", "statusCode", "error"],
+              properties: {
+                eventId: { type: "string" },
+                type: { type: "string" },
+                status: { type: "string", enum: ["pending", "delivered", "failed", "suppressed"] },
+                attempts: { type: "integer" },
+                createdAt: { type: "string", description: "Unix seconds." },
+                statusCode: { type: ["integer", "null"] },
+                error: { type: ["string", "null"] },
+              },
+            },
+          },
         },
       },
       WebhookTest: {

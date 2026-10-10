@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { decodeFunctionData, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { ApiCaller } from "../src/api/auth";
+import type { OwnWebhookStore } from "../src/api/ownWebhook";
 import * as handlers from "../src/api/handlers";
 import type { ApiDeps, ApiRequest } from "../src/api/handlers";
 import { jsonSafe } from "../src/api/http";
@@ -24,6 +25,31 @@ const eoaChain = { getCode: async () => undefined, readContract: async () => "0x
 
 function req(partial: Partial<ApiRequest> = {}): ApiRequest {
   return { params: {}, query: new URLSearchParams(), body: null, ...partial };
+}
+
+function memoryWebhookStore(): OwnWebhookStore {
+  const rows = new Map<string, { url: string; secret: string; rolling: boolean }>();
+  return {
+    get: async (id) => {
+      const row = rows.get(id);
+      return row ? { url: row.url, rollingUntil: row.rolling ? "2026-10-12T00:00:00.000Z" : null } : null;
+    },
+    save: async (id, url, secret) => {
+      rows.set(id, { url, secret, rolling: false });
+      return "saved";
+    },
+    roll: async (id, secret) => {
+      const row = rows.get(id);
+      if (!row) return "no_endpoint";
+      rows.set(id, { ...row, secret, rolling: true });
+      return "rolled";
+    },
+    remove: async (id) => (rows.delete(id) ? "removed" : "no_endpoint"),
+    tenant: async () => ({ tenantId: TENANT, status: "active" }),
+    recent: async () => [
+      { eventId: "evt_1", type: "certificate.applied", status: "delivered", attempts: 1, createdAt: "2026-10-11T00:00:00.000Z", statusCode: 200, error: null },
+    ],
+  };
 }
 
 function deps(overrides: Partial<ApiDeps> = {}) {
@@ -54,6 +80,8 @@ function deps(overrides: Partial<ApiDeps> = {}) {
     certificates,
     tagProposal: vi.fn(async () => {}),
     enqueueWebhookTest: vi.fn(async () => ({ eventId: "evt_test_1" })),
+    webhookEndpoint: memoryWebhookStore(),
+    resolveWebhookHost: async () => [{ address: "93.184.216.34" }],
     ...overrides,
   } as unknown as ApiDeps;
   return { d, store, obligations, certificates };
@@ -368,5 +396,51 @@ describe("obligation list pagination", () => {
       },
     ]);
     expect(typeof body.nextCursor).toBe("string");
+  });
+});
+
+describe("webhook endpoint over the API", () => {
+  const URL_OK = "https://example.com/contraflow/webhooks";
+
+  it("starts with no endpoint and never returns a secret from GET", async () => {
+    const { d } = deps();
+    const res = await handlers.getWebhookEndpoint(caller, req(), d);
+    expect(res.body).toMatchObject({ endpoint: null, recentDeliveries: [{ eventId: "evt_1", createdAt: "1791676800" }] });
+    expect(JSON.stringify(res.body)).not.toMatch(/whsec_/);
+  });
+
+  it("sets an endpoint and returns the signing secret once", async () => {
+    const { d } = deps();
+    const set = await handlers.setWebhookEndpoint(caller, req({ body: { url: URL_OK } }), d);
+    expect(set.status).toBe(200);
+    expect((set.body as { secret: string }).secret).toMatch(/^whsec_[A-Za-z0-9_-]{43}$/);
+    const read = await handlers.getWebhookEndpoint(caller, req(), d);
+    expect(read.body).toMatchObject({ endpoint: { url: URL_OK, secretRollingUntil: null } });
+    expect(JSON.stringify(read.body)).not.toMatch(/whsec_/);
+  });
+
+  it("refuses an unsafe or malformed URL and stores nothing", async () => {
+    const { d } = deps();
+    for (const url of ["http://example.com/x", "https://127.0.0.1/x", "https://169.254.169.254/latest", "https://user:pw@example.com/x", "nope"]) {
+      await expect(handlers.setWebhookEndpoint(caller, req({ body: { url } }), d)).rejects.toMatchObject({ status: 422, code: "invalid_request" });
+    }
+    await expect(handlers.setWebhookEndpoint(caller, req({ body: {} }), d)).rejects.toMatchObject({ status: 422, code: "invalid_request" });
+    expect((await handlers.getWebhookEndpoint(caller, req(), d)).body).toMatchObject({ endpoint: null });
+  });
+
+  it("rolls the secret, and says so when there is no endpoint", async () => {
+    const { d } = deps();
+    await expect(handlers.rollWebhookSecret(caller, req(), d)).rejects.toMatchObject({ status: 422, code: "no_webhook" });
+    await handlers.setWebhookEndpoint(caller, req({ body: { url: URL_OK } }), d);
+    const rolled = await handlers.rollWebhookSecret(caller, req(), d);
+    expect((rolled.body as { secret: string }).secret).toMatch(/^whsec_/);
+    expect((await handlers.getWebhookEndpoint(caller, req(), d)).body).toMatchObject({ endpoint: { secretRollingUntil: "1791763200" } });
+  });
+
+  it("removes the endpoint, then reports none to remove", async () => {
+    const { d } = deps();
+    await handlers.setWebhookEndpoint(caller, req({ body: { url: URL_OK } }), d);
+    expect(await handlers.deleteWebhookEndpoint(caller, req(), d)).toEqual({ status: 204, body: null });
+    await expect(handlers.deleteWebhookEndpoint(caller, req(), d)).rejects.toMatchObject({ status: 422, code: "no_webhook" });
   });
 });

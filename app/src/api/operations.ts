@@ -23,6 +23,10 @@ const OPERATIONS = new Map<unknown, string>([
   [h.reportTransaction, "reportTransaction"],
   [h.exportCertificate, "exportCertificate"],
   [h.testWebhook, "testWebhook"],
+  [h.getWebhookEndpoint, "getWebhookEndpoint"],
+  [h.setWebhookEndpoint, "setWebhookEndpoint"],
+  [h.rollWebhookSecret, "rollWebhookSecret"],
+  [h.deleteWebhookEndpoint, "deleteWebhookEndpoint"],
 ]);
 
 export function operationOf(handler: Handler): string {

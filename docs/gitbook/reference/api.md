@@ -497,7 +497,7 @@ Scope: `read`. **200:** `{ "fileName": "contraflow-certificate-1f00cc58.json", "
 
 ## Webhooks
 
-A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. Set, replace, roll and remove it on `/app/api-keys`, which also sends a test event and lists the latest deliveries (live-key tenants are set up by Contraflow). The URL must be public HTTPS on the default port: embedded credentials, private, loopback, link-local and cloud-metadata addresses, and names that resolve to them are refused when you save and again on every delivery. Redirects are not followed and count as a failed attempt; a request times out after 10 seconds. Events:
+A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. Set, replace, roll and remove it on `/app/api-keys`, which also sends a test event and lists the latest deliveries (or over the API, below; live-key tenants can use the API too). The URL must be public HTTPS on the default port: embedded credentials, private, loopback, link-local and cloud-metadata addresses, and names that resolve to them are refused when you save and again on every delivery. Redirects are not followed and count as a failed attempt; a request times out after 10 seconds. Events:
 
 | Type                    | When                                            |
 | ----------------------- | ----------------------------------------------- |
@@ -562,6 +562,19 @@ function verify(header: string, rawBody: string, secret: string, now = Date.now(
 * **Respond quickly.** Return any 2xx; anything else, a redirect or a timeout (10 seconds) is a failure.
 * **Retries.** Failed deliveries retry after 1, 2, 4… minutes, capped at 6 hours between tries, for up to 3 days.
 * **Order.** Events aren't guaranteed to arrive in order. Use the certificate's `status`, or read it back through the API.
+
+### Webhook endpoint (API)
+
+A platform can manage its tenant's single endpoint without the app. These calls need no party permission. Setting and rolling return the secret once, so send an `Idempotency-Key`: a retry then returns the same secret, and if a response was lost you can roll.
+
+| Method and path | What it does |
+| --- | --- |
+| `GET /webhooks/endpoint` | `{ "endpoint": { "url", "secretRollingUntil" } or null, "recentDeliveries": [ … ] }`. Never returns a secret |
+| `POST /webhooks/endpoint` | Body `{ "url": "https://…" }`. Sets or replaces the endpoint and returns `{ "url", "secret" }`; the old secret stops signing |
+| `POST /webhooks/endpoint/secret` | Returns `{ "secret", "previousSecretValidFor": "24 hours" }`. The old secret also signs for 24 hours |
+| `DELETE /webhooks/endpoint` | Removes the endpoint and drops queued events. **204** |
+
+A URL that isn't public HTTPS on the default port, or that names or resolves to a private, loopback, link-local or metadata address, answers **422** `invalid_request` and nothing is stored. Rolling or removing with no endpoint answers **422** `no_webhook`. Treat the API key as a secret: whoever holds it can point this tenant's future events elsewhere. The same endpoint can also be managed at `/app/api-keys` for tenants you created there.
 
 ### POST `/webhooks/test`
 

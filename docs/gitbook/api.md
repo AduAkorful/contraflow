@@ -32,7 +32,7 @@ Send an `Idempotency-Key` header with every `POST`. A retry with the same key re
 
 ## Webhooks
 
-Register one HTTPS endpoint on the **API keys** page of the app, where the signing secret is shown once. You can replace the endpoint, roll the secret (the old one also signs for 24 hours), remove it, send a test event and see the latest deliveries there. The URL must be a public HTTPS address on the default port: private, loopback and link-local addresses are refused, and redirects are not followed. Live keys, which are issued by request, get their endpoint from Contraflow.
+Register one HTTPS endpoint with `POST /webhooks/endpoint`, or on the **API keys** page of the app, where the signing secret is shown once. You can replace the endpoint, roll the secret (the old one also signs for 24 hours), remove it, send a test event and see the latest deliveries there. The URL must be a public HTTPS address on the default port: private, loopback and link-local addresses are refused, and redirects are not followed. The API can also read the endpoint and recent deliveries (`GET /webhooks/endpoint`), roll the secret (`POST /webhooks/endpoint/secret`) and remove it (`DELETE /webhooks/endpoint`). See the [API reference](reference/api.md).
 
 Contraflow sends signed events to your registered URL:
 
