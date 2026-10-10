@@ -83,7 +83,7 @@ export const API_INDEX = {
   name: "Contraflow API",
   version: "1.0.0",
   documentation: "/api/v1/openapi.json",
-  scope: "Offchain obligations only. There is no invoice or settlement API.",
+  scope: "Offchain obligations only. There is no invoice or settlement API. Applying a certificate does not post anything to a party's accounting system: the platform records the reduction in the party's own books, keyed on `certificate.applied`, and it does not by itself discharge a debt under any legal or accounting standard.",
   endpoints: [
     { method: "GET", path: "/", description: "This index" },
     { method: "GET", path: "/openapi.json", description: "OpenAPI 3.1 document" },
@@ -126,7 +126,7 @@ export const OPENAPI = {
     { name: "Permissions", description: "Signed, scoped, expiring permissions a party grants your tenant." },
     { name: "Obligations", description: "Offchain obligations between two parties, proposed and co-signed by them." },
     { name: "Certificates", description: "Netting loops, each party's certificate signature, and the calldata to apply one on Arc." },
-    { name: "Webhooks", description: "Signed event delivery to your endpoint." },
+    { name: "Webhooks", description: "Signed event delivery to your endpoint. `certificate.applied` is the event to key a party's bookkeeping on." },
   ],
   security: [{ apiKey: [] }],
   paths: {
@@ -284,7 +284,7 @@ export const OPENAPI = {
         operationId: "listPartyObligations",
         tags: ["Obligations"],
         summary: "List a party's proposals, obligations and certificates",
-        description: "Needs `read`. Stable order: proposals, then obligations, then certificates, each by id. Pass `cursor` from `nextCursor` for the next page. Default limit 50, max 100.",
+        description: "Needs `read`. Stable order: proposals, then obligations, then certificates, each by id. Pass `cursor` from `nextCursor` for the next page. Default limit 50, max 100. An obligation's `remainingMinor` is what is still owed after any applied certificate.",
         parameters: [
           addressPath,
           { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
@@ -308,7 +308,7 @@ export const OPENAPI = {
         operationId: "getCertificate",
         tags: ["Certificates"],
         summary: "Read a certificate",
-        description: "Needs `read`. The summary uses `wNetMinor` and `wNetDisplay`. `view` is the party's `contraflow-netting-certificate/1` file, which keeps the name `wNet`.",
+        description: "Needs `read`. The summary uses `wNetMinor` and `wNetDisplay`. `view` is the party's `contraflow-netting-certificate/1` file, which keeps the name `wNet`. Once `status` is `applied`, `wNetMinor` is the amount netted, for the platform to record in the party's own books.",
         parameters: [tokenPath, partyQuery],
         responses: { ...ok({ $ref: "#/components/schemas/CertificateRead" }), ...jsonErrors },
       }),

@@ -45,7 +45,7 @@ export default async function ApiKeysPage() {
   }
 
   return (
-    <section className="mx-auto max-w-2xl px-6 py-16">
+    <section className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="heading-1">API keys</h1>
       <p className="mt-4 text-sm text-muted">
         A test key lets your product call the API for parties who grant it permission. Contraflow never signs for

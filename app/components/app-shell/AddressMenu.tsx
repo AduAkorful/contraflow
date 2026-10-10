@@ -17,6 +17,8 @@ export function AddressMenu({ address }: { address: string }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const full = checksumAddress(address);
   const explorer = explorerAddressUrl(ARC_TESTNET_CHAIN_ID, full);
@@ -25,10 +27,16 @@ export function AddressMenu({ address }: { address: string }) {
   useEffect(() => {
     if (!open) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        setConfirmSwitch(false);
+      }
     }
     function onPointer(event: MouseEvent) {
-      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
+      if (root.current && !root.current.contains(event.target as Node)) {
+        setOpen(false);
+        setConfirmSwitch(false);
+      }
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onPointer);
@@ -50,6 +58,7 @@ export function AddressMenu({ address }: { address: string }) {
 
   async function handleSignOut(then: "app" | "switch") {
     setSignOutError(null);
+    setSwitching(true);
     const result = await signOutEverywhere({
       signOut,
       logout,
@@ -57,7 +66,10 @@ export function AddressMenu({ address }: { address: string }) {
       queryClient,
       then,
     });
-    if (!result.ok) setSignOutError(result.error);
+    if (!result.ok) {
+      setSignOutError(result.error);
+      setSwitching(false);
+    }
   }
 
   const item = "block w-full rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-surface-2 hover:text-foreground";
@@ -97,9 +109,36 @@ export function AddressMenu({ address }: { address: string }) {
               View on explorer
             </a>
           )}
-          <button role="menuitem" type="button" onClick={() => void handleSignOut("switch")} className={item}>
-            Switch account
-          </button>
+          {confirmSwitch ? (
+            <div className="mx-1 my-1 rounded-md border border-border-subtle p-3" role="group" aria-label="Switch account">
+              <p className="text-xs text-foreground">Switch account?</p>
+              <p className="mt-1 text-xs text-muted">
+                You&apos;ll be signed out of {formatAddress(full)}, then asked to sign in with another email or wallet.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  disabled={switching}
+                  onClick={() => void handleSignOut("switch")}
+                  className="flex-1 rounded-pill bg-gold px-3 py-1.5 text-xs font-medium text-black disabled:state-disabled"
+                >
+                  {switching ? "Switching…" : "Continue"}
+                </button>
+                <button
+                  type="button"
+                  disabled={switching}
+                  onClick={() => setConfirmSwitch(false)}
+                  className="flex-1 rounded-pill border border-border-input px-3 py-1.5 text-xs disabled:state-disabled"
+                >
+                  Stay signed in
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button role="menuitem" type="button" onClick={() => setConfirmSwitch(true)} className={item}>
+              Switch account
+            </button>
+          )}
           <button role="menuitem" type="button" onClick={() => void handleSignOut("app")} className={item}>
             Sign out
           </button>

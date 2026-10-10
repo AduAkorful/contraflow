@@ -14,3 +14,9 @@ export function explorerAddressUrl(chainId: number, address: string): string | n
   const base = BLOCKSCOUT_BASE_BY_CHAIN_ID[chainId];
   return base ? `${base}/address/${address}` : null;
 }
+
+/// Transaction page on the chain's explorer, or null when no explorer is configured for it.
+export function explorerTxUrl(chainId: number, hash: string): string | null {
+  const base = BLOCKSCOUT_BASE_BY_CHAIN_ID[chainId];
+  return base ? `${base}/tx/${hash}` : null;
+}

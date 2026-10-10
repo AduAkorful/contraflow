@@ -170,9 +170,9 @@ export default function DemoPage() {
       </section>
 
       <section className="mx-auto max-w-2xl px-6 pb-20">
-        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-10">
+        <div className="rounded-card border border-white/10 bg-white/[0.02] p-6 sm:p-8">
           {phase === "idle" && (
-            <div className="mb-8 flex flex-col items-center gap-3">
+            <div className="mb-6 flex flex-col items-center gap-3">
               <p className="text-xs uppercase tracking-wide text-muted">Cycle size</p>
               <div className="flex gap-2">
                 {PARTY_COUNT_OPTIONS.map((count) => (
@@ -194,7 +194,7 @@ export default function DemoPage() {
           )}
 
           {phase === "idle" && (
-            <div className="mb-8 flex flex-col items-center">
+            <div className="mb-6 flex flex-col items-center">
               <button
                 onClick={runFixture}
                 className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.02]"
@@ -206,7 +206,7 @@ export default function DemoPage() {
 
           <CycleDiagram edges={edges} center={center} />
 
-          <div className="mt-8 flex flex-col items-center gap-4">
+          <div className="mt-6 flex flex-col items-center gap-4">
             {phase === "running" && <p className="text-sm text-muted">Registering invoices on Arc...</p>}
             {phase === "readyToSettle" && (
               <>

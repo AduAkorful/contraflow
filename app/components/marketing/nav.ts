@@ -1,5 +1,4 @@
 import { docsNavLink } from "../../src/site/docsUrl";
-import { GITHUB_REPO } from "../../src/site/github";
 
 export type MarketingLink = { label: string; href: string; external?: boolean };
 
@@ -37,7 +36,6 @@ export function marketingFooterColumns(docs = docsNavLink()): { title: string; l
       links: [
         { label: "Docs", href: docs.href, external: docs.external },
         { label: "Integrations & API", href: "/integrations" },
-        { label: "Source on GitHub", href: GITHUB_REPO, external: true },
       ],
     },
     {

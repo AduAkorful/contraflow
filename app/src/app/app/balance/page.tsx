@@ -1,39 +1,49 @@
-import { notFound } from "next/navigation";
+import { isAddress } from "viem";
 import { SignInGate } from "@/components/wallet/SignInGate";
 import { getSession } from "@/src/session/getSession";
-import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
+import { chainById } from "@/src/chain/client";
 import { unifiedBalanceEnabled } from "@/src/kits/gatewayChains";
 import { BalanceClient } from "./BalanceClient";
 import { pageMeta } from "@/src/site/pageMeta";
 
 export const metadata = pageMeta(
   "/app/balance",
-  "Bring USDC from another chain",
-  "Move USDC from another chain to your own Arc address. Contraflow never holds the funds.",
+  "Balance",
+  "Send USDC from your wallet on Arc, or bring USDC from another chain. Contraflow never holds the funds.",
 );
 
-
-/// The server only decides who's signed in. Balances, deposits and moves all run in the browser,
-/// between the user's own wallet and Circle.
-export default async function BalancePage() {
-  if (!unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)) notFound();
+/// The server only decides who's signed in and which tabs exist. Balances, deposits, moves and sends
+/// all run in the browser, between the user's own wallet, Circle and Arc.
+export default async function BalancePage({ searchParams }: { searchParams: Promise<{ tab?: string | string[]; to?: string | string[] }> }) {
   const session = await getSession();
+  const params = await searchParams;
+  const gatewayEnabled = unifiedBalanceEnabled(APP_CHAIN_ID);
+  const requestedTab = typeof params.tab === "string" ? params.tab : "";
+  const initialTab = requestedTab === "send" || !gatewayEnabled ? "send" : requestedTab === "move" ? "move" : "deposit";
+  const to = typeof params.to === "string" && isAddress(params.to.trim(), { strict: false }) ? params.to.trim() : "";
 
   return (
-    <>
-      <section className="mx-auto max-w-2xl px-6 py-16">
-        <h1 className="heading-1">Bring USDC from another chain</h1>
-        <p className="mt-4 text-sm text-muted">
-          Deposit USDC from your wallet on another chain into Circle Gateway, then move it to your own wallet on
-          Arc. Your wallet signs every step, and the funds only ever go to your own address.
-        </p>
+    <section className="mx-auto max-w-[30rem] px-4 py-12 sm:px-0">
+      <h1 className="heading-1">Balance</h1>
+      <p className="mt-4 text-sm text-muted">
+        {gatewayEnabled
+          ? "Send USDC from your wallet on Arc, or bring USDC from another chain. Your wallet signs every step, and Contraflow never holds the funds."
+          : "Send USDC from your wallet on Arc. Your wallet signs it and pays the network fee, and Contraflow never holds the funds."}
+      </p>
 
-        {session ? (
-          <BalanceClient owner={session.address as `0x${string}`} arcChainId={ARC_TESTNET_CHAIN_ID} />
-        ) : (
-          <SignInGate title="Sign in to continue" reason="Sign in with your email or wallet to see your balance." />
-        )}
-      </section>
-    </>
+      {session ? (
+        <BalanceClient
+          owner={session.address as `0x${string}`}
+          arcChainId={APP_CHAIN_ID}
+          chainName={chainById(APP_CHAIN_ID).name}
+          gatewayEnabled={gatewayEnabled}
+          initialTab={initialTab}
+          initialTo={to}
+        />
+      ) : (
+        <SignInGate title="Sign in to continue" reason="Sign in with your email or wallet to see your balance." />
+      )}
+    </section>
   );
 }

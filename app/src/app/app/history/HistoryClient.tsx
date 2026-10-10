@@ -47,6 +47,10 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
     }
     setInvoices(result.invoices);
 
+    // Onchain signals help you judge another party. Your own address needs none, so skip the
+    // explorer round trip; searching your own address still shows its invoices.
+    if (sessionAddress && lookedUp.toLowerCase() === sessionAddress.toLowerCase()) return;
+
     setSignals("loading");
     const signalsResult = await lookupAddressSignals(lookedUp);
     // A newer search may have started while signals loaded; never show one address's signals

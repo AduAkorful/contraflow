@@ -61,7 +61,7 @@ export function Providers({
           logo: <img src="/logo-mark.png" alt="Contraflow" />,
           landingHeader: "Sign in to Contraflow",
           loginMessage: "Choose a wallet. Nothing is sent onchain.",
-          walletList: ["metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
+          walletList: ["detected_ethereum_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
         },
         defaultChain: arcTestnet,
         supportedChains: privyChains,

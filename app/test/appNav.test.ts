@@ -25,6 +25,6 @@ describe("app navigation", () => {
     expect(active("/app/obligationsx")).toEqual([]);
   });
   it("leaves Balance out when the feature is off", () => {
-    expect(appNavItems({ balance: false }).map((i) => i.label)).not.toContain("Balance");
+    expect(appNavItems({ balance: false }).map((i) => i.label)).toContain("Balance");
   });
 });

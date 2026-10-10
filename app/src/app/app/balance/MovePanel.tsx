@@ -14,6 +14,7 @@ import {
   type GatewayBalanceView,
 } from "@/src/kits/gatewayBalance";
 import { explorerTxLink, gatewayArcChain, type GatewayChain } from "@/src/kits/gatewayChains";
+import { ActionButton, AmountBox, ArrowDivider, ChainPill, ChainSelect, ReceiveBox } from "@/components/balance/SwapBox";
 import { walletErrorMessage, type WalletState } from "./wallet";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import {
@@ -251,11 +252,10 @@ export function MovePanel({
   }
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-      <h2 className="text-sm font-medium">2. Move to your wallet on {arc.name}</h2>
-      <p className="mt-1 text-xs text-muted">
-        From your confirmed Gateway balance. You don&apos;t need gas on {arc.name}: Circle delivers the USDC to your own
-        address.
+    <div>
+      <p className="mb-4 text-xs text-muted">
+        Move from your confirmed Gateway balance. You don&apos;t need gas on {arc.name}: Circle delivers the USDC to your
+        own address.
       </p>
 
       {pendingMove && (
@@ -294,37 +294,33 @@ export function MovePanel({
         <p className="mt-4 text-sm text-muted">Nothing confirmed to move yet. Deposits appear here once Circle confirms them.</p>
       ) : (
         <>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
-            <label className="text-xs text-muted">
-              From
-              <select
-                value={selected?.chain}
-                onChange={(e) => edit(() => setChainName(e.target.value))}
+          <AmountBox
+            label="From your Gateway balance"
+            value={amount}
+            onChange={(value) => edit(() => setAmount(value))}
+            disabled={busy !== null || pendingMove !== null}
+            selector={
+              <ChainSelect
+                value={selected?.chain ?? ""}
+                onChange={(value) => edit(() => setChainName(value))}
                 disabled={busy !== null || pendingMove !== null || depositPending || !recoveryStorageReady}
-                className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm text-foreground"
-              >
-                {sources.map((row) => (
-                  <option key={row.chain} value={row.chain}>
-                    {row.known.name}: {row.confirmed} USDC
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-muted">
-              Amount (USDC)
-              <input
-                value={amount}
-                onChange={(e) => edit(() => setAmount(e.target.value))}
-                inputMode="decimal"
-                placeholder="0.00"
-                disabled={busy !== null || pendingMove !== null}
-                className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm tabular-nums text-foreground"
+                options={sources.map((row) => ({ value: row.chain, label: row.known.name }))}
+                label="Source chain"
               />
-            </label>
-          </div>
+            }
+            balance={selected ? <>Confirmed: {selected.confirmed} USDC</> : null}
+            onMax={selected ? () => edit(() => setAmount(selected.confirmed)) : undefined}
+          />
+          <ArrowDivider />
+          <ReceiveBox
+            label={`To your wallet on ${arc.name}`}
+            amount={amount.trim()}
+            target={<ChainPill name={arc.name} mark>{arc.name}</ChainPill>}
+            note="Delivered to your own address. Fees are taken from your Gateway balance."
+          />
 
           {review && (
-            <div className="mt-4 rounded-lg border border-white/10 px-4 py-3 text-sm">
+            <div className="mt-4 rounded-2xl border border-border-subtle px-4 py-3 text-sm">
               <p>
                 Move <span className="tabular-nums">{review.amount} USDC</span> from {review.source.name} to your wallet on{" "}
                 {arc.name}
@@ -341,27 +337,18 @@ export function MovePanel({
             </div>
           )}
 
-          <div className="mt-4">
-            {review ? (
-              <button
-                type="button"
-                onClick={handleMove}
-                disabled={busy !== null || pendingMove !== null}
-                className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:state-disabled disabled:scale-100"
-              >
-                Move {review.amount} USDC to {arc.name}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleReview}
-                disabled={busy !== null || pendingMove !== null || depositPending || !recoveryStorageReady || amount.trim() === ""}
-                className="rounded-pill border border-border-input px-5 py-2 text-sm hover:border-white/30 disabled:state-disabled"
-              >
-                Review move
-              </button>
-            )}
-          </div>
+          {review ? (
+            <ActionButton onClick={handleMove} disabled={busy !== null || pendingMove !== null}>
+              Move {review.amount} USDC to {arc.name}
+            </ActionButton>
+          ) : (
+            <ActionButton
+              onClick={handleReview}
+              disabled={busy !== null || pendingMove !== null || depositPending || !recoveryStorageReady || amount.trim() === ""}
+            >
+              {amount.trim() === "" ? "Enter an amount" : "Review move"}
+            </ActionButton>
+          )}
         </>
       )}
 

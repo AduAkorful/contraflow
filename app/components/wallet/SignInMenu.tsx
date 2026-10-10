@@ -38,6 +38,7 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
   const [busy, setBusy] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const titleId = useId();
   const opened = useRef(false);
 
@@ -68,7 +69,17 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
     };
   }, [menuOpen, closeMenu]);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    // Arrived from "Switch account": say so, and drop the marker so a refresh doesn't reopen it.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("switch") === "1") {
+      setSwitching(true);
+      params.delete("switch");
+      const query = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    }
+  }, []);
 
   if (sessionAddress) return null;
 
@@ -129,7 +140,7 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
         <div className="flex flex-col items-center text-center">
           <Image src="/logo-mark.png" alt="" width={44} height={44} className="size-11" />
           <h2 id={titleId} className="mt-4 text-xl font-medium">
-            {view === "code" ? "Check your email" : "Sign in to Contraflow"}
+            {view === "code" ? "Check your email" : switching ? "Sign in with another account" : "Sign in to Contraflow"}
           </h2>
           <p className="mt-1.5 text-sm text-muted">
             {view === "code"

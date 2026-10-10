@@ -43,6 +43,20 @@ answer `404 Not found`, so the API never confirms what a platform can't see.
 Send an `Idempotency-Key` header with every `POST`. A retry with the same key returns the first response, and
 reusing a key for a different request answers `409`.
 
+## Your books
+
+Contraflow records the netting and does not touch your customers' accounting. When a certificate is applied, each
+obligation in the loop is reduced by the netted amount in Contraflow's records and the ledger commits to the new
+state. No USDC moves except gas.
+
+Updating the books is the platform's step. Key it on `certificate.applied`, then read the party's obligations
+(`GET /parties/{address}/obligations`, where `remainingMinor` is what is still owed) or the certificate
+(`wNetMinor` is the amount netted) and post the reduction in the party's ERP or ledger. Contraflow does not post
+entries for you.
+
+A certificate is a signed record that works alongside the parties' agreements. It does not by itself discharge a
+debt under any legal or accounting standard; that depends on the parties' agreements and their law.
+
 ## Webhooks
 
 Contraflow sends signed events to your registered URL:

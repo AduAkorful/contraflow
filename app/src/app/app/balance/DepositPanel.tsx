@@ -7,6 +7,7 @@ import { deposit, estimateDeposit, isUnsupportedSmartAccount, readGatewayBalance
 import { checkUsdcAmount, feeLabel, fromBaseUnits, parseGatewayBalances, toBaseUnits, type FeeLine } from "@/src/kits/gatewayBalance";
 import { explorerTxLink, gatewaySourceChains, networkTypeForChainId, type GatewayChain } from "@/src/kits/gatewayChains";
 import { roundDecimalString } from "@/src/kits/quoteFormat";
+import { ActionButton, AmountBox, ArrowDivider, ChainPill, ChainSelect, ReceiveBox } from "@/components/balance/SwapBox";
 import { walletErrorMessage, type WalletState } from "./wallet";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import { clearPendingGatewayDeposit, GATEWAY_RECOVERY_EVENT, gatewayTxHashFromError, readPendingGatewayDeposit, readPendingGatewayMove, savePendingGatewayDeposit, type PendingGatewayDeposit } from "@/src/kits/gatewayRecovery";
@@ -189,9 +190,8 @@ export function DepositPanel({
   }
 
   return (
-    <div className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-      <h2 className="text-sm font-medium">1. Deposit into Circle Gateway</h2>
-      <p className="mt-1 text-xs text-muted">From your wallet on another chain. Your wallet pays that chain&apos;s network fee.</p>
+    <div>
+      <p className="mb-4 text-xs text-muted">Deposit from your wallet on another chain. Your wallet pays that chain&apos;s network fee.</p>
 
       {(pendingDeposit || recoveryNote) && (
         <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-4 py-3 text-sm">
@@ -218,41 +218,33 @@ export function DepositPanel({
         </p>
       )}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem]">
-        <label className="text-xs text-muted">
-          From
-          <select
+      <AmountBox
+        label="From"
+        value={amount}
+        onChange={(value) => edit(() => setAmount(value))}
+        disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady}
+        selector={
+          <ChainSelect
             value={chainName}
-            onChange={(e) => edit(() => setChainName(e.target.value))}
+            onChange={(value) => edit(() => setChainName(value))}
             disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady}
-            className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm text-foreground"
-          >
-            {chains.map((c) => (
-              <option key={c.chain} value={c.chain}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-muted">
-          Amount (USDC)
-          <input
-            value={amount}
-            onChange={(e) => edit(() => setAmount(e.target.value))}
-            inputMode="decimal"
-            placeholder="0.00"
-            disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady}
-            className="mt-1 block w-full rounded-lg border border-border-input bg-surface-1 px-3 py-2 text-sm tabular-nums text-foreground"
+            options={chains.map((c) => ({ value: c.chain, label: c.name }))}
+            label="Source chain"
           />
-        </label>
-      </div>
-      <p className="mt-2 text-xs text-muted">
-        In your wallet on {chain?.name}:{" "}
-        {held === null ? "…" : <span className="tabular-nums text-foreground/90">{roundDecimalString(fromBaseUnits(held), 2)} USDC</span>}
-      </p>
+        }
+        balance={<>Balance: {held === null ? "…" : `${roundDecimalString(fromBaseUnits(held), 2)} USDC`}</>}
+        onMax={held !== null && held > 0n ? () => edit(() => setAmount(fromBaseUnits(held))) : undefined}
+      />
+      <ArrowDivider />
+      <ReceiveBox
+        label="To your Gateway balance"
+        amount={amount.trim()}
+        target={<ChainPill name="Circle Gateway" mark>Circle Gateway</ChainPill>}
+        note="Held by Circle until you move it to Arc."
+      />
 
       {review && (
-        <div className="mt-4 rounded-lg border border-white/10 px-4 py-3 text-sm">
+        <div className="mt-4 rounded-2xl border border-border-subtle px-4 py-3 text-sm">
           <p>
             Deposit <span className="tabular-nums">{review.amount} USDC</span> from {review.chain.name}
           </p>
@@ -277,27 +269,18 @@ export function DepositPanel({
         </p>
       )}
 
-      <div className="mt-4">
-        {review ? (
-          <button
-            type="button"
-            onClick={handleDeposit}
-            disabled={busy !== null || pendingDeposit !== null}
-            className="rounded-pill bg-gold px-5 py-2 text-sm font-medium text-black disabled:state-disabled disabled:scale-100"
-          >
-            Deposit {review.amount} USDC
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleReview}
-            disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady || amount.trim() === ""}
-            className="rounded-pill border border-border-input px-5 py-2 text-sm hover:border-white/30 disabled:state-disabled"
-          >
-            Review deposit
-          </button>
-        )}
-      </div>
+      {review ? (
+        <ActionButton onClick={handleDeposit} disabled={busy !== null || pendingDeposit !== null}>
+          Deposit {review.amount} USDC
+        </ActionButton>
+      ) : (
+        <ActionButton
+          onClick={handleReview}
+          disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady || amount.trim() === ""}
+        >
+          {amount.trim() === "" ? "Enter an amount" : "Review deposit"}
+        </ActionButton>
+      )}
     </div>
   );
 }

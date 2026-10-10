@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { Address } from "@/components/ui/Address";
 import { displayDate, displayMajorAmount, displayMinorAmount } from "@/components/netting/format";
 import { earlyNettingReview } from "@/src/format/signing";
-import {
-  obligationPositionByCurrency,
-  obligationPositionLine,
-  obligationStatusLabel,
-} from "@/src/obligations/position";
+import { obligationStatusLabel } from "@/src/obligations/position";
 import type { ObligationSummary, ProposalSummary } from "@/src/obligations/service";
 import { closeObligation, withdrawProposal } from "./actions";
 
@@ -40,7 +36,7 @@ export function ObligationsList({
 
   if (proposals.length === 0 && obligations.length === 0) {
     return (
-      <p className="mt-10 text-center text-sm text-muted">
+      <p className="rounded-card border border-border-subtle bg-surface-1 px-6 py-12 text-center text-sm text-muted">
         Nothing yet.{" "}
         <a href="/app/obligations/new" className="text-gold hover:underline">
           Record your first debt →
@@ -50,16 +46,10 @@ export function ObligationsList({
   }
 
   return (
-    <div className="mt-8 flex flex-col gap-8">
+    <div className="flex flex-col gap-8">
       {error && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>
       )}
-
-      {obligationPositionByCurrency(obligations).map((row) => (
-        <p key={row.currency} className="text-sm">
-          {obligationPositionLine(row)}
-        </p>
-      ))}
 
       {proposals.length > 0 && (
         <div>

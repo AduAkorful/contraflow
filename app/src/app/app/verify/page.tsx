@@ -11,7 +11,7 @@ export const metadata = pageMeta(
 export default function VerifyPage() {
   return (
     <>
-      <section className="mx-auto max-w-2xl px-6 py-16">
+      <section className="mx-auto max-w-3xl px-6 py-12">
         <h1 className="heading-1">Verify a certificate</h1>
         <p className="mt-4 text-sm text-muted">
           Check an exported netting certificate against the ledger on Arc. Every check runs in this browser; the file

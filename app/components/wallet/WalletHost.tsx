@@ -24,7 +24,12 @@ export function WalletHost({
   const [pendingSignIn, setPendingSignIn] = useState(false);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("switch") === "1") setRequested(true);
+    // Coming from "Switch account": load the wallet tree and open the sign-in dialog at once, so
+    // the user lands on the choice of account rather than a signed-out page.
+    if (new URLSearchParams(window.location.search).get("switch") === "1") {
+      setPendingSignIn(true);
+      setRequested(true);
+    }
   }, []);
 
   const requestAndSignIn = useCallback(() => {

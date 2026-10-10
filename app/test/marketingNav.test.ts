@@ -21,9 +21,9 @@ describe("marketing nav", () => {
     });
   });
 
-  it("names GitHub as source, not a licence grant", () => {
+  it("doesn't link to the repository from the footer", () => {
     const github = marketingFooterColumns().flatMap((c) => c.links).find((l) => l.href === GITHUB_REPO);
-    expect(github?.label).toBe("Source on GitHub");
+    expect(github).toBeUndefined();
   });
 });
 

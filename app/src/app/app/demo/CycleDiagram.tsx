@@ -23,10 +23,12 @@ const COLOR = {
   foreground: "#ffffff",
 };
 
-const CENTER = { x: 200, y: 200 };
-const RING_RADIUS = 118;
+const WIDTH = 480;
+const CENTER = { x: WIDTH / 2, y: 150 };
+const RING_RADIUS = 112;
 const NODE_RADIUS = 26;
 const LABEL_GAP = 20;
+const SIDE_LABEL_GAP = 16;
 
 /// The diagram has limited horizontal room per node (more so with 4-5 parties), so a long label
 /// ("Northwind DSP") is shortened to its first word ("Northwind") — full names still show in the
@@ -58,16 +60,31 @@ function outwardLabel(point: { x: number; y: number }, extra: number) {
   return { x: point.x + (dx / len) * extra, y: point.y + (dy / len) * extra };
 }
 
+/// Side labels sit beside their line with the text running away from it, so a wide amount never
+/// crosses the arrow; labels above or below the ring stay centred.
+function sideAnchor(point: { x: number; y: number }): "start" | "middle" | "end" {
+  const dx = point.x - CENTER.x;
+  const dy = point.y - CENTER.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ux = dx / len;
+  if (Math.abs(ux) < 0.3) return "middle";
+  return ux > 0 ? "start" : "end";
+}
+
 function computeGeometry(count: number) {
   const nodes = Array.from({ length: count }, (_, i) => nodePosition(i, count));
   const edges = nodes.map((from, i) => {
     const to = nodes[(i + 1) % count]!;
     const line = shortenedLine(from, to, NODE_RADIUS);
     const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-    const label = outwardLabel(mid, LABEL_GAP);
-    return { ...line, labelX: label.x, labelY: label.y };
+    const anchor = sideAnchor(mid);
+    const label = outwardLabel(mid, anchor === "middle" ? LABEL_GAP : SIDE_LABEL_GAP);
+    return { ...line, labelX: label.x, labelY: label.y + 4, anchor };
   });
-  return { nodes, edges };
+  const ys = nodes.map((n) => n.y);
+  const top = Math.min(...ys) - NODE_RADIUS - 36;
+  const bottom = Math.max(...ys) + NODE_RADIUS + 40;
+  return { nodes, edges, viewBox: `0 ${top} ${WIDTH} ${bottom - top}` };
 }
 
 function Node({
@@ -87,7 +104,8 @@ function Node({
   active: boolean;
   reducedMotion: boolean;
 }) {
-  const namePos = outwardLabel({ x, y }, NODE_RADIUS + 16);
+  const nameAnchor = sideAnchor({ x, y });
+  const namePos = outwardLabel({ x, y }, nameAnchor === "middle" ? NODE_RADIUS + 16 : NODE_RADIUS + 10);
   return (
     <g>
       {pulsing && (
@@ -112,7 +130,7 @@ function Node({
       <text x={x} y={y + 4} textAnchor="middle" fontSize="13" fill={COLOR.foreground} fontWeight={500}>
         {index + 1}
       </text>
-      <text x={namePos.x} y={namePos.y} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
+      <text x={namePos.x} y={namePos.y + (nameAnchor === "middle" ? 0 : 4)} textAnchor={nameAnchor} fontSize="13" fill={COLOR.muted}>
         {shortLabel(label)}
       </text>
     </g>
@@ -175,7 +193,7 @@ function EdgeLabel({
   const text = demoEdgeAmountLabel(status, amountUsdc);
   const color = status === "settled" || status === "settling" ? COLOR.settled : status === "registered" || status === "preview" ? COLOR.foreground : COLOR.muted;
   const content = (
-    <text x={geometry.labelX} y={geometry.labelY} textAnchor="middle" fontSize="13" fill={color} style={{ transition: "fill 0.4s ease" }}>
+    <text x={geometry.labelX} y={geometry.labelY} textAnchor={geometry.anchor} fontSize="13" fill={color} style={{ transition: "fill 0.4s ease" }}>
       {text}
     </text>
   );
@@ -227,10 +245,10 @@ function CenterContent({ center, reducedMotion }: { center: DiagramCenter; reduc
   if (center.kind === "settling") {
     return (
       <g>
-        <circle cx={CENTER.x} cy={CENTER.y} r={26} fill="none" stroke={COLOR.settled} strokeWidth={2} opacity={reducedMotion ? 0.65 : undefined}>
+        <circle cx={CENTER.x} cy={CENTER.y - 12} r={20} fill="none" stroke={COLOR.settled} strokeWidth={2} opacity={reducedMotion ? 0.65 : undefined}>
           {!reducedMotion && <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" repeatCount="indefinite" />}
         </circle>
-        <text x={CENTER.x} y={CENTER.y + 5} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
+        <text x={CENTER.x} y={CENTER.y + 30} textAnchor="middle" fontSize="13" fill={COLOR.muted}>
           Settling...
         </text>
       </g>
@@ -262,7 +280,7 @@ export function CycleDiagram({ edges, center }: { edges: DemoEdge[]; center: Dia
   const nodePulsing = (nodeIndex: number) => edges.some((e, i) => touchesNode(nodeIndex, i) && e.status === "signing");
 
   return (
-    <svg viewBox="0 0 400 400" className="mx-auto w-full max-w-sm">
+    <svg viewBox={geometry.viewBox} className="mx-auto w-full max-w-[480px]">
       <defs>
         {(["preview", "signing", "registered", "settling", "settled"] as const).map((status) => (
           <marker key={status} id={`arrow-${status}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

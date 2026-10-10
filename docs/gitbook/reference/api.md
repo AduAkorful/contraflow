@@ -524,6 +524,10 @@ Contraflow registers one HTTPS endpoint per tenant and gives you a signing secre
 
 `obligation.recorded` carries `{ "obligationId": "0x…", "parties": [ … ] }` in `data`.
 
+### Updating your books
+
+`certificate.applied` is the event to key your accounting on. Contraflow reduces each obligation in the loop by `wNetMinor` in its own records and the ledger commits to the new state; it does not post anything to a party's accounting system. Fetch the certificate (`wNetMinor`, `wNetDisplay`) or the party's obligations (`remainingMinor`) and record the reduction in your own ledger. Applying a certificate does not by itself discharge a debt under any legal or accounting standard.
+
 ### Verifying a webhook
 
 Each request carries `Contraflow-Signature: t=<unix>,v1=<hex>` and `Contraflow-Event-Id`. `v1` is HMAC-SHA256 of `"<t>.<raw body>"` with your secret, the same scheme as Stripe. While a secret is being rotated, the header carries a `v1` for each active secret for 24 hours.

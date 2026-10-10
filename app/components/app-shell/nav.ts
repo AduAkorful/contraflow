@@ -10,16 +10,16 @@ export interface NavItem {
   external?: boolean;
 }
 
-/// Sidebar and mobile menu, in one place. Balance is only offered when the feature is on; the
-/// page decides that on the server and passes the flag in. Docs opens the published site.
-export function appNavItems(options: { balance: boolean; docs?: { href: string; external: boolean } }): NavItem[] {
+/// Sidebar and mobile menu, in one place. Balance holds send, deposit and move, so it's always
+/// offered; the page decides which tabs exist. Docs opens the published site.
+export function appNavItems(options: { balance?: boolean; docs?: { href: string; external: boolean } }): NavItem[] {
   const docs = options.docs ?? docsNavLink();
   return [
     { label: "Overview", href: "/app" },
     { label: "Send invoice", href: "/app/attest", alsoActiveFor: ["/app/i/"] },
     { label: "History", href: "/app/history", alsoActiveFor: ["/app/receipt"] },
     { label: "Obligations", href: "/app/obligations", alsoActiveFor: ["/app/o/", "/app/c/"] },
-    ...(options.balance ? [{ label: "Balance", href: "/app/balance" }] : []),
+    { label: "Balance", href: "/app/balance", alsoActiveFor: ["/app/send"] },
     { label: "Verify", href: "/app/verify" },
     { label: "Demo", href: "/app/demo" },
     { label: "API keys", href: "/app/api-keys" },

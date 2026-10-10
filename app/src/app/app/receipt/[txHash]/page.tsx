@@ -18,7 +18,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ txHash
 
   return (
     <>
-      <section className="mx-auto max-w-2xl px-6 py-16">
+      <section className="mx-auto max-w-4xl px-6 py-12">
         {data ? (
           <>
             <Receipt data={data} />

@@ -100,3 +100,15 @@ signed in with. Wallets that are smart contracts aren't supported yet.
 
 The demo runs a whole invoice loop, from signing to settlement, with freshly generated test
 parties, so you can see it work without lining up real counterparties first.
+
+## Send USDC
+
+**Send**, a tab on the Balance page, moves USDC from your wallet on Arc to any address. Enter the amount and the recipient, check the
+whole address on the review step, and confirm in your wallet. Your wallet signs the transfer and pays the network
+fee, which is a small amount of USDC. Contraflow doesn't see the transfer or hold the funds.
+
+* **Max** sends the most you can while leaving enough for the fee.
+* Transfers can't be undone, so check the address. You can't send to the zero address, to your own address, or to
+  Contraflow's or USDC's own contract addresses.
+* If a send is interrupted, the page asks you to check it before you send again, so it can't be sent twice by mistake.
+* If you signed in with email, this is how you move your USDC to a wallet you control elsewhere.

@@ -109,13 +109,26 @@ export async function Overview({ address }: { address: string }) {
   const hasPosition = usdc !== null || obligationRows.length > 0;
 
   return (
-    <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="heading-1">Overview</h1>
-      <p className="mt-2 text-sm text-muted">
-        Signed in as <Address address={address} className="text-foreground/90" />
-      </p>
+    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="heading-1">Overview</h1>
+          <p className="mt-2 text-sm text-muted">
+            Signed in as <Address address={address} className="text-foreground/90" />
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3" data-section={OVERVIEW_SECTION_ORDER[4]}>
+          <Link href="/app/attest" className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-black">
+            Send an invoice (USDC)
+          </Link>
+          <Link href="/app/obligations/new" className="rounded-md border border-border-input px-4 py-2 text-sm text-foreground hover:bg-surface-2">
+            Record a debt (any currency)
+          </Link>
+        </div>
+      </div>
 
       <div className="mt-8 grid gap-6">
+        <div className="grid items-start gap-6 md:grid-cols-2">
         <Card title={OVERVIEW_SECTION_ORDER[0]}>
           {!invoices.ok && <Failed error={invoices.error} />}
           {mine.ok === false && <Failed error={mine.error} />}
@@ -141,8 +154,9 @@ export async function Overview({ address }: { address: string }) {
             <Failed error={certificates.error} />
           )}
         </Card>
+        </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid items-start gap-6 md:grid-cols-2">
           <Card title={OVERVIEW_SECTION_ORDER[2]}>
             {loadError && !loadError.ok && <Failed error={loadError.error} />}
             {youCount === 0 && !loadError && <Empty>Nothing is waiting on you.</Empty>}
@@ -215,14 +229,6 @@ export async function Overview({ address }: { address: string }) {
           </Card>
         </div>
 
-        <div className="flex flex-wrap gap-3" data-section={OVERVIEW_SECTION_ORDER[4]}>
-          <Link href="/app/attest" className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-black">
-            Send an invoice (USDC)
-          </Link>
-          <Link href="/app/obligations/new" className="rounded-md border border-border-input px-4 py-2 text-sm text-foreground hover:bg-surface-2">
-            Record a debt (any currency)
-          </Link>
-        </div>
       </div>
     </section>
   );
