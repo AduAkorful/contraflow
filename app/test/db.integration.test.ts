@@ -295,6 +295,31 @@ describe.skipIf(!url)("Postgres adapter and stores (real database)", () => {
       expect(await claimIdempotency(tenantId, key, "hash-1")).toEqual({ kind: "replay", status: 201, body: { ok: true } });
     });
 
+    it("permissions: saving under an Idempotency-Key stores the permission and its replayable result in one statement", async () => {
+      const { claimIdempotency, postgresTenantStore } = stores.tenants;
+      const tenantId = hex(32);
+      await db`INSERT INTO tenants (tenant_id, name) VALUES (${tenantId}, 'test')`;
+      const key = `k-${hex(4)}`;
+      const claim = await claimIdempotency(tenantId, key, "hash-p");
+      const party = address();
+      const saved = await postgresTenantStore.savePermission(
+        {
+          permissionId: `perm_${hex(6)}`,
+          tenantId,
+          chainId: 5042002,
+          party,
+          scopes: 7,
+          expiresAt: 1_900_000_000n,
+          nonce: hex(16),
+          signature: hex(65),
+        },
+        { key, requestHash: "hash-p", leaseToken: claim.leaseToken },
+      );
+      expect(saved).toBe(true);
+      const replay = await claimIdempotency(tenantId, key, "hash-p");
+      expect(replay).toMatchObject({ kind: "replay", status: 201, body: { party, scopes: 7, expiresAt: "1900000000" } });
+    });
+
     it("api keys: finds an active key by hash and reports a revoked one", async () => {
       const store = stores.tenants.postgresTenantStore;
       const tenantId = hex(32);

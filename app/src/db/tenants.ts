@@ -88,9 +88,9 @@ export const postgresTenantStore: TenantStore = {
                          lease_expires_at = NULL,
                          response = jsonb_build_object(
                            'permissionId', inserted.permission_id,
-                           'party', ${p.party},
-                           'scopes', ${p.scopes},
-                           'expiresAt', ${p.expiresAt.toString()}
+                           'party', ${p.party}::text,
+                           'scopes', ${p.scopes}::int,
+                           'expiresAt', ${p.expiresAt.toString()}::text
                          )
                      FROM inserted
                      WHERE idem.tenant_id = ${p.tenantId.toLowerCase()} AND idem.idem_key = ${idempotency.key}

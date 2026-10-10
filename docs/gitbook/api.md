@@ -25,7 +25,7 @@ None of them lets the platform sign. A party without a permission, and an obliga
 3. Accept it with the counterparty's signature: `POST /obligations/proposals/{token}/accept`.
 4. Find a loop: `POST /parties/{address}/loops`.
 5. Collect each party's signature on the certificate: `GET /certificates/{token}`, then `POST /certificates/{token}/signatures`.
-6. Apply it: `GET /certificates/{token}/apply-transaction` returns the transaction. Anyone can submit it, and the sender pays the Arc gas. Report the hash with `POST /certificates/{token}/transactions`.
+6. Apply it: `GET /certificates/{token}/apply-transaction` returns the transaction. Anyone can submit it, and the sender pays the Arc gas, so you need a payer that holds a key and some USDC on Arc: a funded wallet your platform controls, or a party who opens the certificate link in the app and chooses **Apply on Arc**. A company that signed in with an email has a wallet that only signs inside the app. Report the hash with `POST /certificates/{token}/transactions`.
 7. Keep each party's copy: `GET /certificates/{token}/export`. It can be checked on **Verify a certificate**.
 
 Send an `Idempotency-Key` header with every `POST`. A retry with the same key returns the first response, and reusing a key for a different request answers `409`.

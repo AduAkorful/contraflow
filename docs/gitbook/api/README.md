@@ -37,8 +37,17 @@ answer `404 Not found`, so the API never confirms what a platform can't see.
 5. Collect each party's signature on the certificate: `GET /certificates/{token}`, then
    `POST /certificates/{token}/signatures`.
 6. Apply it: `GET /certificates/{token}/apply-transaction` returns the transaction. Anyone can submit it, and
-   the sender pays the Arc gas. Report the hash with `POST /certificates/{token}/transactions`.
+   the sender pays the Arc gas, so you need a payer that holds a key and some USDC on Arc (see below). Report the hash
+   with `POST /certificates/{token}/transactions`.
 7. Keep each party's copy: `GET /certificates/{token}/export`. It can be checked on **Verify a certificate**.
+
+### Who pays the gas
+
+Contraflow never sends or sponsors the apply transaction. A company that signed in with an email has a wallet that
+only signs inside the Contraflow app, so your servers can't send the calldata from it. Use a funded wallet your
+platform controls, or have a party open the certificate link in the app and choose **Apply on Arc**: the app pays
+from that party's wallet, and an email wallet gets its one-time starter grant for gas. Any other wallet can send
+it too. The API reads the result from the ledger either way.
 
 Send an `Idempotency-Key` header with every `POST`. A retry with the same key returns the first response, and
 reusing a key for a different request answers `409`.

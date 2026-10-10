@@ -477,6 +477,14 @@ Scope: `read`. **409** `not_ready` until every party has signed.
 
 `data` is `applyCertificate(certificate, signatures)`. Anyone can submit it; Contraflow never does, and doesn't sponsor the gas. A 3-party certificate costs about 0.0042 USDC in gas on Arc testnet.
 
+### Who pays the gas
+
+Applying is a plain transaction that anyone can send, and the sender pays the gas in native USDC on Arc. Contraflow never sends or sponsors it. A company that signs in with an email only has a wallet that signs inside the Contraflow app; your servers can't drive it. For the API's `apply-transaction` calldata you need a payer that holds a key and some USDC for gas, so use one of these:
+
+* **A funded wallet your platform controls** (a service key, a custody account, or any wallet that holds USDC on Arc). It signs and sends the calldata, then you report the hash with `POST /certificates/{token}/transactions`.
+* **The party in the app.** Any party to the certificate can open its link (`/app/c/{token}`) signed in and choose **Apply on Arc**. The app pays from that party's wallet, and an email wallet gets its one-time starter grant for gas. The API reads the result from the ledger, so the certificate shows as applied without you reporting a hash.
+* **Another party's wallet.** Any party's wallet or anyone else's can send it; it doesn't have to be the party you act for.
+
 ### POST `/certificates/{token}/transactions`
 
 Scope: `read`. `{ "party": "0x…", "txHash": "0x…" }` → **200** `{ "status": "applied" }`.

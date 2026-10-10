@@ -340,7 +340,7 @@ export const OPENAPI = {
         operationId: "applyTransaction",
         tags: ["Certificates"],
         summary: "Unsigned apply calldata",
-        description: "Needs `read`. Returns `to`, `data` and `chainId` for `applyCertificate`. Contraflow never submits this; the sender pays gas.",
+        description: "Needs `read`. Returns `to`, `data` and `chainId` for `applyCertificate`. Contraflow never submits or sponsors this: the sender pays gas in native USDC, so you need a payer that holds a key and USDC on Arc. A company that signs in with an email has a wallet that signs only inside the Contraflow app; a party can instead open the certificate link there and choose Apply on Arc.",
         parameters: [tokenPath, partyQuery],
         responses: { ...ok({ $ref: "#/components/schemas/ApplyTransaction" }), ...jsonErrors },
       }),
