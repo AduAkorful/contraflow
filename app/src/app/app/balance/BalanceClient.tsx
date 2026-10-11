@@ -16,6 +16,7 @@ import { roundDecimalString } from "@/src/kits/quoteFormat";
 import { DepositPanel } from "./DepositPanel";
 import { MovePanel } from "./MovePanel";
 import { SendCard } from "@/components/send/SendCard";
+import { BalanceQuote } from "@/components/balance/BalanceQuote";
 import { useOwnerWallet } from "./wallet";
 
 const READ_ATTEMPTS = 3;
@@ -202,6 +203,8 @@ export function BalanceClient({
           </div>
         </div>
       )}
+
+      <BalanceQuote walletUsdc={arcWallet} />
     </div>
   );
 }

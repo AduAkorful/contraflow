@@ -28,6 +28,7 @@ const OPEN = ["collecting", "ready"];
 export function createMemoryCertificateStore(): MemoryCertificateStore {
   const obligations = new Map<string, ObligationRow>();
   const certificates = new Map<string, CertificateRow>();
+  const partyRules = new Map<string, { enabled: boolean; allowed: string[] }>();
   let failWrite = false;
 
   const clone = <T>(value: T): T => structuredClone(value);
@@ -205,10 +206,54 @@ export function createMemoryCertificateStore(): MemoryCertificateStore {
         }
       }
       const row = obligations.get(key);
-      if (row && (row.status === "active" || row.status === "out_of_sync") && !isLocked(key)) {
+      if (row && (row.status === "active" || row.status === "out_of_sync" || row.status === "disputed") && !isLocked(key)) {
         row.status = "closed";
       }
       return row?.status === "closed" ? "closed" : "blocked";
+    },
+
+    async disputeObligation(id, by, note) {
+      write();
+      const key = id.toLowerCase();
+      for (const c of certificates.values()) {
+        if (c.status === "collecting" && c.entries.some((e) => e.obligationId === key && e.locked)) {
+          c.status = "abandoned";
+          c.closedReason = "obligation disputed";
+          release(c);
+        }
+      }
+      const row = obligations.get(key);
+      if (row && row.status === "active" && !isLocked(key)) {
+        row.status = "disputed";
+        row.disputedBy = by.toLowerCase();
+        row.disputeNote = note;
+        return "disputed";
+      }
+      return row?.status === "active" ? "blocked" : "not_active";
+    },
+
+    async getPartyRules(parties) {
+      const out = new Map<string, { enabled: boolean; allowed: string[] }>();
+      for (const p of parties) {
+        const rule = partyRules.get(p.toLowerCase());
+        if (rule) out.set(p.toLowerCase(), rule);
+      }
+      return out;
+    },
+
+    async setPartyRules(party, rules) {
+      partyRules.set(party.toLowerCase(), { enabled: rules.enabled, allowed: [...rules.allowed] });
+    },
+
+    async withdrawDispute(id, by) {
+      const row = obligations.get(id.toLowerCase());
+      if (row && row.status === "disputed" && row.disputedBy === by.toLowerCase()) {
+        row.status = "active";
+        row.disputedBy = null;
+        row.disputeNote = null;
+        return "withdrawn";
+      }
+      return "not_disputer";
     },
   };
 }
@@ -231,6 +276,8 @@ export function seedObligation(store: MemoryCertificateStore, domain: LedgerDoma
     debtorSignature: item.debtorSignature.toLowerCase(),
     creditorSignature: item.creditorSignature.toLowerCase(),
     description: "Test obligation",
+    disputedBy: null,
+    disputeNote: null,
     remaining: item.remaining.toString(),
     blinding: (item.blinding ?? (ZERO_HASH as Hex)).toLowerCase(),
     status: "active",

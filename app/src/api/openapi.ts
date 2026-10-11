@@ -24,6 +24,8 @@ export const ERROR_CODES = [
   "chain_unavailable",
   "method_not_allowed",
   "no_webhook",
+  "already_applied",
+  "duplicate_proposal",
 ] as const;
 
 const errorRef = { $ref: "#/components/responses/Error" as const };
@@ -94,10 +96,15 @@ export const API_INDEX = {
     { method: "POST", path: "/permissions", description: "Store a signed permission" },
     { method: "DELETE", path: "/permissions/{permissionId}", description: "Revoke a permission" },
     { method: "POST", path: "/obligations/proposals", description: "Propose an obligation" },
+    { method: "POST", path: "/obligations/proposals/batch", description: "Propose up to 25 obligations" },
     { method: "GET", path: "/obligations/proposals/{token}", description: "Read a proposal" },
     { method: "DELETE", path: "/obligations/proposals/{token}", description: "Withdraw a proposal" },
     { method: "POST", path: "/obligations/proposals/{token}/accept", description: "Accept a proposal" },
     { method: "GET", path: "/parties/{address}/obligations", description: "List a party's obligations" },
+    { method: "POST", path: "/obligations/{obligationId}/dispute", description: "Mark an obligation disputed" },
+    { method: "DELETE", path: "/obligations/{obligationId}/dispute", description: "Withdraw a dispute you raised" },
+    { method: "GET", path: "/parties/{address}/rules", description: "Read a party's netting rules" },
+    { method: "POST", path: "/parties/{address}/rules", description: "Set a party's approved-counterparty rule" },
     { method: "POST", path: "/parties/{address}/loops", description: "Find and propose a loop" },
     { method: "GET", path: "/certificates/{token}", description: "Read a certificate" },
     { method: "POST", path: "/certificates/{token}/signatures", description: "Submit a certificate signature" },
@@ -105,6 +112,7 @@ export const API_INDEX = {
     { method: "POST", path: "/certificates/{token}/transactions", description: "Report an apply transaction" },
     { method: "GET", path: "/certificates/{token}/export", description: "Export a certificate view" },
     { method: "POST", path: "/webhooks/test", description: "Enqueue a test webhook event" },
+    { method: "GET", path: "/events", description: "Page this tenant's events after a cursor (catch up after missed webhooks)" },
     { method: "GET", path: "/webhooks/endpoint", description: "Read the webhook endpoint and recent deliveries" },
     { method: "POST", path: "/webhooks/endpoint", description: "Set or replace the webhook endpoint" },
     { method: "DELETE", path: "/webhooks/endpoint", description: "Remove the webhook endpoint" },
@@ -185,7 +193,7 @@ export const OPENAPI = {
         operationId: "listPermissions",
         tags: ["Permissions"],
         summary: "List stored permissions",
-        description: "Permissions this tenant holds on the key's chain. Optionally filter by party.",
+        description: "Permissions this tenant holds on the key's chain, each with `status` of `active`, `expired` or `revoked`. Optionally filter by party.",
         parameters: [
           { name: "party", in: "query", required: false, schema: { $ref: "#/components/schemas/Address" } },
         ],
@@ -230,7 +238,7 @@ export const OPENAPI = {
         operationId: "createObligationProposal",
         tags: ["Obligations"],
         summary: "Propose an obligation",
-        description: "Needs the named party's `propose` scope. The obligation must already be signed by that party. `document.amount` is major units; `obligation.amount` is the same value as a minor-unit integer string.",
+        description: "Needs the named party's `propose` scope. The obligation must already be signed by that party. `document.amount` is major units; `obligation.amount` is the same value as a minor-unit integer string. The amount must be above zero and at most 10^15 in major units. Proposing the same obligation again answers 409 `duplicate_proposal`, with the stored proposal's `proposalToken` and `appUrl` in `error.details`. Obligation writes are limited to 120 per party per 10 minutes through the API (20 in the web app). The response carries `appUrl`, the link the counterparty opens in the Contraflow app.",
         parameters: [idempotencyKey],
         requestBody: {
           required: true,
@@ -241,6 +249,68 @@ export const OPENAPI = {
           },
         },
         responses: { ...ok({ $ref: "#/components/schemas/ProposalResponse" }, "201"), ...jsonErrors },
+      }),
+    },
+    "/obligations/{obligationId}/dispute": {
+      post: op({
+        operationId: "disputeObligation",
+        tags: ["Obligations"],
+        summary: "Mark an obligation disputed",
+        description:
+          "Needs the named party's `propose` scope; the party must be the obligation's debtor or creditor. A disputed obligation is left out of every loop search and certificate, and a certificate still collecting signatures is cancelled. It is refused while the obligation is in a fully signed certificate. Body: `{ party, note? }` (note up to 200 characters). Contraflow does not decide who is right. Listed obligations then show `status: \"disputed\"` with `disputedBy` (`you` or `counterparty`) and `disputeNote`.",
+        parameters: [{ name: "obligationId", in: "path", required: true, schema: { $ref: "#/components/schemas/Bytes32" } }, idempotencyKey],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["party"],
+                properties: { party: { $ref: "#/components/schemas/Address" }, note: { type: "string", maxLength: 200 } },
+              },
+            },
+          },
+        },
+        responses: { ...ok({ type: "object", properties: { disputed: { type: "boolean" } } }), ...jsonErrors },
+      }),
+      delete: op({
+        operationId: "withdrawObligationDispute",
+        tags: ["Obligations"],
+        summary: "Withdraw a dispute you raised",
+        description: "Needs the party's `propose` scope. Only the party that raised the dispute can withdraw it.",
+        parameters: [{ name: "obligationId", in: "path", required: true, schema: { $ref: "#/components/schemas/Bytes32" } }, partyQuery],
+        responses: { "204": { description: "No content" }, ...authErrors, ...errors("404", "422") },
+      }),
+    },
+    "/obligations/proposals/batch": {
+      post: op({
+        operationId: "createObligationProposals",
+        tags: ["Obligations"],
+        summary: "Propose up to 25 obligations",
+        description:
+          "Needs the named party's `propose` scope. Each item is a signed proposal exactly as `POST /obligations/proposals` takes it, and is validated and counted against the party's write budget the same way. A result comes back per item, in order: 201 with the proposal, 409 `duplicate_proposal` with the existing token, or another refusal. When the party's budget runs out the remaining items are reported as 429 and not processed. The batch itself answers 200. Send an `Idempotency-Key`.",
+        parameters: [idempotencyKey],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["party", "proposals"],
+                properties: {
+                  party: { $ref: "#/components/schemas/Address" },
+                  proposals: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 25,
+                    items: { type: "object", description: "The body of `POST /obligations/proposals`, without `party`." },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { ...ok({ $ref: "#/components/schemas/ProposalBatchResult" }), ...jsonErrors },
       }),
     },
     "/obligations/proposals/{token}": {
@@ -297,12 +367,46 @@ export const OPENAPI = {
         responses: { ...ok({ $ref: "#/components/schemas/PartyObligationsPage" }), ...jsonErrors },
       }),
     },
+    "/parties/{address}/rules": {
+      get: op({
+        operationId: "getPartyRules",
+        tags: ["Obligations"],
+        summary: "Read a party's netting rules",
+        description: "Needs the party's `read` scope. `allowlistEnabled` and the approved `allowed` addresses.",
+        parameters: [addressPath],
+        responses: { ...ok({ $ref: "#/components/schemas/PartyRules" }), ...jsonErrors },
+      }),
+      post: op({
+        operationId: "setPartyRules",
+        tags: ["Obligations"],
+        summary: "Set a party's approved-counterparty rule",
+        description:
+          "Needs the party's `propose` scope. With `allowlistEnabled` true, the party is only in loops whose other members are all in `allowed` (up to 50 addresses; at least one is required). The rule applies to every loop proposal and every signature, for every party in the loop. A loop it blocks answers `blocked-by-rules` from the loop search.",
+        parameters: [addressPath, idempotencyKey],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["allowlistEnabled"],
+                properties: {
+                  allowlistEnabled: { type: "boolean" },
+                  allowed: { type: "array", maxItems: 50, items: { $ref: "#/components/schemas/Address" } },
+                },
+              },
+            },
+          },
+        },
+        responses: { ...ok({ $ref: "#/components/schemas/PartyRules" }), ...jsonErrors },
+      }),
+    },
     "/parties/{address}/loops": {
       post: op({
         operationId: "findLoop",
         tags: ["Certificates"],
         summary: "Find and propose a loop",
-        description: "Needs `propose`. Searches from this party. Applying the resulting certificate is permissionless and paid by whoever submits it.",
+        description: "Needs `propose`. Searches from this party for loops of 2 to 5 parties; a cycle that exists only with more than 5 parties answers `loop-too-long` (maximum 5), not `no-loop`. Limited to 10 searches per party per 10 minutes. Applying the resulting certificate is permissionless and paid by whoever submits it.",
         parameters: [addressPath, idempotencyKey],
         responses: { ...ok({ $ref: "#/components/schemas/LoopSearch" }), ...jsonErrors },
       }),
@@ -379,6 +483,20 @@ export const OPENAPI = {
         description: "Needs `read`. The party's `contraflow-netting-certificate/1` view, checkable at /app/verify.",
         parameters: [tokenPath, partyQuery],
         responses: { ...ok({ $ref: "#/components/schemas/CertificateExport" }), ...jsonErrors },
+      }),
+    },
+    "/events": {
+      get: op({
+        operationId: "listEvents",
+        tags: ["Webhooks"],
+        summary: "List events after a cursor",
+        description:
+          "The tenant's events, oldest first, in the same shape as webhook deliveries plus a `cursor`. Use it to catch up after an outage without waiting for retries, or instead of a webhook. Pass the previous `nextCursor` as `after`; omit it to start from the oldest retained event (30 days). Events about a party whose read permission is no longer live are left out. Events are recorded whether or not an endpoint is registered. No party permission required.",
+        parameters: [
+          { name: "after", in: "query", schema: { type: "string" }, description: "A `cursor` or `nextCursor` from a previous call." },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
+        ],
+        responses: { ...ok({ $ref: "#/components/schemas/EventList" }), ...authErrors, ...errors("422", "503") },
       }),
     },
     "/webhooks/test": {
@@ -572,6 +690,7 @@ export const OPENAPI = {
           status: { type: "string", enum: ["active", "suspended"] },
           mode: { type: "string", enum: ["test", "live"] },
           chainId: { type: "integer" },
+          ledger: { $ref: "#/components/schemas/Address", description: "The netting ledger on this key's chain: the `verifyingContract` parties sign obligations under." },
           webhookConfigured: { type: "boolean" },
         },
       },
@@ -595,6 +714,8 @@ export const OPENAPI = {
           scopes: { type: "integer" },
           expiresAt: { type: "string" },
           revoked: { type: "boolean" },
+          expired: { type: "boolean", description: "`expiresAt` has passed. An expired permission can no longer be used." },
+          status: { type: "string", enum: ["active", "expired", "revoked"] },
         },
       },
       PermissionList: {
@@ -709,7 +830,10 @@ export const OPENAPI = {
           remainingDisplay: { $ref: "#/components/schemas/AmountDisplay" },
           maturity: { $ref: "#/components/schemas/UnixSeconds" },
           description: { type: "string" },
-          status: { type: "string", enum: ["active", "closed", "out_of_sync"] },
+          status: { type: "string", enum: ["active", "closed", "out_of_sync", "disputed"] },
+          closedReason: { type: "string", enum: ["netted", "closed_by_party"], description: "Present when `status` is `closed`." },
+          disputedBy: { type: ["string", "null"], enum: ["you", "counterparty", null], description: "Present while `status` is `disputed`." },
+          disputeNote: { type: ["string", "null"] },
           earlyNetConsent: { type: "boolean" },
         },
       },
@@ -762,7 +886,7 @@ export const OPENAPI = {
                 required: ["found", "reason", "message"],
                 properties: {
                   found: { type: "boolean", const: false },
-                  reason: { type: "string", enum: ["no-candidates", "no-loop", "too-many-parties", "search-incomplete", "out-of-sync"] },
+                  reason: { type: "string", enum: ["no-candidates", "no-loop", "loop-too-long", "blocked-by-rules", "too-many-parties", "search-incomplete", "out-of-sync"] },
                   message: { type: "string" },
                 },
               },
@@ -964,6 +1088,48 @@ export const OPENAPI = {
           },
         },
       },
+      PartyRules: {
+        type: "object",
+        required: ["party", "allowlistEnabled", "allowed"],
+        properties: {
+          party: { $ref: "#/components/schemas/Address" },
+          allowlistEnabled: { type: "boolean" },
+          allowed: { type: "array", items: { type: "string" } },
+        },
+      },
+      ProposalBatchResult: {
+        type: "object",
+        required: ["results", "created", "failed"],
+        properties: {
+          created: { type: "integer" },
+          failed: { type: "integer" },
+          results: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["index", "status"],
+              properties: {
+                index: { type: "integer" },
+                status: { type: "integer", description: "201 created, otherwise the refusal's HTTP status." },
+                proposal: { type: "object", description: "As `POST /obligations/proposals` returns, when created." },
+                error: {
+                  type: "object",
+                  properties: { code: { type: "string" }, message: { type: "string" }, details: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+      },
+      EventList: {
+        type: "object",
+        required: ["events", "nextCursor", "hasMore"],
+        properties: {
+          events: { type: "array", items: { $ref: "#/components/schemas/WebhookEvent" } },
+          nextCursor: { type: "string", description: "Pass as `after` to continue. Equals `after` when nothing is new." },
+          hasMore: { type: "boolean", description: "More events may follow immediately; call again." },
+        },
+      },
       WebhookTest: {
         type: "object",
         required: ["eventId", "type"],
@@ -981,6 +1147,7 @@ export const OPENAPI = {
           created: { type: "integer" },
           chainId: { type: "integer" },
           data: { type: "object" },
+          cursor: { type: "string", description: "Present on `GET /events`; pass to `after`." },
         },
       },
     },
@@ -998,7 +1165,7 @@ export const OPENAPI = {
         tags: ["Webhooks"],
         summary: "Netting events",
         description:
-          "Sent to your endpoint, which you register on the API keys page of the app (public HTTPS only; redirects are not followed), with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff (1, 2, 4… minutes, up to 6 hours) for 3 days, but a retry only runs when the pipeline does: after any authenticated API request and at the daily job, so with no traffic it can wait about a day. `certificate.*` events carry `currency`, `wNetMinor`, `wNetDisplay` and, once applied, `appliedTxHash`. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
+          "Sent to your endpoint, which you register on the API keys page of the app (public HTTPS only; redirects are not followed), with `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 over `<t>.<raw body>` with your `whsec_` secret. Reject timestamps more than 5 minutes old, de-duplicate by `id`, and return 2xx quickly. Failed deliveries retry with backoff (1, 2, 4… minutes, up to 6 hours) for 3 days, but a retry runs the next time the pipeline does: after any authenticated API request, after obligation activity in the web app, and at the daily job. That is usually within minutes for an active company and up to about a day if nothing calls Contraflow. `certificate.*` events carry `currency`, `wNetMinor`, `wNetDisplay` and, once applied, `appliedTxHash`; `obligation.recorded` carries the amount, currency, maturity and `proposalToken`. Events only name parties that granted you the read scope. Immediate delivery uses Next.js `after()`; the Hobby cron at 04:15 UTC is the retry backstop, not the primary scheduler.",
         requestBody: {
           content: {
             "application/json": { schema: { $ref: "#/components/schemas/WebhookEvent" } },

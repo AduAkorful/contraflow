@@ -8,6 +8,7 @@ import { obligationFromDocument, OBLIGATION_DOCUMENT_FORMAT, type CanonicalOblig
 import { obligationTypedData } from "../src/netting/obligation";
 import type { ChainReader } from "../src/netting/signature";
 import type { NettingObligation } from "../src/netting/types";
+import { maxAmountMinor } from "../src/netting/currency";
 import { validateAcceptance, validateProposal, type ProposerRole, type SubmissionDeps } from "../src/obligations/submission";
 
 const domain = appLedgerDomain();
@@ -87,6 +88,7 @@ describe("validateProposal", () => {
       ["stranger session", { ...f.proposal, sessionAddress: stranger.address }, /party to/],
       ["other chain", { ...f.proposal, domain: { ...domain, chainId: 5042n } }, /different ledger/],
       ["other ledger", { ...f.proposal, domain: { ...domain, verifyingContract: stranger.address } }, /different ledger/],
+      ["amount above the limit", { ...f.proposal, obligation: { ...f.obligation, amount: maxAmountMinor("GHS") + 1n } }, /too large/],
       ["zero salt", { ...f.proposal, obligation: { ...f.obligation, salt: ZERO_HASH } }, /salt/],
       ["bad currency", { ...f.proposal, document: { ...f.document, currency: "XYZ" } }, /ISO 4217/],
       ["amount mismatch", { ...f.proposal, obligation: { ...f.obligation, amount: f.obligation.amount + 1n } }, /match its document/],

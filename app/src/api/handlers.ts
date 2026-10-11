@@ -20,7 +20,7 @@ import { removeOwnWebhook, rollOwnWebhookSecret, setOwnWebhook, type OwnWebhookS
 import type { ResolveAll } from "./webhookUrl";
 import { paginatePartyLists, parsePageCursor, parsePageLimit } from "./pagination";
 import { parseUsageRange, type TenantUsage, type UsageRecord } from "./usage";
-import { amountFieldsFromMajor, amountFieldsFromMinor, apiChainId, unixSeconds } from "./wire";
+import { amountFieldsFromMajor, amountFieldsFromMinor, apiChainId, appUrl, unixSeconds } from "./wire";
 
 export interface ApiDeps {
   store: TenantStore;
@@ -34,13 +34,22 @@ export interface ApiDeps {
   >;
   certificates: Pick<
     CertificateService,
-    "listCertificates" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
+    "listCertificates" | "disputeObligation" | "withdrawDispute" | "getMyRules" | "setMyRules" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
   /// The tenant's webhook endpoint, keyed by tenant id. Plain `http://localhost` receivers are
   /// accepted only where `allowLocalWebhooks` is set (never in production).
   webhookEndpoint: OwnWebhookStore;
   allowLocalWebhooks?: boolean;
+  /// The gas an apply transaction is expected to use and the current gas price, for the response's
+  /// cost hint. Optional; the hint is `null` when unavailable.
+  estimateApply?(tx: { to: Address; data: Hex; from: Address }): Promise<{ gas: bigint; gasPrice: bigint } | null>;
+  /// The tenant's recorded events, for `GET /events`.
+  eventLog?: {
+    list(tenantId: Hex, afterSeq: string, limit: number): Promise<{ seq: string; body: string; status: string }[]>;
+    /// Same recheck delivery does: tenant active and read permission still live for every party named.
+    canRead(tenantId: Hex, body: string, nowSeconds: bigint): Promise<boolean>;
+  };
   /// Hostname lookup for endpoint validation; defaults to DNS.
   resolveWebhookHost?: ResolveAll;
   enqueueWebhookTest(tenantId: Hex, chainId: number): Promise<{ eventId: string } | { error: "no_endpoint" }>;
@@ -160,6 +169,8 @@ export async function listPermissions(caller: ApiCaller, req: ApiRequest, deps: 
         scopes: p.scopes,
         expiresAt: p.expiresAt,
         revoked: p.revoked,
+        expired: BigInt(p.expiresAt) <= deps.nowSeconds(),
+        status: p.revoked ? "revoked" : BigInt(p.expiresAt) <= deps.nowSeconds() ? "expired" : "active",
       })),
     },
   };
@@ -176,6 +187,8 @@ export async function getTenant(caller: ApiCaller, _req: ApiRequest, deps: ApiDe
       status: tenant.status,
       mode: caller.mode,
       chainId: apiChainId(caller.chainId),
+      /// The ledger contract on this key's chain: the `verifyingContract` parties sign under.
+      ledger: deps.domain.verifyingContract,
       webhookConfigured: tenant.webhookConfigured,
     },
   };
@@ -198,6 +211,13 @@ export async function getUsage(caller: ApiCaller, req: ApiRequest, deps: ApiDeps
     nowSeconds: deps.nowSeconds(),
   });
   return { status: 200, body: usage };
+}
+
+/// Native USDC has 18 decimals; shown to 6 places, rounded up so a cost is never understated.
+function formatNativeUsdc(wei: bigint): string {
+  const unit = 10n ** 12n;
+  const micro = (wei + unit - 1n) / unit;
+  return `${micro / 1_000_000n}.${(micro % 1_000_000n).toString().padStart(6, "0")}`;
 }
 
 function unixOf(iso: string | null): string | null {
@@ -243,6 +263,48 @@ export async function deleteWebhookEndpoint(caller: ApiCaller, _req: ApiRequest,
   return { status: 204, body: null };
 }
 
+const EVENTS_DEFAULT_LIMIT = 50;
+const EVENTS_MAX_LIMIT = 100;
+
+/// A missed-webhook catch-up: the tenant's events after a cursor, oldest first. Events whose
+/// parties no longer have a live read permission are left out, as they would not have been sent.
+export async function listEvents(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  if (!deps.eventLog) throw new ApiError(503, "unavailable", "Events aren't available right now.");
+  const afterRaw = req.query.get("after") ?? "0";
+  if (!/^\d{1,18}$/.test(afterRaw)) throw new ApiError(422, "invalid_request", "after must be a cursor returned by a previous call.");
+  const limitRaw = req.query.get("limit");
+  let limit = EVENTS_DEFAULT_LIMIT;
+  if (limitRaw !== null) {
+    if (!/^\d{1,4}$/.test(limitRaw) || Number(limitRaw) < 1 || Number(limitRaw) > EVENTS_MAX_LIMIT) {
+      throw new ApiError(422, "invalid_request", `limit must be 1 to ${EVENTS_MAX_LIMIT}.`);
+    }
+    limit = Number(limitRaw);
+  }
+  const rows = await deps.eventLog.list(caller.tenantId, afterRaw, limit);
+  const now = deps.nowSeconds();
+  const events: unknown[] = [];
+  for (const row of rows) {
+    if (row.status === "suppressed" || !(await deps.eventLog.canRead(caller.tenantId, row.body, now))) continue;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(row.body) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    events.push({ ...parsed, cursor: row.seq });
+  }
+  const last = rows.at(-1);
+  return {
+    status: 200,
+    body: {
+      events,
+      // Resume from here even when the last events were filtered out.
+      nextCursor: last ? last.seq : afterRaw,
+      hasMore: rows.length === limit,
+    },
+  };
+}
+
 export async function testWebhook(caller: ApiCaller, _req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const result = await deps.enqueueWebhookTest(caller.tenantId, caller.chainId);
   if ("error" in result) throw new ApiError(422, "no_webhook", "No webhook endpoint is registered for this tenant.");
@@ -261,13 +323,20 @@ function proposalWithPayload(proposal: obligationService.ProposalView) {
     expiresAt: unixSeconds(proposal.expiresAt),
     typedData: envelope.typedData,
     digest: envelope.digest,
+    appUrl: appUrl(`/app/o/${proposal.token}`),
   };
 }
 
-function certificateSummaryWire<T extends { currency: string; wNet: string; deadline: string }>(certificate: T) {
+function certificateSummaryWire<T extends { currency: string; wNet: string; deadline: string; token?: string }>(certificate: T) {
   const { wNet, deadline, ...rest } = certificate;
   const net = amountFieldsFromMinor(wNet, certificate.currency);
-  return { ...rest, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay, deadline: unixSeconds(deadline) };
+  return {
+    ...rest,
+    wNetMinor: net.amountMinor,
+    wNetDisplay: net.amountDisplay,
+    deadline: unixSeconds(deadline),
+    ...(certificate.token ? { appUrl: appUrl(`/app/c/${certificate.token}`) } : {}),
+  };
 }
 
 /// If a create already stored the proposal, return that 201 instead of re-inserting.
@@ -322,19 +391,69 @@ export async function recoverReportTransaction(caller: ApiCaller, req: ApiReques
   return { status: 200, body: { status: certificate.status } };
 }
 
-export async function createObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
-  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
-  const { token } = unwrap(
+async function proposeOne(caller: ApiCaller, party: Address, input: Record<string, unknown>, deps: ApiDeps): Promise<ApiResponse> {
+  const { token, existing } = unwrap(
     await deps.obligations.createProposal(party, {
-      obligation: field(req.body, "obligation"),
-      document: field(req.body, "document"),
-      proposerRole: field(req.body, "proposerRole"),
-      proposerSignature: field(req.body, "proposerSignature"),
+      obligation: input.obligation,
+      document: input.document,
+      proposerRole: input.proposerRole,
+      proposerSignature: input.proposerSignature,
     }),
   );
+  if (existing) {
+    throw new ApiError(409, "duplicate_proposal", "This obligation has already been proposed.", {
+      proposalToken: token,
+      appUrl: appUrl(`/app/o/${token}`),
+    });
+  }
   await deps.tagProposal(token, caller.tenantId);
   const { proposal } = unwrap(await deps.obligations.getProposal(party, token));
   return { status: 201, body: { proposal: proposalWithPayload(proposal) } };
+}
+
+export async function createObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
+  return proposeOne(caller, party, (req.body ?? {}) as Record<string, unknown>, deps);
+}
+
+export const BATCH_MAX_PROPOSALS = 25;
+
+/// Up to 25 already-signed proposals for one party. Each is validated and counted exactly like a
+/// single proposal; a result comes back per item, in order. When the party's write budget runs
+/// out the rest are reported as not processed, never silently dropped.
+export async function createObligationProposals(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
+  const items = field(req.body, "proposals");
+  if (!Array.isArray(items) || items.length === 0 || items.length > BATCH_MAX_PROPOSALS) {
+    throw new ApiError(422, "invalid_request", `proposals must be a list of 1 to ${BATCH_MAX_PROPOSALS} items.`);
+  }
+  const results: unknown[] = [];
+  let limited = false;
+  for (let index = 0; index < items.length; index++) {
+    if (limited) {
+      results.push({ index, status: 429, error: { code: "rate_limited", message: "Not processed: the party's write budget was used up earlier in this batch." } });
+      continue;
+    }
+    const item = items[index];
+    if (!item || typeof item !== "object") {
+      results.push({ index, status: 422, error: { code: "invalid_request", message: "Each proposal must be an object." } });
+      continue;
+    }
+    try {
+      const res = await proposeOne(caller, party, item as Record<string, unknown>, deps);
+      results.push({ index, status: res.status, ...(res.body as object) });
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status >= 500) throw error;
+      if (error.status === 429) limited = true;
+      results.push({
+        index,
+        status: error.status,
+        error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) },
+      });
+    }
+  }
+  const created = results.filter((r) => (r as { status: number }).status === 201).length;
+  return { status: 200, body: { results, created, failed: results.length - created } };
 }
 
 export async function getObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
@@ -368,18 +487,60 @@ export async function listPartyObligations(caller: ApiCaller, req: ApiRequest, d
     body: {
       proposals: page.proposals.map((proposal) => {
         const { amount, expiresAt, ...rest } = proposal;
-        return { ...rest, ...amountFieldsFromMajor(amount, proposal.currency), expiresAt: unixSeconds(expiresAt) };
+        return {
+          ...rest,
+          ...amountFieldsFromMajor(amount, proposal.currency),
+          expiresAt: unixSeconds(expiresAt),
+          appUrl: appUrl(`/app/o/${proposal.token}`),
+        };
       }),
       obligations: page.obligations.map((obligation) => {
-        const { amount, remaining, ...rest } = obligation;
+        const { amount, remaining, status, ...rest } = obligation;
         const face = amountFieldsFromMinor(amount, obligation.currency);
         const left = amountFieldsFromMinor(remaining, obligation.currency);
-        return { ...rest, ...face, remainingMinor: left.amountMinor, remainingDisplay: left.amountDisplay };
+        // Fully netted is closed, with the reason, so a book can retire it without reading `remaining`.
+        const netted = status === "active" && BigInt(remaining) === 0n;
+        return {
+          ...rest,
+          status: netted ? "closed" : status,
+          ...(netted ? { closedReason: "netted" } : status === "closed" ? { closedReason: "closed_by_party" } : {}),
+          ...face,
+          remainingMinor: left.amountMinor,
+          remainingDisplay: left.amountDisplay,
+        };
       }),
       certificates: page.certificates.map((certificate) => certificateSummaryWire(certificate)),
       nextCursor: page.nextCursor,
     },
   };
+}
+
+/// Marks one of the party's obligations disputed: it is left out of loop searches and
+/// certificates, and a certificate still collecting signatures is cancelled. Contraflow doesn't
+/// decide who is right.
+export async function disputeObligationHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
+  unwrap(await deps.certificates.disputeObligation(party, req.params.obligationId, field(req.body, "note")));
+  return { status: 200, body: { disputed: true } };
+}
+
+export async function withdrawDisputeHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, req.query.get("party"), "propose", deps);
+  unwrap(await deps.certificates.withdrawDispute(party, req.params.obligationId));
+  return { status: 204, body: null };
+}
+
+/// The party's own netting rules (the approved-counterparty list).
+export async function getPartyRulesHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, req.params.address, "read", deps);
+  const { rules } = unwrap(await deps.certificates.getMyRules(party));
+  return { status: 200, body: { party, allowlistEnabled: rules.enabled, allowed: rules.allowed } };
+}
+
+export async function setPartyRulesHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, req.params.address, "propose", deps);
+  const { rules } = unwrap(await deps.certificates.setMyRules(party, field(req.body, "allowlistEnabled"), field(req.body, "allowed")));
+  return { status: 200, body: { party, allowlistEnabled: rules.enabled, allowed: rules.allowed } };
 }
 
 export async function findLoop(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
@@ -388,7 +549,10 @@ export async function findLoop(caller: ApiCaller, req: ApiRequest, deps: ApiDeps
   if (!outcome.found) return { status: 200, body: { outcome } };
   const { wNet, ...rest } = outcome;
   const net = amountFieldsFromMinor(wNet, outcome.currency);
-  return { status: 200, body: { outcome: { ...rest, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay } } };
+  return {
+    status: 200,
+    body: { outcome: { ...rest, wNetMinor: net.amountMinor, wNetDisplay: net.amountDisplay, appUrl: appUrl(`/app/c/${outcome.token}`) } },
+  };
 }
 
 // Certificates
@@ -424,21 +588,36 @@ export async function signCertificate(caller: ApiCaller, req: ApiRequest, deps: 
 export async function applyTransaction(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const party = await actingParty(caller, req.query.get("party"), "read", deps);
   const { certificate, view } = await certificateFor(party, req.params.token, deps);
+  if (certificate.status === "applied") {
+    throw new ApiError(409, "already_applied", "This certificate has already been applied.");
+  }
+  if (certificate.status === "expired") throw new ApiError(409, "not_ready", "This certificate has expired.");
+  if (certificate.status === "abandoned") throw new ApiError(409, "not_ready", "This certificate was cancelled.");
   if (certificate.status !== "ready" || view.signatures.some((s) => s === null)) {
     throw new ApiError(409, "not_ready", "The certificate isn't signed by every party yet.");
   }
+  const data = encodeFunctionData({
+    abi: contraflowNettingLedgerAbi,
+    functionName: "applyCertificate",
+    args: [view.certificate, view.signatures as Hex[]],
+  });
+  const estimate = (await deps.estimateApply?.({ to: view.domain.verifyingContract, data, from: party }).catch(() => null)) ?? null;
   return {
     status: 200,
     body: {
       chainId: apiChainId(view.domain.chainId),
       to: view.domain.verifyingContract,
       value: "0",
-      data: encodeFunctionData({
-        abi: contraflowNettingLedgerAbi,
-        functionName: "applyCertificate",
-        args: [view.certificate, view.signatures as Hex[]],
-      }),
+      data,
       note: "Submit this from your own wallet; the sender pays the gas. Then report the hash to /transactions.",
+      submit: {
+        /// Any wallet that holds native USDC for gas can send it; it need not be a party.
+        anyFundedWallet: true,
+        estimatedGas: estimate ? estimate.gas.toString() : null,
+        estimatedCostUsdc: estimate ? formatNativeUsdc(estimate.gas * estimate.gasPrice) : null,
+        /// A party can also apply from the Contraflow app with its own wallet.
+        appUrl: appUrl(`/app/c/${certificate.token}`),
+      },
     },
   };
 }

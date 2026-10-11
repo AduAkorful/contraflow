@@ -7,7 +7,7 @@ import { displayDate, displayMajorAmount, displayMinorAmount } from "@/component
 import { earlyNettingReview } from "@/src/format/signing";
 import { obligationStatusLabel } from "@/src/obligations/position";
 import type { ObligationSummary, ProposalSummary } from "@/src/obligations/service";
-import { closeObligation, withdrawProposal } from "./actions";
+import { closeObligation, disputeObligation, withdrawDispute, withdrawProposal } from "./actions";
 
 const OUT_OF_SYNC_EXPLAINED =
   "Its recorded state disagrees with the ledger, for example after a certificate was applied outside Contraflow. It won't be netted from here again.";
@@ -23,6 +23,8 @@ export function ObligationsList({
 }) {
   const router = useRouter();
   const [confirmingClose, setConfirmingClose] = useState<string | null>(null);
+  const [disputing, setDisputing] = useState<string | null>(null);
+  const [disputeNote, setDisputeNote] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +33,8 @@ export function ObligationsList({
     const result = await action();
     if (!result.ok) setError(result.error ?? "Something went wrong.");
     setConfirmingClose(null);
+    setDisputing(null);
+    setDisputeNote("");
     router.refresh();
   }
 
@@ -117,6 +121,32 @@ export function ObligationsList({
                     {!o.earlyNetConsent ? <> · {earlyNettingReview(o.maturity, false)}</> : null} · {o.description}
                   </p>
                   {o.status === "out_of_sync" && <p className="mt-1 text-xs text-muted">{OUT_OF_SYNC_EXPLAINED}</p>}
+                  {o.status === "disputed" && (
+                    <p className="mt-1 text-xs text-muted">
+                      {o.disputedBy === "you" ? "You disputed this." : "The other party disputed this."} It is left out of every
+                      certificate until the dispute is withdrawn.
+                      {o.disputeNote ? <> Note: {o.disputeNote}</> : null}
+                    </p>
+                  )}
+                  {disputing === o.obligationId && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="sr-only" htmlFor={`dispute-${o.obligationId}`}>Reason (optional)</label>
+                      <input
+                        id={`dispute-${o.obligationId}`}
+                        value={disputeNote}
+                        onChange={(event) => setDisputeNote(event.target.value)}
+                        maxLength={200}
+                        placeholder="Reason, optional"
+                        className="w-64 rounded-lg border border-border-input bg-bg px-3 py-2 text-sm"
+                      />
+                      <button onClick={() => run(() => disputeObligation(o.obligationId, disputeNote))} className="text-gold hover:underline">
+                        Confirm dispute
+                      </button>
+                      <button onClick={() => setDisputing(null)} className="text-muted hover:underline">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs">
                   <span
@@ -129,7 +159,21 @@ export function ObligationsList({
                   >
                     {obligationStatusLabel(o)}
                   </span>
-                  {(o.status === "active" || o.status === "out_of_sync") &&
+                  {o.status === "active" && disputing !== o.obligationId && (
+                    <button
+                      onClick={() => setDisputing(o.obligationId)}
+                      title="Keep this obligation out of every certificate until you withdraw the dispute."
+                      className="text-muted hover:underline"
+                    >
+                      Dispute
+                    </button>
+                  )}
+                  {o.status === "disputed" && o.disputedBy === "you" && (
+                    <button onClick={() => run(() => withdrawDispute(o.obligationId))} className="text-gold hover:underline">
+                      Withdraw dispute
+                    </button>
+                  )}
+                  {(o.status === "active" || o.status === "out_of_sync" || o.status === "disputed") &&
                     (confirmingClose === o.obligationId ? (
                       <>
                         <p className="max-w-xs text-xs text-muted">{CLOSE_CONFIRM}</p>

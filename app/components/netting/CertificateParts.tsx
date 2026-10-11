@@ -59,7 +59,20 @@ export function LoopParties({
   );
 }
 
-export function OwnObligation({ doc, me, currency }: { doc: EntryDocument; me: Address; currency: string }) {
+export function OwnObligation({
+  doc,
+  me,
+  currency,
+  action,
+  description,
+}: {
+  doc: EntryDocument;
+  description?: string | null;
+  me: Address;
+  currency: string;
+  /// Shown under the obligation, for example a dispute control.
+  action?: React.ReactNode;
+}) {
   const youOwe = isAddressEqual(doc.obligation.debtor, me);
   const counterparty = youOwe ? doc.obligation.creditor : doc.obligation.debtor;
   return (
@@ -73,6 +86,8 @@ export function OwnObligation({ doc, me, currency }: { doc: EntryDocument; me: A
         <span className="text-gold">{displayMinorAmount(doc.remainingAfter.toString(), currency)}</span>
       </p>
       <p className="mt-1 text-xs text-muted">Due {displayDate(doc.obligation.maturity.toString())}</p>
+      {description ? <p className="mt-1 text-xs text-muted">{description}</p> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }

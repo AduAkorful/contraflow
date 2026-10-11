@@ -6,9 +6,9 @@ Sign in with the wallet you already use, or with your email, and sign a one-time
 you control the wallet. That starts a session. Which invoices and obligations are yours is always
 taken from that session, never from anything typed into a form.
 
-Signing in costs nothing: it is a signature, not a transaction. The first time a new address proposes an
-invoice, registers one or applies a netting certificate, it gets a small one-time grant of gas so it can submit its
-first transaction. Every transaction after that is sent from your own wallet.
+Signing in costs nothing: it is a signature, not a transaction. The first time an address signs in it gets a
+small one-time grant of gas, and a notice tells you it arrived. If that didn't go through, it is sent just before
+your first transaction instead. Every transaction after that is sent from your own wallet.
 
 ## Overview
 
@@ -62,6 +62,26 @@ Obligations pages. No transaction is involved.
 3. When everyone has signed, any party can choose **Apply on Arc**. That party pays the gas.
 4. Once it's applied, every party's Obligations page shows the new remaining amounts.
 
+**Dispute an obligation.** On **Obligations**, either party can choose **Dispute** on a signed obligation,
+with an optional short reason. A disputed obligation is left out of every loop search and certificate, and a
+certificate still collecting signatures that includes it is cancelled. Only the party that raised the dispute
+can withdraw it. Contraflow doesn't decide who is right: it keeps the obligation out of netting until you two
+sort it out. A dispute can't be raised while the obligation is in a certificate every party has signed.
+
+**Counterparty rules.** On **Obligations**, you can turn on **Only net with approved addresses** and list the
+addresses you're willing to net with. Then you're only in loops where every other party is on your list. The
+rule is checked when a loop is proposed and again at every signature, for every party in the loop, so a
+loop that includes someone a party hasn't approved can't be signed. The loop search then reports that a loop
+exists but is blocked by a party's rules, without saying whose.
+
+**Early netting is off by default.** When you record an invoice or an obligation, "Allow this to be netted
+before its maturity date" starts unticked, so it can only join a loop after it falls due unless you opt in.
+
+**Before you sign.** The certificate page shows your two obligations with their descriptions, can show
+onchain facts about the other parties in the loop, and asks you to confirm you've reviewed your obligations
+before the Sign button works. Contraflow checks agreement and arithmetic. It doesn't check that the work
+behind an obligation was done.
+
 A certificate has to be fully signed and applied within 7 days.
 
 ### Keep and check your certificate
@@ -95,6 +115,12 @@ From the app's home page, open **Bring USDC from another chain**.
 
 Every step needs your click and your wallet's signature, and funds only ever go to the address you
 signed in with. Wallets that are smart contracts aren't supported yet.
+
+### EURC quote
+
+Below the deposit, move and send tabs, the Balance page has an **EURC quote** card. Type an amount of USDC
+(up to 1,000,000) and choose **Get quote** to see what it would be in EURC, from Circle Swap Kit, with the
+time it was taken. It's a quote only: nothing is swapped and nothing on the page can start a swap.
 
 ## The live demo
 

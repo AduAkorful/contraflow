@@ -10,6 +10,7 @@
 ///
 /// Dependencies are injected so the same code runs in unit tests, against anvil, and live.
 
+import { loopRejectedBy, parseAllowlist } from "./partyRules";
 import { decodeEventLog, isAddressEqual, isHex, size, type Address, type Hex, type PublicClient } from "viem";
 import type { ComplianceProvider } from "../compliance";
 import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
@@ -177,6 +178,12 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     if (row.status !== "collecting") return { ok: false, error: "This certificate is no longer collecting signatures." };
     if (deps.now() >= BigInt(row.deadline)) return { ok: false, error: "This certificate has expired." };
 
+    // Every party's rules apply, not just the signer's. The refusal doesn't say whose.
+    const memberRules = await store.getPartyRules(row.entries.map((e) => e.debtor));
+    if (loopRejectedBy(row.entries.map((e) => e.debtor), memberRules) !== null) {
+      return { ok: false, error: "A party in this loop only nets with counterparties it has approved, so this certificate can't be signed." };
+    }
+
     const view = fullViewOf(row);
     const check = await checkSignature(session, certificateDigest(view.certificate, view.domain), signature as Hex, client);
     if (check.status !== "pass") return { ok: false, error: "That signature isn't valid for this certificate." };
@@ -280,6 +287,67 @@ export function createCertificateService(deps: CertificateServiceDeps) {
         };
   }
 
+  /// The party's own netting rules, for the Obligations page and the API.
+  async function getMyRules(session: Address): Promise<Result<{ rules: { enabled: boolean; allowed: string[] } }>> {
+    if (await deps.rateLimited("read", session)) return { ok: false, error: RATE_LIMITED };
+    const rules = (await store.getPartyRules([session])).get(session.toLowerCase());
+    return { ok: true, rules: rules ?? { enabled: false, allowed: [] } };
+  }
+
+  async function setMyRules(session: Address, enabled: unknown, allowed: unknown): Promise<Result<{ rules: { enabled: boolean; allowed: string[] } }>> {
+    if (typeof enabled !== "boolean") return { ok: false, error: "enabled must be true or false." };
+    if (await deps.rateLimited("write", session)) return { ok: false, error: RATE_LIMITED };
+    const list = Array.isArray(allowed) ? allowed.join("\n") : allowed ?? "";
+    const parsed = parseAllowlist(list, session);
+    if (!parsed.ok) return parsed;
+    if (enabled && parsed.addresses.length === 0) {
+      return { ok: false, error: "Add at least one approved address, or turn the rule off." };
+    }
+    const rules = { enabled, allowed: parsed.addresses };
+    await store.setPartyRules(session, rules);
+    return { ok: true, rules };
+  }
+
+  const MAX_DISPUTE_NOTE = 200;
+
+  /// Either party can mark an obligation disputed. It is then left out of every loop search and
+  /// certificate, and a certificate still collecting signatures is cancelled. Only the party that
+  /// raised it can withdraw it. Contraflow never decides who is right.
+  async function disputeObligation(session: Address, id: unknown, note: unknown): Promise<Result> {
+    if (typeof id !== "string" || !isHex(id)) return { ok: false, error: NOT_FOUND };
+    let reason: string | null = null;
+    if (note !== undefined && note !== null && note !== "") {
+      if (typeof note !== "string") return { ok: false, error: "The note must be text." };
+      reason = note.trim().slice(0, MAX_DISPUTE_NOTE + 1);
+      if (reason.length > MAX_DISPUTE_NOTE) return { ok: false, error: `Keep the note under ${MAX_DISPUTE_NOTE} characters.` };
+      if (reason.length === 0) reason = null;
+    }
+    if (await deps.rateLimited("write", session)) return { ok: false, error: RATE_LIMITED };
+    const row = await store.getObligationById(id);
+    if (!row) return { ok: false, error: NOT_FOUND };
+    if (!isAddressEqual(session, row.debtor as Address) && !isAddressEqual(session, row.creditor as Address)) {
+      return { ok: false, error: NOT_FOUND };
+    }
+    const result = await store.disputeObligation(id, session, reason);
+    if (result === "disputed") return { ok: true };
+    if (result === "blocked") {
+      return { ok: false, error: "This obligation is in a certificate every party has signed. It can be disputed once that's applied or expires." };
+    }
+    return { ok: false, error: "Only an active obligation can be disputed." };
+  }
+
+  async function withdrawDispute(session: Address, id: unknown): Promise<Result> {
+    if (typeof id !== "string" || !isHex(id)) return { ok: false, error: NOT_FOUND };
+    if (await deps.rateLimited("write", session)) return { ok: false, error: RATE_LIMITED };
+    const row = await store.getObligationById(id);
+    if (!row) return { ok: false, error: NOT_FOUND };
+    if (!isAddressEqual(session, row.debtor as Address) && !isAddressEqual(session, row.creditor as Address)) {
+      return { ok: false, error: NOT_FOUND };
+    }
+    const result = await store.withdrawDispute(id, session);
+    return result === "withdrawn" ? { ok: true } : { ok: false, error: "Only the party that raised a dispute can withdraw it." };
+  }
+
   async function listCertificates(session: Address): Promise<Result<{ certificates: CertificateSummary[] }>> {
     if (await deps.rateLimited("read", session)) return { ok: false, error: RATE_LIMITED };
     const rows = (await store.listCertificatesForParty(session)).filter(onThisLedger);
@@ -321,6 +389,10 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     recordApplicationTx,
     exportCertificate,
     closeObligation,
+    disputeObligation,
+    withdrawDispute,
+    getMyRules,
+    setMyRules,
     listCertificates,
   };
 }

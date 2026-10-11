@@ -313,13 +313,80 @@ export const postgresCertificateStore: CertificateStore = {
         `,
         db`
           UPDATE netting_obligations SET status = 'closed', closed_by = ${by.toLowerCase()}, closed_at = now()
-          WHERE obligation_id = ${id} AND status IN ('active', 'out_of_sync')
+          WHERE obligation_id = ${id} AND status IN ('active', 'out_of_sync', 'disputed')
             AND NOT EXISTS (SELECT 1 FROM netting_certificate_entries WHERE obligation_id = ${id} AND locked)
         `,
         db`SELECT status FROM netting_obligations WHERE obligation_id = ${id}`,
       ])) as Record<string, unknown>[][];
       const status = results[results.length - 1]?.[0]?.status;
       return status === "closed" ? "closed" : "blocked";
+    });
+  },
+
+  async disputeObligation(obligationId, by, note) {
+    const id = obligationId.toLowerCase();
+    return withDbRetry(async () => {
+      const db = sql();
+      const results = (await db.transaction([
+        db`SELECT obligation_id FROM netting_obligations WHERE obligation_id = ${id} FOR UPDATE`,
+        db`
+          UPDATE netting_certificates SET status = 'abandoned', closed_at = now(), closed_reason = 'obligation disputed'
+          WHERE status = 'collecting' AND certificate_id IN (
+            SELECT certificate_id FROM netting_certificate_entries WHERE obligation_id = ${id} AND locked)
+        `,
+        db`
+          UPDATE netting_certificate_entries e SET locked = false
+          FROM netting_certificates c
+          WHERE e.certificate_id = c.certificate_id AND e.locked AND c.status NOT IN ('collecting', 'ready')
+            AND c.certificate_id IN (SELECT certificate_id FROM netting_certificate_entries WHERE obligation_id = ${id})
+        `,
+        db`
+          UPDATE netting_obligations
+          SET status = 'disputed', disputed_by = ${by.toLowerCase()}, disputed_at = now(), dispute_note = ${note}::text
+          WHERE obligation_id = ${id} AND status = 'active'
+            AND NOT EXISTS (SELECT 1 FROM netting_certificate_entries WHERE obligation_id = ${id} AND locked)
+        `,
+        db`SELECT status FROM netting_obligations WHERE obligation_id = ${id}`,
+      ])) as Record<string, unknown>[][];
+      const status = results[results.length - 1]?.[0]?.status;
+      if (status === "disputed") return "disputed";
+      return status === "active" ? "blocked" : "not_active";
+    });
+  },
+
+  async getPartyRules(parties) {
+    const rules = new Map<string, { enabled: boolean; allowed: string[] }>();
+    if (parties.length === 0) return rules;
+    const rows = (await withDbRetry(async () => {
+      return (await sql()`
+        SELECT party, allowlist_enabled, allowed FROM netting_party_rules WHERE party = ANY(${parties.map((a) => a.toLowerCase())}::text[])
+      `) as { party: string; allowlist_enabled: boolean; allowed: string[] }[];
+    })) as { party: string; allowlist_enabled: boolean; allowed: string[] }[];
+    for (const r of rows) rules.set(r.party, { enabled: r.allowlist_enabled, allowed: r.allowed ?? [] });
+    return rules;
+  },
+
+  async setPartyRules(party, rules) {
+    await withDbRetry(async () => {
+      await sql()`
+        INSERT INTO netting_party_rules (party, allowlist_enabled, allowed, updated_at)
+        VALUES (${party.toLowerCase()}, ${rules.enabled}, ${rules.allowed}::text[], now())
+        ON CONFLICT (party) DO UPDATE SET allowlist_enabled = EXCLUDED.allowlist_enabled,
+          allowed = EXCLUDED.allowed, updated_at = now()
+      `;
+    });
+  },
+
+  async withdrawDispute(obligationId, by) {
+    const id = obligationId.toLowerCase();
+    return withDbRetry(async () => {
+      const rows = (await sql()`
+        UPDATE netting_obligations
+        SET status = 'active', disputed_by = NULL, disputed_at = NULL, dispute_note = NULL
+        WHERE obligation_id = ${id} AND status = 'disputed' AND disputed_by = ${by.toLowerCase()}
+        RETURNING obligation_id
+      `) as unknown[];
+      return rows.length === 1 ? "withdrawn" : "not_disputer";
     });
   },
 };

@@ -1,5 +1,6 @@
 "use client";
 
+import { SigningHelp } from "./SigningHelp";
 import { useSignIn } from "./signInContext";
 import { formatAddress } from "../../src/format/address";
 
@@ -37,6 +38,7 @@ export function ConnectButton({
       <p className="max-w-xs text-center text-xs text-muted">
         {hint ?? "Use your email or a wallet. Nothing is sent onchain."}
       </p>
+      <SigningHelp />
       {error && (
         <p role="alert" className="max-w-xs text-center text-xs text-danger">
           {error}

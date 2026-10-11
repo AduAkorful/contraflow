@@ -52,6 +52,13 @@ it too. The API reads the result from the ledger either way.
 Send an `Idempotency-Key` header with every `POST`. A retry with the same key returns the first response, and
 reusing a key for a different request answers `409`.
 
+## Catching up, bulk imports and limits
+
+* **Missed webhooks:** `GET /events?after=<cursor>` returns your events oldest first, so you can catch up after an outage without waiting for retries. Events are recorded with or without an endpoint and kept for 30 days.
+* **Bulk import:** `POST /obligations/proposals/batch` takes up to 25 signed proposals and answers per item. Obligation writes are limited to 120 per party per 10 minutes through the API; a 429 carries `RateLimit-*` and `Retry-After`.
+* **Loops:** a loop has 2 to 5 parties. A cycle that only exists with more parties answers `loop-too-long`.
+* **Links:** proposals and certificates include `appUrl`, the link to open in the Contraflow app.
+
 ## Your books
 
 Contraflow records the netting and does not touch your customers' accounting. When a certificate is applied, each
@@ -84,5 +91,9 @@ Contraflow sends signed events to your registered URL:
 
 Each request carries `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `<t>.<raw body>` with your
 `whsec_` secret, the same scheme Stripe uses. Verify it against the raw body, reject timestamps more than five
-minutes old, and de-duplicate by the event's `id`. A failed delivery is retried with backoff (1, 2, 4… minutes, up to 6 hours) for three days, but retries only run when the pipeline does: after any authenticated API request and at the daily job, so with no traffic a retry can wait about a day. Call the API, for example `GET /webhooks/endpoint`, on your own timer to retry sooner.
+minutes old, and de-duplicate by the event's `id`. A failed delivery is retried with backoff (1, 2, 4… minutes, up to 6 hours) for three days, but a retry runs the next time the pipeline does: after any authenticated API request, after obligation activity in the web app, and at the daily job. That is usually within minutes for an active company, and up to about a day if nothing calls Contraflow. Call the API, for example `GET /webhooks/endpoint`, on your own timer to be sure.
 Events only name parties that gave you the read scope.
+
+## Using an AI agent
+
+Give your coding agent the brief at `/contraflow-api.md` (and `/llms.txt` as its index). See [Use the API with an AI agent](../api-agents.md).

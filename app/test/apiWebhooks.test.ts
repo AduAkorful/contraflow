@@ -66,6 +66,7 @@ function memoryWebhookStore(opts: {
   readers?: { tenantId: Hex; parties: Address[] }[];
   due?: DueEvent[];
   certificate?: { currency: string; wNet: string; appliedTxHash: string | null };
+  obligation?: { currency: string; amount: string; maturity: string; debtor: Address; creditor: Address; proposalToken: string | null };
 }) {
   const events = new Map<string, { tenantId: Hex; type: string; body: string }>();
   const completed: string[] = [];
@@ -73,7 +74,7 @@ function memoryWebhookStore(opts: {
   const store: WebhookStore = {
     claimChanges: async () => opts.changes ?? [],
     completeChange: async (id) => void completed.push(id),
-    changeContext: async (c) => (opts.parties?.[c.refId] ? { parties: opts.parties[c.refId]!, token: "tok", certificate: opts.certificate } : null),
+    changeContext: async (c) => (opts.parties?.[c.refId] ? { parties: opts.parties[c.refId]!, token: "tok", certificate: opts.certificate, obligation: opts.obligation } : null),
     readersOf: async (_chain, parties) =>
       (opts.readers ?? [])
         .map((r) => ({ tenantId: r.tenantId, parties: r.parties.filter((p) => parties.includes(p)) }))
@@ -95,6 +96,28 @@ describe("fanOutChanges", () => {
     refId,
     chainId: "5042002",
     status,
+  });
+
+  it("puts the terms on obligation events, naming only parties the tenant can read", async () => {
+    const { store, events } = memoryWebhookStore({
+      changes: [change("11", "obligation", "0xob", "active")],
+      parties: { "0xob": [A, B] },
+      readers: [{ tenantId: TENANT_1, parties: [A] }],
+      obligation: { currency: "USD", amount: "10050", maturity: "1798675200", debtor: A, creditor: B, proposalToken: "propTok" },
+    });
+    await fanOutChanges(store, NOW);
+    const data = JSON.parse(events.get(eventIdFor("11", TENANT_1))!.body).data;
+    expect(data).toMatchObject({
+      obligationId: "0xob",
+      parties: [A],
+      proposalToken: "propTok",
+      currency: "USD",
+      amountMinor: "10050",
+      amountDisplay: "100.50",
+      maturity: "1798675200",
+      debtor: A,
+      creditor: null,
+    });
   });
 
   it("puts the netted amount, currency and transaction hash on certificate events", async () => {

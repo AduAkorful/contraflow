@@ -28,3 +28,11 @@ export function apiChainId(value: string | number | bigint): number {
   if (!Number.isSafeInteger(n) || n <= 0) throw new Error(`Not a chain id: ${String(value)}`);
   return n;
 }
+
+/// A link into the Contraflow web app, built from the configured domain and never from a request.
+export function appUrl(path: string): string {
+  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN;
+  if (!domain) return path;
+  const local = /^(localhost|127\.0\.0\.1)(:|$)/.test(domain);
+  return `${local ? "http" : "https"}://${domain}${path}`;
+}

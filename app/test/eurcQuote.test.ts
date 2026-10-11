@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SwapEstimate } from "@circle-fin/app-kit";
 
-import { quoteCacheKey, quoteRemainingInEurc, swapQuoteSupported, type QuoteDeps } from "../src/kits/quote";
+import { quoteCacheKey, quoteRemainingInEurc, quoteUsdcAmountInEurc, swapQuoteSupported, type QuoteDeps } from "../src/kits/quote";
 import { eurcQuoteEnabled, formatQuoteTime, roundDecimalString, type EurcQuote } from "../src/kits/quoteFormat";
 import { InvoiceStatus, type OnchainInvoice } from "../src/chain/readInvoices";
 import { ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../src/contracts/addresses";
@@ -163,5 +163,47 @@ describe("quote display helpers", () => {
     expect(eurcQuoteEnabled(undefined)).toBe(true);
     expect(eurcQuoteEnabled("on")).toBe(true);
     expect(eurcQuoteEnabled(" OFF ")).toBe(false);
+  });
+});
+
+describe("quoteUsdcAmountInEurc (Balance page)", () => {
+  const { readInvoice: _unused, ...base } = deps();
+  void _unused;
+  const make = (overrides: Partial<Omit<QuoteDeps, "readInvoice">> = {}) => ({ ...base, ...overrides });
+
+  it("quotes exactly the amount typed, normalised, and nothing else", async () => {
+    const d = make({ estimate: vi.fn(async (amount: string) => estimate(amount)) });
+    const result = await quoteUsdcAmountInEurc("  1500.50 ", d);
+    expect(d.estimate).toHaveBeenCalledWith("1500.5");
+    expect(result).toMatchObject({ ok: true, quote: { amountInUsdc: "1500.5" } });
+  });
+
+  it.each(["", "0", "0.000000", "-5", "1e3", "1,000", "abc", "1.1234567", "1000001", "99999999"])(
+    "refuses %j without calling Circle",
+    async (amount) => {
+      const d = make({ estimate: vi.fn(async (a: string) => estimate(a)), rateLimit: vi.fn(async () => true) });
+      expect(await quoteUsdcAmountInEurc(amount, d)).toEqual({ ok: false, reason: "invalid_amount" });
+      expect(d.estimate).not.toHaveBeenCalled();
+      expect(d.rateLimit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts the largest amount and refuses past it", async () => {
+    const d = make();
+    expect((await quoteUsdcAmountInEurc("1000000", d)).ok).toBe(true);
+    expect(await quoteUsdcAmountInEurc("1000000.000001", d)).toEqual({ ok: false, reason: "invalid_amount" });
+  });
+
+  it("fails closed when the limiter is exhausted or unreachable", async () => {
+    expect(await quoteUsdcAmountInEurc("10", make({ rateLimit: async () => false }))).toEqual({ ok: false, reason: "rate_limited" });
+    const down = make({ rateLimit: async () => { throw new Error("redis down"); } });
+    expect(await quoteUsdcAmountInEurc("10", down)).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it("never shows a figure that is not clearly EURC for that amount", async () => {
+    const wrongToken = make({ estimate: async (a: string) => estimate(a, "9.1", "USDT") });
+    expect(await quoteUsdcAmountInEurc("10", wrongToken)).toEqual({ ok: false, reason: "unavailable" });
+    const wrongAmount = make({ estimate: async () => estimate("11") });
+    expect(await quoteUsdcAmountInEurc("10", wrongAmount)).toEqual({ ok: false, reason: "unavailable" });
   });
 });

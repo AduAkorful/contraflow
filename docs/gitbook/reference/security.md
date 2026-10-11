@@ -85,16 +85,16 @@ random tokens, but the token is a handle, not the access control: reads always c
 | API keys | Random 32 bytes. Only a SHA-256 hash is stored, and the key is shown once. The key decides the network. |
 | API permissions | EIP-712 grants signed by the party, scoped (read / propose / deliver signatures), expiring within a year, revocable. None allows signing. |
 | Idempotency | A reservation row is written before the request runs, so concurrent retries can't both execute. |
-| Webhooks | HMAC-SHA256 over timestamp and body, a 5-minute tolerance, redirects refused, and current tenant/read permissions rechecked before each send; revoked access suppresses queued events. |
+| Webhooks | HMAC-SHA256 over timestamp and body, a 5-minute tolerance, and current tenant/read permissions rechecked before each send; revoked access suppresses queued events. An endpoint must be public HTTPS on the default port. Private, loopback, link-local and metadata addresses are refused when it is saved and again on every delivery (checked at connect time, so a DNS change can't redirect a send), and redirects are never followed. A replaced or rolled secret keeps signing for 24 hours. |
 
 ## Abuse limits
 
 | Surface | Limit |
 |---|---|
-| Public lookups (inspector, stats, EURC quotes) | Per-IP rate limits, **failing closed** if the limiter is unreachable. A quote takes only an invoice id; the amount comes from the Registry. |
-| Obligations and certificates | Per-party read, write and search limits |
+| Public lookups (inspector, stats, EURC quotes) | Per-IP rate limits, **failing closed** if the limiter is unreachable. An invoice quote takes only an invoice id; the amount comes from the Registry. The Balance page's quote needs a signed-in session, is limited per address, and takes a bounded amount. |
+| Obligations and certificates | Per-party read, write and search limits per 10 minutes; the API's write limit is wider than the web app's, and a refused call says when to retry |
 | API | Per-tenant budget; fails closed |
-| Starter gas grant | Signed-in addresses only, once per address, rate-limited, and capped per day |
+| Starter gas grant | Signed-in addresses only, requested right after sign-in (and again before a first transaction if that didn't go through), once per address, rate-limited, and capped per day |
 
 ## What you're trusting
 
@@ -122,5 +122,5 @@ random tokens, but the token is a handle, not the access control: reads always c
 | The contracts haven't had a formal third-party audit | Source is published and verified; every transaction is public |
 | Address screening is a maintained list, not a vendor integration | Stated plainly in the Terms; it isn't AML or sanctions clearance |
 | Webhook signing secrets are stored as-is | HMAC signing needs the secret itself. They sit in a table no public path reads. |
-| On Vercel's Hobby plan, webhook retries run daily | First deliveries go out straight after each request or action; only retries wait for the cron |
+| On Vercel's Hobby plan, webhook retries aren't on their own schedule | First deliveries go out straight after each request or action. A retry runs the next time any API call or web-app obligation action happens, or at the daily job, so it can wait up to about a day if nothing calls Contraflow. `GET /events` lets a company catch up without waiting |
 | A settlement or certificate isn't a legal discharge of a debt | It's a signed record used alongside the parties' own agreements (see the Terms) |

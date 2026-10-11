@@ -16,7 +16,7 @@ export interface CurrencyPosition {
 export function obligationPositionByCurrency(obligations: ObligationSummary[]): CurrencyPosition[] {
   const map = new Map<string, { youOwe: bigint; owedToYou: bigint }>();
   for (const o of obligations) {
-    if (o.status !== "active") continue;
+    if (o.status !== "active" && o.status !== "disputed") continue;
     const remaining = BigInt(o.remaining);
     const slot = map.get(o.currency) ?? { youOwe: 0n, owedToYou: 0n };
     if (o.youOwe) slot.youOwe += remaining;
@@ -76,6 +76,7 @@ export function obligationStatusLabel(o: {
 }): string {
   if (o.status === "closed") return "Closed";
   if (o.status === "out_of_sync") return "out of sync";
+  if (o.status === "disputed") return "Disputed · not netted";
   if (o.remaining === o.amount) return "Active · can be netted";
   return `Netted · ${displayMinorAmount(o.remaining, o.currency)} remaining`;
 }

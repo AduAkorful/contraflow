@@ -7,7 +7,7 @@ import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 import { claimIdempotency, completeIdempotency, completeIdempotencyFromEffect, postgresTenantStore, tagProposalTenant } from "../db/tenants";
 import { postgresTenantWebhookStore } from "../db/tenantWebhook";
 import { getTenantUsage, recordUsage } from "../db/usage";
-import { enqueueWebhookTest } from "../db/webhooks";
+import { enqueueWebhookTest, listTenantEvents, postgresWebhookStore } from "../db/webhooks";
 import { appLedgerDomain } from "../netting/domain";
 import { certificateService } from "../obligations/certificateDefaults";
 import * as obligations from "../obligations/service";
@@ -26,6 +26,19 @@ export function apiDeps(): ApiDeps {
     certificates: certificateService(),
     tagProposal: tagProposalTenant,
     enqueueWebhookTest,
+    estimateApply: async ({ to, data, from }) => {
+      const client = createArcPublicClient(ARC_TESTNET_CHAIN_ID);
+      const [gas, gasPrice] = await Promise.all([client.estimateGas({ account: from, to, data }), client.getGasPrice()]);
+      return { gas, gasPrice };
+    },
+    eventLog: {
+      list: listTenantEvents,
+      canRead: (tenantId, body, nowSeconds) =>
+        postgresWebhookStore.hasCurrentReadAccess(
+          { eventId: "", tenantId, body, attempts: 0, createdAt: new Date(), url: "", secrets: [] },
+          nowSeconds,
+        ),
+    },
     webhookEndpoint: postgresTenantWebhookStore,
     allowLocalWebhooks: process.env.NODE_ENV !== "production",
     recordUsage,

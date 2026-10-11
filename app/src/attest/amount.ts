@@ -5,6 +5,9 @@ const USDC_BASE_UNITS = 1_000_000n;
 const MAX_UINT256 = (1n << 256n) - 1n;
 const PLAIN_DECIMAL = /^(\d+)(?:\.(\d+))?$/;
 
+/// One quadrillion USDC: far beyond any real invoice, far below the contract's integer range.
+export const MAX_INVOICE_USDC = 10n ** 15n;
+
 export class UsdcAmountError extends Error {
   constructor(message: string) {
     super(message);
@@ -26,6 +29,9 @@ export function parseUsdcAmount(input: string): bigint {
   const baseUnits = BigInt(whole) * USDC_BASE_UNITS + BigInt(fraction.padEnd(6, "0") || "0");
   if (baseUnits === 0n) throw new UsdcAmountError("Amount must be greater than zero.");
   if (baseUnits > MAX_UINT256) throw new UsdcAmountError("Amount exceeds the contract's uint256 limit.");
+  if (baseUnits > MAX_INVOICE_USDC * USDC_BASE_UNITS) {
+    throw new UsdcAmountError(`Amount is too large (the limit is ${MAX_INVOICE_USDC.toString()} USDC).`);
+  }
   return baseUnits;
 }
 

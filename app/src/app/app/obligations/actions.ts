@@ -48,6 +48,28 @@ export async function closeObligation(obligationId: string): Promise<Result> {
   return session ? certificateService().closeObligation(session.address, obligationId) : SIGN_IN_FIRST;
 }
 
+export async function disputeObligation(obligationId: string, note?: string): Promise<Result> {
+  notifyWebhooks();
+  const session = await getSession();
+  return session ? certificateService().disputeObligation(session.address, obligationId, note) : SIGN_IN_FIRST;
+}
+
+export async function withdrawDispute(obligationId: string): Promise<Result> {
+  notifyWebhooks();
+  const session = await getSession();
+  return session ? certificateService().withdrawDispute(session.address, obligationId) : SIGN_IN_FIRST;
+}
+
+export async function getMyNettingRules() {
+  const session = await getSession();
+  return session ? certificateService().getMyRules(session.address) : SIGN_IN_FIRST;
+}
+
+export async function saveMyNettingRules(enabled: boolean, allowed: string) {
+  const session = await getSession();
+  return session ? certificateService().setMyRules(session.address, enabled, allowed) : SIGN_IN_FIRST;
+}
+
 export async function listMyObligations() {
   notifyWebhooks();
   const session = await getSession();

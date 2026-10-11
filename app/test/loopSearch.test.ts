@@ -39,6 +39,24 @@ describe("isNettableNow", () => {
   });
 });
 
+describe("findBestLoop with a cycle that is too long", () => {
+  const G = party(7);
+
+  it("says too-long for a six-party cycle, not none", () => {
+    const six = [ob(A, B, 100n), ob(B, C, 100n), ob(C, D, 100n), ob(D, E, 100n), ob(E, F, 100n), ob(F, A, 100n)];
+    expect(findBestLoop(six, A, { now: NOW })).toEqual({ kind: "too-long", currency: "USD" });
+  });
+
+  it("still finds a short loop when a long cycle also runs through the caller", () => {
+    const edges = [ob(A, B, 100n), ob(B, C, 100n), ob(C, A, 100n), ob(C, D, 100n), ob(D, E, 100n), ob(E, F, 100n), ob(F, G, 100n), ob(G, A, 100n)];
+    expect(findBestLoop(edges, A, { now: NOW }).kind).toBe("found");
+  });
+
+  it("says none when no cycle of any length runs through the caller", () => {
+    expect(findBestLoop([ob(A, B, 100n), ob(B, C, 100n)], A, { now: NOW })).toEqual({ kind: "none" });
+  });
+});
+
 describe("findBestLoop", () => {
   it("finds the loop through the caller", () => {
     const loop = [ob(A, B, 500n), ob(B, C, 300n), ob(C, A, 400n)];

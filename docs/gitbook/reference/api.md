@@ -77,7 +77,17 @@ Send `Idempotency-Key: <1–255 characters>` on every `POST`:
 
 ## Rate limits
 
-Each tenant has a budget of 600 requests a minute (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` on every authenticated response; `Retry-After` on 429). Obligation and certificate writes also have a per-party budget, keyed separately for the web app and for each tenant, so your API traffic doesn't share a party's browser budget. Past either, you get `429 rate_limited`. If Contraflow's rate limiter itself is unreachable, requests get `503 unavailable` rather than going through unmetered.
+Each tenant has a budget of 600 requests a minute (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` on every authenticated response; `Retry-After` on 429). Obligation and certificate calls also have a per-party budget, counted per party and separately for the web app and for each tenant, so your API traffic doesn't share a party's browser budget. Each budget is a fixed 10-minute window:
+
+| Per party, per 10 minutes | Calls | Counts |
+| ------------------------- | ----- | ------ |
+| Obligation writes         | 120 through the API (20 in the web app) | Proposing, accepting and withdrawing an obligation proposal; each item of a batch counts |
+| Obligation reads          | 120   | Listing a party's obligations, reading a proposal |
+| Loop searches             | 10    | `POST /parties/{address}/loops` |
+| Certificate writes        | 30    | Submitting a signature, reporting an apply transaction |
+| Certificate reads         | 120   | Reading, exporting and getting the apply transaction |
+
+Past any of these, you get `429 rate_limited`. A 429 carries `RateLimit-Limit`, `RateLimit-Remaining` (0) and `RateLimit-Reset` for the budget that refused it, and `Retry-After` in seconds. A bulk import for one large customer is what `POST /obligations/proposals/batch` is for: up to 25 proposals a call, each counted against the party's 120 writes per 10 minutes. When the budget runs out the rest of the batch is reported as not processed, and you resume after `Retry-After`. If Contraflow's rate limiter itself is unreachable, requests get `503 unavailable` rather than going through unmetered.
 
 ## Errors
 
@@ -94,7 +104,7 @@ Every error has the same shape:
 | 403    | `live_unavailable`, `chain_unavailable`                                            | Live key before mainnet; a network without the ledger                                        |
 | 404    | `not_found`                                                                        | No permission, not a party, or doesn't exist                                                 |
 | 405    | `method_not_allowed`                                                               | Wrong HTTP method; see `Allow`                                                               |
-| 409    | `duplicate_nonce`, `idempotency_conflict`, `idempotency_in_progress`, `not_ready`  | See each endpoint                                                                            |
+| 409    | `duplicate_nonce`, `duplicate_proposal`, `idempotency_conflict`, `idempotency_in_progress`, `not_ready`, `already_applied` | See each endpoint                                       |
 | 422    | `invalid_permission`, `invalid_party`, `invalid_request`, `rejected`, `no_webhook` | The request was understood and refused. `message` says why, for example "Invalid signature." |
 | 429    | `rate_limited`                                                                     | Slow down                                                                                    |
 | 500    | `internal_error`                                                                   | Retry with the same `Idempotency-Key`                                                        |
@@ -104,7 +114,7 @@ Every error has the same shape:
 
 ### GET `/tenant`
 
-**200:** `{ "tenantId", "name", "status", "mode", "chainId", "webhookConfigured" }`. `chainId` is a JSON number. No party permission required.
+**200:** `{ "tenantId", "name", "status", "mode", "chainId", "ledger", "webhookConfigured" }`. `chainId` is a JSON number. `ledger` is the netting ledger on the key's chain, the `verifyingContract` parties sign obligations under. No party permission required.
 
 ### GET `/usage`
 
@@ -156,7 +166,7 @@ The same data appears under **Usage** on [API keys](https://contraflow.vercel.ap
 
 ### GET `/permissions`
 
-Lists grants this tenant holds on the key's chain. Optional `?party=` filters to one address. **200:** `{ "permissions": [{ "permissionId", "party", "scopes", "expiresAt", "revoked" }] }`.
+Lists grants this tenant holds on the key's chain. Optional `?party=` filters to one address. **200:** `{ "permissions": [{ "permissionId", "party", "scopes", "expiresAt", "revoked", "expired", "status" }] }`. `status` is `active`, `expired` (`expiresAt` has passed) or `revoked`; an expired permission can no longer be used, whether or not it was revoked.
 
 ### GET `/permissions/typed-data`
 
@@ -255,7 +265,9 @@ Scope: `propose` (as `party`, the proposer).
 
 **How to build it:**
 
-* `document.amount` is in major units, exactly as shown to the parties. `obligation.amount` is the same value in minor units.
+* `document.amount` is in major units, exactly as shown to the parties. `obligation.amount` is the same value in minor units. An amount must be greater than zero and at most 1,000,000,000,000,000 (10^15) in major units; larger amounts answer `422 rejected`.
+* Proposing the same obligation again (same document and pair) creates nothing new: it answers **409** `duplicate_proposal`, with `error.details.proposalToken` and `error.details.appUrl` for the stored proposal. A new proposal answers **201**.
+* The response includes `appUrl`, the link the counterparty opens in the Contraflow app (`/app/o/{token}`). Certificates carry the same (`/app/c/{token}`).
 * `documentHash` is `keccak256` of the canonical document (see [Offchain netting](offchain-netting.md#obligation)). Both parties, and Contraflow, must derive it identically:
 
 ```ts
@@ -385,6 +397,22 @@ Scope: `deliverSignatures` (as the counterparty).
 
 Scope: `propose`. Withdraws an open proposal. **204**.
 
+### POST `/obligations/{obligationId}/dispute`
+
+Scope: `propose` (as `party`, who must be the obligation's debtor or creditor). Marks the obligation disputed.
+
+```json
+{ "party": "0x504d…FA18", "note": "Work not delivered" }
+```
+
+**200:** `{ "disputed": true }`. `note` is optional, up to 200 characters. A disputed obligation is left out of every loop search and certificate, and a certificate still collecting signatures that includes it is cancelled. It is refused (**422** `rejected`) while the obligation is in a certificate every party has signed. Contraflow doesn't decide who is right. Send an `Idempotency-Key`.
+
+Listed obligations then show `"status": "disputed"` with `disputedBy` (`you` or `counterparty`, from the viewing party's side) and `disputeNote`.
+
+### DELETE `/obligations/{obligationId}/dispute?party=`
+
+Scope: `propose`. Withdraws a dispute, returning the obligation to `active`. Only the party that raised it can; the other party gets **422** `rejected`. **204**.
+
 ### GET `/parties/{address}/obligations`
 
 Scope: `read`. It brings any certificate the ledger has applied up to date first.
@@ -395,7 +423,7 @@ Scope: `read`. It brings any certificate the ledger has applied up to date first
     { "token": "…", "waitingOn": "them", "youOwe": true, "counterparty": "0x…", "currency": "USD", "amountMinor": "10000", "amountDisplay": "100.00", "description": "…", "expiresAt": "1793021341" }
   ],
   "obligations": [
-    { "obligationId": "0x…", "youOwe": false, "counterparty": "0x…", "currency": "USD", "amountMinor": "10000", "amountDisplay": "100.00", "remainingMinor": "0", "remainingDisplay": "0.00", "maturity": "1798675200", "description": "…", "status": "active" }
+    { "obligationId": "0x…", "youOwe": false, "counterparty": "0x…", "currency": "USD", "amountMinor": "10000", "amountDisplay": "100.00", "remainingMinor": "0", "remainingDisplay": "0.00", "maturity": "1798675200", "description": "…", "status": "closed", "closedReason": "netted" }
   ],
   "certificates": [
     { "token": "zWa9t3gHKtmQZY3uiBvJQg", "status": "applied", "currency": "USD", "wNetMinor": "10000", "wNetDisplay": "100.00", "deadline": "1791100000", "parties": 3, "signedCount": 3, "youSigned": true, "appliedTxHash": "0x9ff3…7a00" }
@@ -404,9 +432,17 @@ Scope: `read`. It brings any certificate the ledger has applied up to date first
 }
 ```
 
-Optional `?limit=` (1–100, default 50) and `?cursor=` (the previous page's `nextCursor`). Order is proposals, then obligations, then certificates, each by id. `nextCursor` is `null` when this is the last page.
+An obligation's `status` is `active`, `closed`, `out_of_sync` or `disputed`. A fully netted obligation (nothing remaining) is `closed` with `closedReason` of `netted`; one a party closed is `closed` with `closedReason` of `closed_by_party`. Optional `?limit=` (1–100, default 50) and `?cursor=` (the previous page's `nextCursor`). Order is proposals, then obligations, then certificates, each by id. `nextCursor` is `null` when this is the last page.
 
 Obligation `status` is `active`, `closed` or `out_of_sync`. The last means the stored state disagrees with the ledger, and the obligation won't be netted until that's resolved.
+
+### GET `/parties/{address}/rules`
+
+Scope: `read`. **200:** `{ "party", "allowlistEnabled", "allowed": [ "0x…" ] }`: the party's approved-counterparty rule.
+
+### POST `/parties/{address}/rules`
+
+Scope: `propose`. Body `{ "allowlistEnabled": true, "allowed": [ "0x…" ] }`. With the rule on, the party is only in loops whose other members are all in `allowed` (up to 50 addresses, at least one). Your own address is ignored. The rule applies to every loop proposal and every signature for every party in a loop, so a loop it blocks answers `blocked-by-rules` from the loop search and a signature on it is refused. **200:** the stored rule. Send an `Idempotency-Key`.
 
 ### POST `/parties/{address}/loops`
 
@@ -422,9 +458,21 @@ or
 { "outcome": { "found": false, "reason": "no-loop", "message": "…" } }
 ```
 
-`reason` is `no-candidates`, `no-loop`, `too-many-parties`, `search-incomplete` or `out-of-sync`.
+`reason` is `no-candidates`, `no-loop`, `loop-too-long`, `blocked-by-rules`, `too-many-parties`, `search-incomplete` or `out-of-sync`.
+
+Loops are found with 2 to 5 parties (the maximum is 5). When a cycle runs through the party but only with more than 5 parties, the answer is `loop-too-long`; it is never partly netted. `no-loop` means no cycle runs through the party at all, or none can be netted now. `too-many-parties` is a different case: so many parties are connected to this party that the search can't be done safely.
 
 ## Certificates
+
+### POST `/obligations/proposals/batch`
+
+Scope: `propose` (as `party`). Up to 25 already-signed proposals, each exactly the body of `POST /obligations/proposals` without `party`:
+
+```json
+{ "party": "0x504d…FA18", "proposals": [ { "proposerRole": "debtor", "document": { … }, "obligation": { … }, "proposerSignature": "0x…" } ] }
+```
+
+**200:** `{ "results": [ { "index": 0, "status": 201, "proposal": { … } }, { "index": 1, "status": 409, "error": { "code": "duplicate_proposal", "message": "…", "details": { "proposalToken": "…", "appUrl": "…" } } } ], "created": 1, "failed": 1 }`. Every item is validated and counted like a single proposal. If the party's write budget runs out, the remaining items come back as `429` / `rate_limited` and are not processed; resume them after `Retry-After`. Send an `Idempotency-Key`.
 
 ### GET `/certificates/{token}?party=`
 
@@ -463,7 +511,7 @@ Scope: `deliverSignatures`. `{ "party": "0x…", "signature": "0x…" }` → **2
 
 ### GET `/certificates/{token}/apply-transaction?party=`
 
-Scope: `read`. **409** `not_ready` until every party has signed.
+Scope: `read`. **409** `not_ready` until every party has signed (and if the certificate expired or was cancelled, the message says so). **409** `already_applied` once the ledger has applied it. The response includes a `submit` block: `anyFundedWallet` (any wallet with native USDC for gas can send it), `estimatedGas`, `estimatedCostUsdc` (both `null` if the estimate wasn't available) and `appUrl` (a party can apply from the app instead).
 
 ```json
 {
@@ -534,7 +582,7 @@ A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. 
 }
 ```
 
-Certificate events carry `currency`, `wNetMinor` and `wNetDisplay` (the amount netted); `appliedTxHash` is the apply transaction on `certificate.applied` and `null` before that, or if the hash wasn't recorded. `obligation.recorded` carries `{ "obligationId": "0x…", "parties": [ … ] }` in `data`.
+Certificate events carry `currency`, `wNetMinor` and `wNetDisplay` (the amount netted); `appliedTxHash` is the apply transaction on `certificate.applied` and `null` before that, or if the hash wasn't recorded. `obligation.recorded` carries `obligationId`, `parties`, `proposalToken` (the token of the accepted proposal), `currency`, `amountMinor`, `amountDisplay`, `maturity` (unix seconds, as a string), and `debtor` and `creditor`. A `debtor` or `creditor` is `null` when your tenant doesn't hold read permission for that party, so an event never names a party you can't see.
 
 ### Updating your books
 
@@ -564,7 +612,7 @@ function verify(header: string, rawBody: string, secret: string, now = Date.now(
 * **Verify against the raw body.** Do it before parsing, since re-serialised JSON won't match.
 * **De-duplicate.** Use the event `id`: a delivery can arrive more than once.
 * **Respond quickly.** Return any 2xx; anything else, a redirect or a timeout (10 seconds) is a failure.
-* **Retries.** A failed delivery becomes due again after 1, 2, 4… minutes (capped at 6 hours between tries) and stops after 3 days. Due retries only run when the delivery pipeline does: after any authenticated API request, after a web-app obligation write, and at the daily 04:15 UTC job. With no other traffic, a retry can wait until the next daily run, about 24 hours. To retry sooner, make any authenticated call on your own timer, for example `GET /webhooks/endpoint`; it also shows the latest delivery outcomes.
+* **Retries.** A failed delivery becomes due again after 1, 2, 4… minutes (capped at 6 hours between tries) and stops after 3 days. A due retry runs the next time the delivery pipeline runs, which is after any authenticated API request, after any obligation action in the Contraflow web app (including loading the Obligations page), after a test event from the API keys page, and at the daily 04:15 UTC job. For a company that is using the API or the app, that is usually within minutes. If nothing at all calls Contraflow, a retry waits for the daily job, up to about a day. To make sure a retry isn't left waiting, make any authenticated call on your own timer, for example `GET /webhooks/endpoint`; it also shows the latest delivery outcomes.
 * **Order.** Events aren't guaranteed to arrive in order. Use the certificate's `status`, or read it back through the API.
 
 ### Webhook endpoint (API)
@@ -581,6 +629,17 @@ A platform can manage its tenant's single endpoint without the app. These calls 
 **200 examples.** `POST /webhooks/endpoint`: `{ "url": "https://hooks.example.com/contraflow", "secret": "whsec_…" }`. `POST /webhooks/endpoint/secret`: `{ "secret": "whsec_…", "previousSecretValidFor": "24 hours" }`. `GET /webhooks/endpoint`: `{ "endpoint": { "url": "https://hooks.example.com/contraflow", "secretRollingUntil": null }, "recentDeliveries": [ { "eventId": "evt_…", "type": "certificate.applied", "status": "delivered", "attempts": 1, "createdAt": "1790000000", "statusCode": 200, "error": null } ] }`.
 
 A URL that isn't public HTTPS on the default port, or that names or resolves to a private, loopback, link-local or metadata address, answers **422** `invalid_request` and nothing is stored. Rolling or removing with no endpoint answers **422** `no_webhook`. Treat the API key as a secret: whoever holds it can point this tenant's future events elsewhere. The same endpoint can also be managed at `/app/api-keys` for tenants you created there.
+
+### GET `/events`
+
+A catch-up for missed webhooks, and an alternative to a webhook. Returns this tenant's events oldest first, in the same shape as webhook deliveries plus a `cursor`. No party permission required.
+
+| Query   | Meaning |
+| ------- | ------- |
+| `after` | A `cursor` or `nextCursor` from a previous call. Omit it to start from the oldest retained event |
+| `limit` | 1 to 100, default 50 |
+
+**200:** `{ "events": [ { "id", "type", "created", "chainId", "data", "cursor" } ], "nextCursor": "123", "hasMore": false }`. Call again with `after=nextCursor`; when nothing is new, `nextCursor` equals `after`. If `hasMore` is true, call again straight away. Events are recorded whether or not an endpoint is registered, and kept for 30 days. Events about a party whose read permission is no longer live are left out, exactly as they would not have been delivered. De-duplicate by event `id`: an event can arrive by webhook and appear here.
 
 ### POST `/webhooks/test`
 

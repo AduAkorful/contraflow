@@ -162,8 +162,10 @@ See [Offchain netting](offchain-netting.md) for the full sequence and state mach
 API requests go through `route()` in `src/api/http.ts`, which handles authentication, rate limits and idempotency,
 then call the same services as the web app, acting for the party named in the request. Changes to obligations and
 certificates are captured by Postgres triggers into a change log, whichever path made them. After each API request
-and web-app action, and daily from Vercel Cron, a pipeline turns changes into signed webhook events and delivers
-them. Immediately before each delivery attempt it rechecks the tenant's active status and current read permission
+and web-app action, and daily from Vercel Cron, a pipeline turns changes into webhook events, records them for every
+tenant with read permission (a tenant can page them with `GET /events` for 30 days), and delivers them to tenants
+that have an endpoint. Delivery goes through one poster that validates the URL and the resolved address on every
+attempt. Immediately before each delivery attempt it rechecks the tenant's active status and current read permission
 for every party named in the event. Revoked, expired or suspended access suppresses the queued event. See
 [API reference](api.md#webhooks).
 

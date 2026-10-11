@@ -67,7 +67,39 @@ export async function quoteRemainingInEurc(invoiceId: string, deps: QuoteDeps): 
     return { ok: false, reason: "nothing_remaining" };
   }
 
-  const amountInUsdc = formatUnits(invoice.amountRemaining, USDC_DECIMALS);
+  return quoteAmount(formatUnits(invoice.amountRemaining, USDC_DECIMALS), deps);
+}
+
+/// The largest amount a Balance-page quote accepts, in USDC. A quote is read-only, so this only
+/// keeps nonsense out of the cache and away from Circle.
+export const MAX_QUOTE_USDC = 1_000_000n;
+
+/// A quote for an amount the signed-in user typed on the Balance page. The caller must already
+/// have checked the session; this validates the amount and applies the same limit, cache and
+/// output checks as the invoice quote.
+export async function quoteUsdcAmountInEurc(
+  amountInUsdc: string,
+  deps: Omit<QuoteDeps, "readInvoice">,
+): Promise<EurcQuoteResult> {
+  const text = typeof amountInUsdc === "string" ? amountInUsdc.trim() : "";
+  const match = /^(\d{1,7})(?:\.(\d{1,6}))?$/.exec(text);
+  if (!match) return { ok: false, reason: "invalid_amount" };
+  const whole = BigInt(match[1]!);
+  const fraction = match[2] ?? "";
+  const micro = whole * 1_000_000n + BigInt(fraction.padEnd(6, "0") || "0");
+  if (micro === 0n || micro > MAX_QUOTE_USDC * 1_000_000n) return { ok: false, reason: "invalid_amount" };
+
+  let allowed: boolean;
+  try {
+    allowed = await deps.rateLimit();
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+  if (!allowed) return { ok: false, reason: "rate_limited" };
+  return quoteAmount(formatUnits(micro, USDC_DECIMALS), deps);
+}
+
+async function quoteAmount(amountInUsdc: string, deps: Omit<QuoteDeps, "readInvoice">): Promise<EurcQuoteResult> {
   const key = quoteCacheKey(deps.chainId, amountInUsdc);
 
   try {

@@ -7,7 +7,7 @@ import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 import { postgresCertificateStore } from "../db/certificates";
 import { appLedgerDomain } from "../netting/domain";
 import { checkRateLimit } from "../ratelimit/limiter";
-import { serviceRateLimitKey } from "../api/limitBucket";
+import { serviceRateLimitKey, reportLimitHit } from "../api/limitBucket";
 import { createCertificateService, type CertificateService } from "./certificates";
 
 const LIMITS = {
@@ -28,6 +28,7 @@ export function certificateService(): CertificateService {
     rateLimited: async (kind, address) => {
       const { max, windowSeconds } = LIMITS[kind];
       const result = await checkRateLimit(serviceRateLimitKey("certificates", kind, address), max, windowSeconds);
+      if (!result.allowed) reportLimitHit({ limit: max, reset: result.reset });
       return !result.allowed;
     },
   });

@@ -6,7 +6,7 @@ import { safeNextPath } from "../src/session/nextPath";
 
 describe("sign-in copy", () => {
   it("asks wallet users to check the prompt and email users to confirm", () => {
-    expect(signingInLabel("external")).toBe("Check your wallet: a request is waiting. It may show a warning first.");
+    expect(signingInLabel("external")).toBe("Check your wallet: a request is waiting (there may be two). It may show a warning first.");
     expect(signingInLabel("embedded")).toBe("Confirming…");
     expect(signingInLabel("unknown")).toBe("Continue in the sign-in window…");
   });

@@ -4,7 +4,7 @@
 /// never hash-equal an invoice document. Browser-safe: both parties' browsers compute this.
 
 import { isAddress, isAddressEqual, keccak256, toHex, zeroAddress, type Address, type Hex } from "viem";
-import { isIsoCurrency, parseAmount } from "./currency";
+import { isIsoCurrency, parseAmount, MAX_AMOUNT_MAJOR, maxAmountMinor } from "./currency";
 import type { NettingObligation } from "./types";
 
 export const OBLIGATION_DOCUMENT_FORMAT = "contraflow-obligation/1";
@@ -76,7 +76,11 @@ export function obligationDocumentProblem(doc: CanonicalObligationDocument): str
   if (typeof doc.currency !== "string" || !isIsoCurrency(doc.currency)) return "Not an ISO 4217 currency code";
   if (typeof doc.earlyNetConsent !== "boolean") return "Missing early-net consent";
   try {
-    if (parseAmount(doc.amount, doc.currency) <= 0n) return "Amount must be more than zero";
+    const amount = parseAmount(doc.amount, doc.currency);
+    if (amount <= 0n) return "Amount must be more than zero";
+    if (amount > maxAmountMinor(doc.currency)) {
+      return `Amount is too large (the limit is ${MAX_AMOUNT_MAJOR.toString()} ${doc.currency})`;
+    }
   } catch (error) {
     return error instanceof Error ? error.message : "Invalid amount";
   }

@@ -99,7 +99,10 @@ erDiagram
     text description
     text remaining
     text blinding
-    text status "active, closed, out_of_sync"
+    text status "active, closed, out_of_sync, disputed"
+    text disputed_by "party that raised a dispute"
+    timestamptz disputed_at
+    text dispute_note "optional, up to 200 characters"
   }
   netting_certificates {
     text certificate_id PK
@@ -183,16 +186,18 @@ erDiagram
     text tenant_id PK, FK
     text url
     text secret
-    text previous_secret "valid 24 h after a roll"
+    text previous_secret "valid 24 h after a roll or a replace"
+    timestamptz previous_expires_at
   }
   webhook_events {
     text event_id PK
     text tenant_id FK
+    bigint seq "cursor for GET /events"
     text type
     jsonb payload
     int attempts
     timestamptz next_attempt_at
-    text status "pending, delivered, failed, suppressed"
+    text status "pending, delivered, failed, suppressed, no_endpoint"
   }
   webhook_deliveries {
     text event_id PK, FK
@@ -206,6 +211,12 @@ erDiagram
     text request_hash
     int status_code
     jsonb response
+  }
+  netting_party_rules {
+    text party PK
+    bool allowlist_enabled
+    text_array allowed "approved counterparties, lowercased"
+    timestamptz updated_at
   }
   netting_changes {
     bigint change_id PK
@@ -227,8 +238,11 @@ erDiagram
 
 `netting_changes` is written by triggers on `netting_obligations` (insert) and `netting_certificates` (insert and
 status change). The webhook pipeline turns each change into events for tenants with `read` permission from a party
-it touches, then rechecks current permission before every send. `webhook_events.status` can be `pending`,
-`delivered`, `failed` or `suppressed`; a suppressed event is terminal and was withheld after access changed. None
+it touches, then rechecks current permission before every send. Events are recorded for every such tenant,
+whether or not it has an endpoint, so `GET /events` can page them by `seq`; they are kept for 30 days.
+`webhook_events.status` can be `pending`, `delivered`, `failed`, `suppressed` or `no_endpoint`. A suppressed event
+is terminal and was withheld after access changed. A `no_endpoint` event was recorded for a tenant that had no
+endpoint at the time; it is readable through `GET /events` and is never delivered later. None
 of the API tables is readable outside the server. `tenants.owner_address` (migration 013) is the signed-in
 address that created a self-serve tenant, unique when set. Operator-created tenants leave it null. A key's secret
 is never stored.

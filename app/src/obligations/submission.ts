@@ -6,6 +6,7 @@
 import { isAddressEqual, isHex, size, type Address, type Hex } from "viem";
 import { screenAddresses, type ComplianceProvider } from "../compliance";
 import { isZeroHash } from "../netting/commitment";
+import { MAX_AMOUNT_MAJOR, maxAmountMinor } from "../netting/currency";
 import { appLedgerDomain } from "../netting/domain";
 import { obligationDocumentProblem, obligationMatchesDocument, type CanonicalObligationDocument } from "../netting/document";
 import { obligationId } from "../netting/obligation";
@@ -54,6 +55,13 @@ export function obligationTermsProblem(input: Pick<ProposalInput, "domain" | "ob
   if (documentProblem) return documentProblem;
   if (!isHex(obligation.salt) || size(obligation.salt) !== 32 || isZeroHash(obligation.salt)) return "Invalid salt";
   if (obligation.amount <= 0n || obligation.amount > MAX_UINT256) return "Invalid amount";
+  try {
+    if (obligation.amount > maxAmountMinor(obligation.currency)) {
+      return `Amount is too large (the limit is ${MAX_AMOUNT_MAJOR.toString()} ${obligation.currency})`;
+    }
+  } catch {
+    return "Invalid currency";
+  }
   if (obligation.maturity < 0n || obligation.maturity > MAX_UINT64) return "Invalid maturity";
   if (!obligationMatchesDocument(obligation, document)) return "The obligation doesn't match its document";
   return null;

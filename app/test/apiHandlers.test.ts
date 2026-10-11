@@ -207,6 +207,20 @@ describe("proposals", () => {
     expect(typed.typedData.domain.chainId).toBe(TESTNET);
     expect(typed.typedData.message.amount).toBe("100");
     expect(typed.digest).toMatch(/^0x[0-9a-f]{64}$/);
+    expect((res.body as { proposal: { appUrl: string } }).proposal.appUrl).toContain("/app/o/tok123");
+  });
+
+  it("answers 409 duplicate_proposal, with the stored proposal's token and link, when proposed again", async () => {
+    const { d, store, obligations } = deps();
+    obligations.createProposal.mockResolvedValue({ ok: true, token: "tok123", existing: true } as never);
+    await grant(store, SCOPE.propose, party);
+    await expect(
+      handlers.createObligationProposal(caller, req({ body: { party, obligation: {}, document: {}, proposerRole: "debtor", proposerSignature: "0x" } }), d),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "duplicate_proposal",
+      details: { proposalToken: "tok123", appUrl: expect.stringContaining("/app/o/tok123") },
+    });
   });
 
   it("recovers a create from the stored proposal instead of inserting again", async () => {
@@ -254,13 +268,36 @@ describe("apply transaction", () => {
   it("returns calldata for applyCertificate with every signature once the certificate is ready", async () => {
     const { d, me, view } = await withCertificate(true);
     const res = await handlers.applyTransaction(caller, req({ params: { token: "c" }, query: new URLSearchParams({ party: me }) }), d);
-    const body = res.body as { to: string; data: Hex; value: string; chainId: number };
+    const body = res.body as { to: string; data: Hex; value: string; chainId: number; submit: { anyFundedWallet: boolean; estimatedGas: string | null; appUrl: string } };
+    expect(body.submit).toMatchObject({ anyFundedWallet: true, estimatedGas: null });
+    expect(body.submit.appUrl).toContain("/app/c/c");
     expect(body.chainId).toBe(TESTNET);
     expect(body.to).toBe(domain.verifyingContract);
     expect(body.value).toBe("0");
     const decoded = decodeFunctionData({ abi: contraflowNettingLedgerAbi, data: body.data });
     expect(decoded.functionName).toBe("applyCertificate");
     expect(decoded.args?.[1]).toEqual(view.signatures);
+  });
+
+  it("says so when the certificate has already been applied, expired or cancelled", async () => {
+    const { view, fixture } = await signedCertificate({ domain, amounts: [100n, 100n, 100n], earlyNetConsent: true });
+    const me = fixture.parties[0]!.address;
+    const expectations: [string, string, RegExp][] = [
+      ["applied", "already_applied", /already been applied/],
+      ["expired", "not_ready", /expired/],
+      ["abandoned", "not_ready", /cancelled/],
+    ];
+    for (const [status, code, message] of expectations) {
+      const { d, store, certificates } = deps();
+      await grant(store, SCOPE.read, me);
+      certificates.getCertificateView.mockResolvedValue({
+        ok: true,
+        certificate: { token: "c", status, view: serializeCertificateView(view) },
+      } as never);
+      await expect(
+        handlers.applyTransaction(caller, req({ params: { token: "c" }, query: new URLSearchParams({ party: me }) }), d),
+      ).rejects.toMatchObject({ status: 409, code, message: expect.stringMatching(message) });
+    }
   });
 
   it("refuses until every party has signed", async () => {
@@ -331,6 +368,24 @@ describe("tenant and webhook helpers", () => {
     });
   });
 
+  it("shows an expired permission as expired, not just not-revoked", async () => {
+    const { d, store } = deps();
+    await store.savePermission({
+      permissionId: "old",
+      tenantId: TENANT,
+      chainId: TESTNET,
+      party,
+      scopes: SCOPE.read,
+      expiresAt: NOW - 10n,
+      nonce: `0x${"1".repeat(64)}`,
+      signature: "0x",
+    });
+    await grant(store, SCOPE.read);
+    const body = (await handlers.listPermissions(caller, req(), d)).body as { permissions: { permissionId: string; revoked: boolean; expired: boolean; status: string }[] };
+    expect(body.permissions.find((p) => p.permissionId === "old")).toMatchObject({ revoked: false, expired: true, status: "expired" });
+    expect(body.permissions.find((p) => p.permissionId !== "old")).toMatchObject({ expired: false, status: "active" });
+  });
+
   it("lists stored permissions, optionally filtered by party", async () => {
     const { d, store } = deps();
     await grant(store, SCOPE.read);
@@ -393,6 +448,7 @@ describe("obligation list pagination", () => {
         amountDisplay: "100.00",
         description: "Retainer",
         expiresAt: "1793021341",
+        appUrl: expect.stringContaining("/app/o/a"),
       },
     ]);
     expect(typeof body.nextCursor).toBe("string");
@@ -442,5 +498,124 @@ describe("webhook endpoint over the API", () => {
     await handlers.setWebhookEndpoint(caller, req({ body: { url: URL_OK } }), d);
     expect(await handlers.deleteWebhookEndpoint(caller, req(), d)).toEqual({ status: 204, body: null });
     await expect(handlers.deleteWebhookEndpoint(caller, req(), d)).rejects.toMatchObject({ status: 422, code: "no_webhook" });
+  });
+});
+
+describe("obligation status in lists", () => {
+  it("shows a fully netted obligation as closed with its reason", async () => {
+    const { d, store, obligations } = deps();
+    await grant(store, SCOPE.read);
+    const base = { currency: "USD", amount: "10000", counterparty: party, youOwe: true, maturity: "1", description: "x" };
+    obligations.listMine.mockResolvedValue({
+      ok: true,
+      proposals: [],
+      obligations: [
+        { ...base, obligationId: "0xa", remaining: "0", status: "active" },
+        { ...base, obligationId: "0xb", remaining: "500", status: "active" },
+        { ...base, obligationId: "0xc", remaining: "500", status: "closed" },
+      ],
+    } as never);
+    const res = await handlers.listPartyObligations(caller, req({ params: { address: party } }), d);
+    const rows = (res.body as { obligations: { obligationId: string; status: string; closedReason?: string }[] }).obligations;
+    const by = Object.fromEntries(rows.map((r) => [r.obligationId, r]));
+    expect(by["0xa"]).toMatchObject({ status: "closed", closedReason: "netted" });
+    expect(by["0xb"]).toMatchObject({ status: "active" });
+    expect(by["0xb"]!.closedReason).toBeUndefined();
+    expect(by["0xc"]).toMatchObject({ status: "closed", closedReason: "closed_by_party" });
+  });
+});
+
+describe("batch proposals", () => {
+  it("returns a result per item and reports duplicates and a spent budget without dropping any", async () => {
+    const { d, store, obligations } = deps();
+    await grant(store, SCOPE.propose, party);
+    const calls = [
+      { ok: true as const, token: "t1" },
+      { ok: true as const, token: "t2", existing: true },
+      { ok: false as const, error: "Too many requests. Try again shortly." },
+    ];
+    obligations.createProposal.mockImplementation(async () => calls.shift() as never);
+    obligations.getProposal.mockResolvedValue({
+      ok: true,
+      proposal: {
+        token: "t1",
+        domain: { chainId: domain.chainId.toString(), verifyingContract: domain.verifyingContract },
+        obligation: serializeObligation({ documentHash: `0x${"11".repeat(32)}`, debtor: party, creditor: party, currency: "USD", amount: 100n, maturity: 1n, earlyNetConsent: true, salt: `0x${"22".repeat(32)}` }),
+        document: {},
+        proposerSignature: "0x",
+        expiresAt: "2026-10-26T00:00:00.000Z",
+      },
+    } as never);
+    const item = { obligation: {}, document: {}, proposerRole: "debtor", proposerSignature: "0x" };
+    const res = await handlers.createObligationProposals(caller, req({ body: { party, proposals: [item, item, item, item] } }), d);
+    const body = res.body as { results: { index: number; status: number; error?: { code: string; details?: { proposalToken: string } } }[]; created: number; failed: number };
+    expect(res.status).toBe(200);
+    expect(body.results.map((r) => r.status)).toEqual([201, 409, 429, 429]);
+    expect(body.results[1]!.error).toMatchObject({ code: "duplicate_proposal", details: { proposalToken: "t2" } });
+    expect(body.results[3]!.error!.code).toBe("rate_limited");
+    expect(body).toMatchObject({ created: 1, failed: 3 });
+    expect(obligations.createProposal).toHaveBeenCalledTimes(3);
+  });
+
+  it("refuses an empty or oversized batch", async () => {
+    const { d, store } = deps();
+    await grant(store, SCOPE.propose, party);
+    await expect(handlers.createObligationProposals(caller, req({ body: { party, proposals: [] } }), d)).rejects.toMatchObject({ status: 422 });
+    await expect(
+      handlers.createObligationProposals(caller, req({ body: { party, proposals: Array.from({ length: 26 }, () => ({})) } }), d),
+    ).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe("GET /events", () => {
+  const rows = [
+    { seq: "5", status: "delivered", body: JSON.stringify({ id: "evt_a", type: "certificate.applied", created: 1, chainId: 5042002, data: { parties: [party] } }) },
+    { seq: "6", status: "pending", body: JSON.stringify({ id: "evt_b", type: "obligation.recorded", created: 2, chainId: 5042002, data: { parties: [party] } }) },
+    { seq: "7", status: "suppressed", body: JSON.stringify({ id: "evt_c", type: "certificate.ready", created: 3, chainId: 5042002, data: { parties: [party] } }) },
+  ];
+
+  it("pages events after a cursor, skipping suppressed and no-longer-readable ones", async () => {
+    const list = vi.fn(async () => rows);
+    const canRead = vi.fn(async (_t: string, body: string) => !body.includes("evt_b"));
+    const { d } = deps({ eventLog: { list, canRead } } as never);
+    const res = await handlers.listEvents(caller, req({ query: new URLSearchParams({ after: "4", limit: "3" }) }), d);
+    expect(list).toHaveBeenCalledWith(TENANT, "4", 3);
+    const body = res.body as { events: { id: string; cursor: string }[]; nextCursor: string; hasMore: boolean };
+    expect(body.events).toEqual([expect.objectContaining({ id: "evt_a", cursor: "5" })]);
+    expect(body.nextCursor).toBe("7");
+    expect(body.hasMore).toBe(true);
+  });
+
+  it("keeps the cursor when nothing is new and rejects a bad cursor or limit", async () => {
+    const { d } = deps({ eventLog: { list: async () => [], canRead: async () => true } } as never);
+    expect((await handlers.listEvents(caller, req({ query: new URLSearchParams({ after: "9" }) }), d)).body).toMatchObject({ events: [], nextCursor: "9", hasMore: false });
+    await expect(handlers.listEvents(caller, req({ query: new URLSearchParams({ after: "x" }) }), d)).rejects.toMatchObject({ status: 422 });
+    await expect(handlers.listEvents(caller, req({ query: new URLSearchParams({ limit: "500" }) }), d)).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe("disputes over the API", () => {
+  it("disputes and withdraws as the party, under the propose scope", async () => {
+    const { d, store, certificates } = deps();
+    await grant(store, SCOPE.propose, party);
+    const dispute = vi.fn(async () => ({ ok: true as const }));
+    const withdraw = vi.fn(async () => ({ ok: true as const }));
+    (certificates as unknown as Record<string, unknown>).disputeObligation = dispute;
+    (certificates as unknown as Record<string, unknown>).withdrawDispute = withdraw;
+    const id = `0x${"ab".repeat(32)}`;
+    const res = await handlers.disputeObligationHandler(caller, req({ params: { obligationId: id }, body: { party, note: "Not delivered" } }), d);
+    expect(res).toEqual({ status: 200, body: { disputed: true } });
+    expect(dispute).toHaveBeenCalledWith(party, id, "Not delivered");
+    const back = await handlers.withdrawDisputeHandler(caller, req({ params: { obligationId: id }, query: new URLSearchParams({ party }) }), d);
+    expect(back).toEqual({ status: 204, body: null });
+    expect(withdraw).toHaveBeenCalledWith(party, id);
+  });
+
+  it("needs a propose permission for the party", async () => {
+    const { d, store } = deps();
+    await grant(store, SCOPE.read, party);
+    await expect(
+      handlers.disputeObligationHandler(caller, req({ params: { obligationId: `0x${"ab".repeat(32)}` }, body: { party } }), d),
+    ).rejects.toMatchObject({ status: 404 });
   });
 });

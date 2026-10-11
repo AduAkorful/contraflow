@@ -1,5 +1,6 @@
 import { runWebhookPipeline } from "@/src/api/webhookRunner";
 import { purgeOldUsage } from "@/src/db/usage";
+import { purgeOldWebhookEvents } from "@/src/db/webhooks";
 
 /// Vercel Cron calls this with `Authorization: Bearer $CRON_SECRET`. It's the retry backstop:
 /// deliveries also run right after API requests and web-app obligation actions.
@@ -12,6 +13,7 @@ export async function GET(request: Request): Promise<Response> {
   // Housekeeping must never fail the delivery run.
   try {
     await purgeOldUsage();
+    await purgeOldWebhookEvents();
   } catch (error) {
     console.error("Usage purge failed", error instanceof Error ? error.message : error);
   }

@@ -14,7 +14,7 @@ export interface EurcQuote {
 
 export type EurcQuoteResult =
   | { ok: true; quote: EurcQuote }
-  | { ok: false; reason: "nothing_remaining" | "not_found" | "rate_limited" | "unavailable" };
+  | { ok: false; reason: "nothing_remaining" | "not_found" | "rate_limited" | "unavailable" | "invalid_amount" | "sign_in" };
 
 /// On unless explicitly switched off, so the quote (a Phase 1 deliverable) never disappears because
 /// an environment forgot to set a variable. `off` hides every quote button.

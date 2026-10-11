@@ -30,7 +30,11 @@ import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { useWallets } from "@privy-io/react-auth";
 import { prepareToSubmit } from "@/src/attest/submitAsParty";
 import { prepareWalletContext } from "@/src/attest/walletContext";
+import { BeforeYouSign } from "@/components/netting/BeforeYouSign";
+import { obligationId as obligationIdOf } from "@/src/netting/obligation";
 import {
+  disputeObligation,
+  listMyObligations,
   declineCertificate,
   exportCertificate,
   getCertificate,
@@ -66,6 +70,8 @@ export function CertificateLanding({ token }: { token: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ledgerSyncing, setLedgerSyncing] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({});
   const lastApplyHash = useRef<string | null>(null);
   const syncRetries = useRef(0);
 
@@ -186,6 +192,27 @@ export function CertificateLanding({ token }: { token: string }) {
       await load(me);
     });
 
+  useEffect(() => {
+    if (!view || !me) return;
+    let cancelled = false;
+    void listMyObligations()
+      .then((result) => {
+        if (cancelled || !result.ok) return;
+        setDescriptions(Object.fromEntries(result.obligations.map((o) => [o.obligationId.toLowerCase(), o.description])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [view, me]);
+
+  const handleDispute = (id: string) =>
+    run("Disputing...", async () => {
+      const result = await disputeObligation(id);
+      if (!result.ok) throw new Error(result.error);
+      if (me) await load(me);
+    });
+
   const handleDecline = () =>
     run("Declining...", async () => {
       const result = await declineCertificate(token);
@@ -276,10 +303,39 @@ export function CertificateLanding({ token }: { token: string }) {
         />
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {own.map(({ i, doc }) => (
-            <OwnObligation key={i} doc={doc} me={me} currency={summary.currency} />
-          ))}
+          {own.map(({ i, doc }) => {
+            const id = obligationIdOf(doc.obligation, view.domain);
+            return (
+              <OwnObligation
+                key={i}
+                doc={doc}
+                me={me}
+                currency={summary.currency}
+                description={descriptions[id.toLowerCase()] ?? null}
+                action={
+                  status === "collecting" && !summary.youSigned ? (
+                    <button
+                      onClick={() => handleDispute(id)}
+                      disabled={busy !== null}
+                      className="text-xs text-muted hover:underline disabled:state-disabled"
+                    >
+                      Dispute this obligation
+                    </button>
+                  ) : undefined
+                }
+              />
+            );
+          })}
         </div>
+
+        {status === "collecting" && !summary.youSigned && (
+          <BeforeYouSign
+            parties={view.certificate.entries.map((e) => e.debtor)}
+            me={me}
+            reviewed={reviewed}
+            onReviewed={setReviewed}
+          />
+        )}
 
         <p className="mt-6 text-xs uppercase tracking-wide text-muted">Checked in your browser</p>
         <CheckList groups={groups} />
@@ -301,7 +357,7 @@ export function CertificateLanding({ token }: { token: string }) {
                     parties: summary.parties,
                   })}
                 </p>
-                <ActionButton onClick={handleSign} busy={busy} label="Sign certificate" />
+                <ActionButton onClick={reviewed ? handleSign : () => setError("Tick the box to confirm you reviewed your obligations.")} busy={busy} label="Sign certificate" />
               </>
             ) : (
               <p className="text-center text-xs text-muted">Connect {signer ? shortAddr(signer) : "your wallet"} to sign.</p>

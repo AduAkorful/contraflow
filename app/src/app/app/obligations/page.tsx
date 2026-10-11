@@ -7,6 +7,7 @@ import { obligationPositionByCurrency, obligationPositionLine } from "@/src/obli
 import { certificateService } from "@/src/obligations/certificateDefaults";
 import { CertificatesPanel } from "./CertificatesPanel";
 import { ObligationsList } from "./ObligationsList";
+import { PartyRulesCard } from "./PartyRulesCard";
 import { pageMeta } from "@/src/site/pageMeta";
 
 export const metadata = pageMeta(
@@ -22,6 +23,7 @@ export default async function ObligationsPage() {
   // obligations below show their current remaining amounts.
   const certificates = session ? await certificateService().listCertificates(session.address) : null;
   const result = session ? await listMine(session.address) : null;
+  const rules = session ? await certificateService().getMyRules(session.address) : null;
 
   const position = result && result.ok ? obligationPositionByCurrency(result.obligations) : [];
 
@@ -84,6 +86,12 @@ export default async function ObligationsPage() {
             {result && result.ok && result.obligations.length > 0 && certificates && certificates.ok && (
               <SessionBound loadedFor={session.address}>
                 <CertificatesPanel certificates={certificates.certificates} />
+              </SessionBound>
+            )}
+
+            {rules && rules.ok && (
+              <SessionBound loadedFor={session.address}>
+                <PartyRulesCard enabled={rules.rules.enabled} allowed={rules.rules.allowed} />
               </SessionBound>
             )}
 

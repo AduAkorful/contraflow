@@ -31,6 +31,10 @@ const SEARCH_MAX_CYCLES = 500;
 export type LoopSearchResult =
   | { kind: "found"; currency: string; wNet: bigint; loop: CandidateObligation[] }
   | { kind: "none" }
+  /// A cycle runs through the caller, but only with more parties than a certificate can hold.
+  | { kind: "too-long"; currency: string }
+  /// A loop exists, but a party in every one of them only nets with counterparties it has approved.
+  | { kind: "blocked-by-rules"; currency: string }
   | { kind: "too-many-parties"; currency: string; parties: number }
   | { kind: "search-incomplete"; currency: string; maxCycles: number };
 
@@ -80,6 +84,32 @@ export function neighbourhoodEdges(
   });
 }
 
+/// Whether any cycle at all runs through `caller`: a path leading out and back, of any length.
+function cycleRunsThrough(edges: readonly CandidateObligation[], caller: Address): boolean {
+  const me = lower(caller);
+  const next = new Map<Address, Address[]>();
+  for (const e of edges) {
+    const from = lower(e.debtor);
+    if (!next.has(from)) next.set(from, []);
+    next.get(from)!.push(lower(e.creditor));
+  }
+  const seen = new Set<Address>([me]);
+  let frontier: Address[] = [me];
+  while (frontier.length > 0) {
+    const following: Address[] = [];
+    for (const v of frontier) {
+      for (const w of next.get(v) ?? []) {
+        if (w === me) return true;
+        if (seen.has(w)) continue;
+        seen.add(w);
+        following.push(w);
+      }
+    }
+    frontier = following;
+  }
+  return false;
+}
+
 function partiesOf(edges: readonly CandidateObligation[]): Set<Address> {
   return new Set(edges.flatMap((e) => [lower(e.debtor), lower(e.creditor)]));
 }
@@ -108,7 +138,12 @@ function byCurrency(candidates: readonly CandidateObligation[]): Map<string, Can
 export function findBestLoop(
   candidates: readonly CandidateObligation[],
   caller: Address,
-  options: { now: bigint; excludedParties?: ReadonlySet<Address> },
+  options: {
+    now: bigint;
+    excludedParties?: ReadonlySet<Address>;
+    /// Called with every distinct party of a candidate loop; return false to refuse it.
+    allowLoop?: (parties: Address[]) => boolean;
+  },
 ): LoopSearchResult {
   const me = lower(caller);
   const excluded = new Set([...(options.excludedParties ?? [])].map(lower));
@@ -117,10 +152,15 @@ export function findBestLoop(
   );
 
   let tooMany: LoopSearchResult | null = null;
+  let tooLong: LoopSearchResult | null = null;
+  let blocked: LoopSearchResult | null = null;
   const groups = byCurrency(usable);
   for (const currency of [...groups.keys()].sort()) {
     const edges = neighbourhoodEdges(groups.get(currency)!, me);
-    if (edges.length === 0) continue;
+    if (edges.length === 0) {
+      if (cycleRunsThrough(groups.get(currency)!, me)) tooLong ??= { kind: "too-long", currency };
+      continue;
+    }
     const parties = partiesOf(edges);
     if (parties.size > SEARCH_MAX_VERTICES) {
       tooMany ??= { kind: "too-many-parties", currency, parties: parties.size };
@@ -161,9 +201,17 @@ export function findBestLoop(
       if (loopShapeProblem(cycle.edges)) continue;
       const wNet = wNetOf(cycle);
       if (wNet <= 0n) continue;
+      if (options.allowLoop && !options.allowLoop([...new Set(cycle.edges.flatMap((e) => [e.debtor, e.creditor]))])) {
+        blocked ??= { kind: "blocked-by-rules", currency };
+        continue;
+      }
       if (!best || wNet > best.wNet) best = { wNet, loop: cycle.edges.map((e) => byId.get(e.id)!) };
     }
     if (best) return { kind: "found", currency, wNet: best.wNet, loop: best.loop };
+    // No loop of 2 to 5 parties runs through the caller. Say so when a longer cycle does.
+    if (!cycles.some((c) => c.edges.some((e) => e.debtor === me)) && cycleRunsThrough(groups.get(currency)!, me)) {
+      tooLong ??= { kind: "too-long", currency };
+    }
   }
-  return tooMany ?? { kind: "none" };
+  return tooMany ?? blocked ?? tooLong ?? { kind: "none" };
 }

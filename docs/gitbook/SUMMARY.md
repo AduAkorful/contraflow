@@ -6,6 +6,8 @@
 * [Using the app](using-the-app.md)
 * [FAQ](faq.md)
 * [API](api.md)
+* [Quick start](quickstart.md)
+* [Use the API with an AI agent](api-agents.md)
 
 ## Reference
 

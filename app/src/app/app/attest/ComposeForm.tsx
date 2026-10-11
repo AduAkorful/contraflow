@@ -56,7 +56,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const [amountUsd, setAmountUsd] = useState("");
   const [maturityDate, setMaturityDate] = useState("");
   const [description, setDescription] = useState("");
-  const [earlyNetConsent, setEarlyNetConsent] = useState(true);
+  const [earlyNetConsent, setEarlyNetConsent] = useState(false);
   const [role, setRole] = useState<Role>("creditor"); // default: "they owe me"
 
   const [phase, setPhase] = useState<Phase>("compose");
@@ -75,9 +75,22 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   }
 
   async function handleContinueToReview() {
+    try {
+      await continueToReview();
+    } catch (err) {
+      // A step that throws must never leave the button looking dead.
+      setError(err instanceof Error && err.message ? err.message : "Something went wrong. Try again.");
+    }
+  }
+
+  async function continueToReview() {
     setError(null);
     if (!isAddress(counterparty)) {
       setError("Enter a valid counterparty address.");
+      return;
+    }
+    if (signerAddress && counterparty.toLowerCase() === signerAddress.toLowerCase()) {
+      setError("The counterparty must be a different address from yours.");
       return;
     }
     let amount: bigint;

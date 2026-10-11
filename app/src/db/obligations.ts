@@ -7,7 +7,7 @@ import { sql, withDbRetry } from "./client";
 
 export type ProposalStatus = "open" | "accepted" | "withdrawn";
 /// `out_of_sync`: the stored state disagrees with the ledger, so it is never netted from it again.
-export type ObligationStatus = "active" | "closed" | "out_of_sync";
+export type ObligationStatus = "active" | "closed" | "out_of_sync" | "disputed";
 
 export interface ProposalRow {
   token: string;
@@ -46,6 +46,9 @@ export interface ObligationRow {
   status: ObligationStatus;
   createdBy: string;
   createdAt: Date;
+  /// Set while `status` is `disputed`: who raised it, and an optional short reason.
+  disputedBy: string | null;
+  disputeNote: string | null;
 }
 
 /// A different obligation for the same document and pair already exists.
@@ -95,6 +98,8 @@ export function toObligationRow(r: Record<string, unknown>): ObligationRow {
     remaining: r.remaining as string,
     blinding: r.blinding as string,
     status: r.status as ObligationStatus,
+    disputedBy: (r.disputed_by as string | null) ?? null,
+    disputeNote: (r.dispute_note as string | null) ?? null,
     createdBy: r.created_by as string,
     createdAt: new Date(r.created_at as string),
   };

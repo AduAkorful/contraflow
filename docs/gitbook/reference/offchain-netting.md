@@ -172,7 +172,12 @@ as unverifiable, never as a pass.
 ## Loop search
 
 - **Graph.** The server builds one graph per currency from obligations that are active, have something remaining,
-  and are matured or early-consented. Obligations out of sync with the ledger are excluded.
+  and are matured or early-consented. Obligations out of sync with the ledger, and obligations a party has
+  disputed, are excluded.
 - **Search.** It searches the neighbourhood of the party asking, for loops of 2–5 parties, all distinct, using the
   same solver as invoice settlement.
 - **Result.** The first currency with a loop wins, so repeated searches are deterministic.
+- **Counterparty rules.** A party can restrict itself to an approved list. A candidate loop is refused when any
+  party in it has the allowlist on and another member isn't on that list. The same check runs again before a
+  signature is stored. A loop blocked this way is reported as `blocked-by-rules`.
+- **Longer cycles.** A cycle that runs through the party but has more than 5 parties is never netted. The search reports `loop-too-long` (maximum 5), not `no-loop`.

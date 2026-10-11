@@ -21,6 +21,7 @@ import {
   type ObligationStatus,
 } from "../db/obligations";
 import { checkRateLimit } from "../ratelimit/limiter";
+import { inApiBucket, reportLimitHit } from "../api/limitBucket";
 import { serviceRateLimitKey } from "../api/limitBucket";
 import { ZERO_HASH } from "../netting/commitment";
 import { appLedgerDomain } from "../netting/domain";
@@ -42,14 +43,19 @@ export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string
 
 const NOT_FOUND = "Not found.";
 const WRITE_LIMIT = { max: 20, windowSeconds: 600 };
+/// A platform acting for a customer works through a list, and its calls are already behind the
+/// tenant's own 600-a-minute budget, so the per-party write budget is wider for API calls.
+const API_WRITE_LIMIT = { max: 120, windowSeconds: 600 };
 const READ_LIMIT = { max: 120, windowSeconds: 600 };
 
 function submissionDeps(): SubmissionDeps {
   return { client: createArcPublicClient(ARC_TESTNET_CHAIN_ID), complianceProvider: defaultComplianceProvider() };
 }
 
-async function rateLimited(kind: string, address: Address, limit: { max: number; windowSeconds: number }) {
+async function rateLimited(kind: string, address: Address, base: { max: number; windowSeconds: number }) {
+  const limit = kind === "write" && inApiBucket() ? API_WRITE_LIMIT : base;
   const result = await checkRateLimit(serviceRateLimitKey("obligations", kind, address), limit.max, limit.windowSeconds);
+  if (!result.allowed) reportLimitHit({ limit: limit.max, reset: result.reset });
   return !result.allowed;
 }
 
@@ -85,7 +91,7 @@ export interface CreateProposalInput {
   proposerSignature: unknown;
 }
 
-export async function createProposal(session: Address, input: CreateProposalInput): Promise<Result<{ token: string }>> {
+export async function createProposal(session: Address, input: CreateProposalInput): Promise<Result<{ token: string; existing?: boolean }>> {
   if (await rateLimited("write", session, WRITE_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
 
   let obligation;
@@ -118,9 +124,14 @@ export async function createProposal(session: Address, input: CreateProposalInpu
   });
   if (alreadyRecorded) return { ok: false, error: new DuplicateObligationError().message };
 
+  const proposalId = obligationId(obligation, domain);
+  // The same obligation proposed again resolves to the stored proposal: nothing is created twice.
+  const prior = await getProposalByObligationId(proposalId);
+  if (prior) return { ok: true, token: prior.token, existing: true };
+
   const token = await insertProposal({
     token: newShareToken(),
-    obligationId: obligationId(obligation, domain),
+    obligationId: proposalId,
     chainId: domain.chainId.toString(),
     ledger: domain.verifyingContract,
     proposer: session,
@@ -315,6 +326,9 @@ export interface ObligationSummary {
   description: string;
   status: ObligationStatus;
   earlyNetConsent: boolean;
+  /// Present while disputed: `you` raised it, or the counterparty did.
+  disputedBy: "you" | "counterparty" | null;
+  disputeNote: string | null;
 }
 
 export async function listMine(
@@ -355,6 +369,8 @@ export async function listMine(
     description: row.description,
     status: row.status,
     earlyNetConsent: row.earlyNetConsent,
+    disputedBy: row.status === "disputed" && row.disputedBy ? (row.disputedBy === me ? "you" : "counterparty") : null,
+    disputeNote: row.status === "disputed" ? row.disputeNote : null,
   }));
 
   return { ok: true, proposals, obligations };

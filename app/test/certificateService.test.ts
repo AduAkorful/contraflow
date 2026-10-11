@@ -357,6 +357,46 @@ describe("declining, closing and expiry", () => {
     expect(await service.closeObligation(signed.parties[0]!.address, id2)).toEqual({ ok: true });
   });
 
+  it("a dispute cancels a collecting certificate, keeps the obligation out of new loops, and only its raiser can withdraw it", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n, 100n]);
+    const token = await propose(parties[0]!.address);
+    const id = rows[0]!.obligationId;
+    const row = store.obligations.get(id)!;
+    const raiser = row.debtor as Address;
+    const other = row.creditor as Address;
+
+    expect(await service.disputeObligation(raiser, id, "  Not delivered  ")).toEqual({ ok: true });
+    expect(certificateFor(token).status).toBe("abandoned");
+    expect(store.obligations.get(id)).toMatchObject({ status: "disputed", disputedBy: raiser, disputeNote: "Not delivered" });
+    expect(locked()).toEqual([]);
+
+    // The loop can't be proposed again while one of its obligations is disputed.
+    const search = await service.findAndProposeLoop(parties[0]!.address);
+    expect(search).toMatchObject({ ok: true, outcome: { found: false } });
+
+    expect(await service.withdrawDispute(other, id)).toMatchObject({ ok: false });
+    expect(store.obligations.get(id)!.status).toBe("disputed");
+    expect(await service.withdrawDispute(raiser, id)).toEqual({ ok: true });
+    expect(store.obligations.get(id)).toMatchObject({ status: "active", disputedBy: null, disputeNote: null });
+    await propose(parties[0]!.address);
+  });
+
+  it("refuses a dispute from a stranger, a too-long note, or while a fully signed certificate holds the obligation", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n]);
+    const id = rows[0]!.obligationId;
+    const stranger = privateKeyToAccount(generatePrivateKey()).address;
+    expect(await service.disputeObligation(stranger, id, null)).toEqual({ ok: false, error: "Not found." });
+    expect(await service.disputeObligation(parties[0]!.address, id, "x".repeat(201))).toMatchObject({ ok: false });
+    expect(store.obligations.get(id)!.status).toBe("active");
+
+    const token = await propose(parties[0]!.address);
+    await signAll(token, parties);
+    const blocked = await service.disputeObligation(parties[0]!.address, id, null);
+    expect(blocked).toMatchObject({ ok: false });
+    expect(!blocked.ok && blocked.error).toMatch(/every party has signed/);
+    expect(store.obligations.get(id)!.status).toBe("active");
+  });
+
   it("expires an unapplied certificate after its deadline and frees its obligations", async () => {
     const { parties } = await seededLoop([100n, 100n]);
     const token = await propose(parties[0]!.address);
@@ -499,5 +539,44 @@ describe("export", () => {
       const substitutedResult = await verifyCertificateView(substituted, { now: clock, stage: "applied", client: chain.client });
       expect(substitutedResult.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("fail");
     }
+  });
+});
+
+describe("counterparty rules", () => {
+  it("excludes a loop when any member's allowlist rejects another member, and allows it once approved", async () => {
+    const { parties } = await seededLoop([100n, 100n, 100n]);
+    const [a, b, c] = parties.map((p) => p.address) as [Address, Address, Address];
+
+    expect(await service.setMyRules(a, true, `${b}`)).toMatchObject({ ok: true, rules: { enabled: true } });
+    // a only nets with b, but c is in the loop too.
+    const blocked = await service.findAndProposeLoop(b);
+    expect(blocked).toMatchObject({ ok: true, outcome: { found: false, reason: "blocked-by-rules" } });
+
+    expect(await service.setMyRules(a, true, `${b}\n${c}`)).toMatchObject({ ok: true });
+    const found = await service.findAndProposeLoop(b);
+    expect(found).toMatchObject({ ok: true, outcome: { found: true } });
+  });
+
+  it("refuses a signature while any party's rules reject the loop, whoever signs", async () => {
+    const { parties } = await seededLoop([100n, 100n, 100n]);
+    const token = await propose(parties[0]!.address);
+    const [a, b, c] = parties.map((p) => p.address) as [Address, Address, Address];
+    await service.setMyRules(c, true, `${a}`);
+    const view = await partyView(b, token);
+    const typed = certificateTypedData(view.certificate, view.domain);
+    const signature = await parties[1]!.signTypedData(typed as never);
+    const result = await service.submitCertificateSignature(b, token, signature);
+    expect(result).toMatchObject({ ok: false });
+    expect(!result.ok && result.error).toMatch(/approved/);
+  });
+
+  it("validates the list: addresses only, own address dropped, at least one when on", async () => {
+    const { parties } = await seededLoop([100n, 100n]);
+    const me = parties[0]!.address;
+    expect(await service.setMyRules(me, true, "not-an-address")).toMatchObject({ ok: false });
+    expect(await service.setMyRules(me, true, "")).toMatchObject({ ok: false, error: expect.stringMatching(/at least one/i) });
+    expect(await service.setMyRules(me, true, `${me}`)).toMatchObject({ ok: false });
+    expect(await service.setMyRules(me, false, "")).toMatchObject({ ok: true, rules: { enabled: false, allowed: [] } });
+    expect(await service.getMyRules(me)).toMatchObject({ ok: true, rules: { enabled: false } });
   });
 });

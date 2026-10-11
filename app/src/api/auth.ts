@@ -12,6 +12,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /// Extra fields for the error body, such as the existing proposal on a duplicate.
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }

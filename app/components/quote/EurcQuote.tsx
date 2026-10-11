@@ -12,6 +12,8 @@ const FAILURE_COPY: Record<Exclude<EurcQuoteResult, { ok: true }>["reason"], str
   not_found: "This invoice isn't in Contraflow's current registry.",
   rate_limited: "Too many quotes. Try again in a minute.",
   unavailable: "Quote unavailable right now.",
+  invalid_amount: "Enter an amount above zero, with up to 6 decimal places.",
+  sign_in: "Sign in to get a quote.",
 };
 
 export function EurcQuote({ invoiceId, className = "" }: { invoiceId: string; className?: string }) {

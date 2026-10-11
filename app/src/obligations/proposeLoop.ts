@@ -4,6 +4,7 @@
 /// build the certificate, verify it as its parties will, and store it with its obligations
 /// locked.
 
+import { loopRejectedBy } from "./partyRules";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { screenAddresses } from "../compliance";
 import { contraflowNettingLedgerAbi } from "../contracts/abi/index";
@@ -31,7 +32,7 @@ const MAX_SEARCH_ATTEMPTS = 3;
 
 export type SearchOutcome =
   | { found: true; token: string; currency: string; wNet: string; parties: number }
-  | { found: false; reason: "no-candidates" | "no-loop" | "too-many-parties" | "search-incomplete" | "out-of-sync"; message: string };
+  | { found: false; reason: "no-candidates" | "no-loop" | "loop-too-long" | "blocked-by-rules" | "too-many-parties" | "search-incomplete" | "out-of-sync"; message: string };
 
 export function obligationFromRow(row: ObligationRow): NettingObligation {
   return {
@@ -201,8 +202,15 @@ export async function findAndProposeLoop(
 
     const screened = await screenAddresses([...neighbourhoodParties(candidates, session, now)], deps.complianceProvider);
     const flagged = new Set(screened.filter((s) => s.status !== "clear").map((s) => s.address.toLowerCase() as Address));
-    const search = findBestLoop(candidates, session, { now, excludedParties: flagged });
+    const rules = await store.getPartyRules([...neighbourhoodParties(candidates, session, now), session]);
+    const search = findBestLoop(candidates, session, {
+      now,
+      excludedParties: flagged,
+      allowLoop: (parties) => loopRejectedBy(parties, rules) === null,
+    });
     if (search.kind === "none") return none(sawOutOfSync ? "out-of-sync" : "no-loop");
+    if (search.kind === "blocked-by-rules") return none(sawOutOfSync ? "out-of-sync" : "blocked-by-rules");
+    if (search.kind === "too-long") return none(sawOutOfSync ? "out-of-sync" : "loop-too-long");
     if (search.kind === "too-many-parties") {
       console.error(`findAndProposeLoop: ${search.parties} parties near ${session} in ${search.currency}; not searching`);
       return none("too-many-parties");
@@ -286,6 +294,8 @@ function none(reason: Extract<SearchOutcome, { found: false }>["reason"]): Resul
   const message = {
     "no-candidates": "None of your obligations can be netted right now.",
     "no-loop": "No loop of obligations runs through you right now.",
+    "blocked-by-rules": "A loop runs through you, but a party in it only nets with counterparties it has approved. Nothing was proposed.",
+    "loop-too-long": "A loop runs through you, but it has more than 5 parties (the maximum). Nothing was proposed.",
     "too-many-parties": "Too many parties are connected to you to search safely. Nothing was proposed.",
     "search-incomplete": "The obligation search reached its safety limit. No partial result was proposed; narrow the search and try again.",
     "out-of-sync": "Some obligations disagree with the ledger, so they were left out. No other loop runs through you right now.",

@@ -30,10 +30,19 @@ export const postgresWebhookStore: WebhookStore = {
   async changeContext(change): Promise<ChangeContext | null> {
     if (change.kind === "obligation") {
       const rows = (await withDbRetry(
-        () => sql()`SELECT debtor, creditor FROM netting_obligations WHERE obligation_id = ${change.refId}`,
-      )) as { debtor: string; creditor: string }[];
+        () => sql()`SELECT o.debtor, o.creditor, o.currency, o.amount, o.maturity, p.token
+                    FROM netting_obligations o
+                    LEFT JOIN netting_proposals p ON p.obligation_id = o.obligation_id
+                    WHERE o.obligation_id = ${change.refId}`,
+      )) as { debtor: string; creditor: string; currency: string; amount: string; maturity: string; token: string | null }[];
       const row = rows[0];
-      return row ? { parties: [getAddress(row.debtor), getAddress(row.creditor)] } : null;
+      if (!row) return null;
+      const debtor = getAddress(row.debtor);
+      const creditor = getAddress(row.creditor);
+      return {
+        parties: [debtor, creditor],
+        obligation: { currency: row.currency, amount: row.amount, maturity: row.maturity, debtor, creditor, proposalToken: row.token },
+      };
     }
     const rows = (await withDbRetry(
       () => sql()`SELECT c.token, c.currency, c.w_net, c.applied_tx_hash, e.debtor, e.creditor FROM netting_certificates c
@@ -54,7 +63,6 @@ export const postgresWebhookStore: WebhookStore = {
     if (parties.length === 0) return [];
     const rows = (await withDbRetry(
       () => sql()`SELECT DISTINCT p.tenant_id, p.party FROM tenant_permissions p
-                  JOIN webhook_endpoints w ON w.tenant_id = p.tenant_id
                   JOIN tenants t ON t.tenant_id = p.tenant_id AND t.status = 'active'
                   WHERE p.chain_id = ${chainId} AND p.party = ANY(${parties.map((a) => a.toLowerCase())})
                     AND p.revoked_at IS NULL AND p.expires_at > ${nowSeconds.toString()} AND (p.scopes & 1) = 1`,
@@ -66,8 +74,10 @@ export const postgresWebhookStore: WebhookStore = {
 
   async insertEvent(e) {
     await withDbRetry(
-      () => sql()`INSERT INTO webhook_events (event_id, tenant_id, type, payload)
-                  VALUES (${e.eventId}, ${e.tenantId.toLowerCase()}, ${e.type}, ${JSON.stringify({ body: e.body })}::jsonb)
+      () => sql()`INSERT INTO webhook_events (event_id, tenant_id, type, payload, status)
+                  SELECT ${e.eventId}, ${e.tenantId.toLowerCase()}, ${e.type}, ${JSON.stringify({ body: e.body })}::jsonb,
+                         CASE WHEN EXISTS (SELECT 1 FROM webhook_endpoints WHERE tenant_id = ${e.tenantId.toLowerCase()})
+                              THEN 'pending' ELSE 'no_endpoint' END
                   ON CONFLICT (event_id) DO NOTHING`,
     );
   },
@@ -175,4 +185,32 @@ export async function enqueueWebhookTest(tenantId: Hex, chainId: number): Promis
   });
   await postgresWebhookStore.insertEvent({ eventId, tenantId, type: "webhook.test", body });
   return { eventId };
+}
+
+const EVENT_RETENTION = "30 days";
+
+export interface LoggedEvent {
+  seq: string;
+  body: string;
+  status: string;
+}
+
+/// Events for one tenant after a cursor, oldest first, for `GET /events`.
+export async function listTenantEvents(tenantId: Hex, afterSeq: string, limit: number): Promise<LoggedEvent[]> {
+  const rows = (await withDbRetry(
+    () => sql()`SELECT seq, payload, status FROM webhook_events
+                WHERE tenant_id = ${tenantId.toLowerCase()} AND seq > ${afterSeq}::bigint AND type <> 'webhook.test'
+                ORDER BY seq LIMIT ${limit}`,
+  )) as { seq: string | number; payload: { body: string }; status: string }[];
+  return rows.map((r) => ({ seq: String(r.seq), body: r.payload.body, status: r.status }));
+}
+
+export async function purgeOldWebhookEvents(): Promise<void> {
+  await withDbRetry(
+    () => sql()`DELETE FROM webhook_deliveries WHERE event_id IN (
+                  SELECT event_id FROM webhook_events WHERE created_at < now() - ${EVENT_RETENTION}::interval AND status <> 'pending')`,
+  );
+  await withDbRetry(
+    () => sql()`DELETE FROM webhook_events WHERE created_at < now() - ${EVENT_RETENTION}::interval AND status <> 'pending'`,
+  );
 }

@@ -30,6 +30,8 @@ export interface ChangeContext {
   /// Certificate events: the netted amount (minor units), its currency, and the apply transaction
   /// once it is known. A certificate applied before its hash was recorded has `null`.
   certificate?: { currency: string; wNet: string; appliedTxHash: string | null };
+  /// Obligation events: the terms a party's reader can already read through the API.
+  obligation?: { currency: string; amount: string; maturity: string; debtor: Address; creditor: Address; proposalToken: string | null };
 }
 
 export interface DueEvent {
@@ -79,6 +81,31 @@ function certificateEventAmounts(c: { currency: string; wNet: string; appliedTxH
   }
 }
 
+/// The debtor and creditor are only named when that tenant holds read permission for them; the
+/// amount and currency are what the party's own obligation list already shows.
+function obligationEventTerms(
+  o: { currency: string; amount: string; maturity: string; debtor: Address; creditor: Address; proposalToken: string | null },
+  readable: Address[],
+) {
+  const allowed = new Set(readable.map((a) => a.toLowerCase()));
+  const amounts = (() => {
+    try {
+      const f = amountFieldsFromMinor(o.amount, o.currency);
+      return { amountMinor: f.amountMinor, amountDisplay: f.amountDisplay };
+    } catch {
+      return { amountMinor: o.amount };
+    }
+  })();
+  return {
+    proposalToken: o.proposalToken,
+    currency: o.currency,
+    ...amounts,
+    maturity: o.maturity,
+    debtor: allowed.has(o.debtor.toLowerCase()) ? o.debtor : null,
+    creditor: allowed.has(o.creditor.toLowerCase()) ? o.creditor : null,
+  };
+}
+
 /// Deterministic, so a change fanned out twice (after a crash) yields the same event IDs.
 export function eventIdFor(changeId: string, tenantId: Hex): string {
   return `evt_${changeId}_${tenantId.slice(2, 18).toLowerCase()}`;
@@ -94,7 +121,11 @@ export async function fanOutChanges(store: WebhookStore, now: Date): Promise<num
       const eventId = eventIdFor(change.changeId, reader.tenantId);
       const data =
         change.kind === "obligation"
-          ? { obligationId: change.refId, parties: reader.parties }
+          ? {
+              obligationId: change.refId,
+              parties: reader.parties,
+              ...(context?.obligation ? obligationEventTerms(context.obligation, reader.parties) : {}),
+            }
           : {
               certificateId: change.refId,
               token: context?.token,

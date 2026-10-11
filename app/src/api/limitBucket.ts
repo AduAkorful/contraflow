@@ -4,13 +4,35 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-const storage = new AsyncLocalStorage<string>();
+export interface LimitHit {
+  limit: number;
+  /// Unix seconds when the window that tripped resets.
+  reset: number;
+}
 
-export function withApiLimitBucket<T>(tenantId: string, fn: () => T): T {
-  return storage.run(`tenant:${tenantId.toLowerCase()}`, fn);
+interface Store {
+  bucket: string;
+  onHit?: (hit: LimitHit) => void;
+}
+
+const storage = new AsyncLocalStorage<Store>();
+
+export function withApiLimitBucket<T>(tenantId: string, fn: () => T, onHit?: (hit: LimitHit) => void): T {
+  return storage.run({ bucket: `tenant:${tenantId.toLowerCase()}`, onHit }, fn);
+}
+
+/// True inside an API request: the budgets for a tenant's calls are separate from the web app's.
+export function inApiBucket(): boolean {
+  return storage.getStore()?.bucket.startsWith("tenant:") === true;
+}
+
+/// Tells an API request which per-party budget refused it, so the response can carry that
+/// budget's `RateLimit-*` and `Retry-After` instead of the tenant's.
+export function reportLimitHit(hit: LimitHit): void {
+  storage.getStore()?.onHit?.(hit);
 }
 
 export function serviceRateLimitKey(prefix: "obligations" | "certificates", kind: string, address: string): string {
-  const bucket = storage.getStore() ?? "web";
+  const bucket = storage.getStore()?.bucket ?? "web";
   return `${prefix}:${kind}:${bucket}:${address.toLowerCase()}`;
 }

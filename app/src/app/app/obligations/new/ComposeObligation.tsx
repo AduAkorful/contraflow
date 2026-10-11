@@ -63,7 +63,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
   const [amountInput, setAmountInput] = useState("");
   const [maturityDate, setMaturityDate] = useState("");
   const [description, setDescription] = useState("");
-  const [earlyNetConsent, setEarlyNetConsent] = useState(true);
+  const [earlyNetConsent, setEarlyNetConsent] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("compose");
   const [draft, setDraft] = useState<{ document: CanonicalObligationDocument; obligation: NettingObligation } | null>(null);

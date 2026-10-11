@@ -27,7 +27,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function AddressRows({ signals }: { signals: AddressSignals }) {
+export function AddressRows({ signals }: { signals: AddressSignals }) {
   return (
     <dl className="divide-y divide-border-subtle">
       <Row label="First seen onchain">{describeFirstSeen(signals)}</Row>

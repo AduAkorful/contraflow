@@ -27,6 +27,9 @@ export interface SignInApi {
   sendEmailCode: (email: string) => Promise<string | null>;
   submitEmailCode: (code: string) => Promise<string | null>;
   startWallet: () => void;
+  /// Abandons a sign-in that is waiting on the wallet, so a new one can start. A late answer from
+  /// the abandoned attempt is ignored.
+  cancel: () => void;
 }
 
 const SignInContext = createContext<SignInApi | null>(null);
@@ -47,6 +50,7 @@ export function idleSignInApi(openMenu: () => void, phase: SignInPhase = "idle")
     sendEmailCode: async () => "Sign-in is still loading.",
     submitEmailCode: async () => "Sign-in is still loading.",
     startWallet: openMenu,
+    cancel: () => undefined,
   };
 }
 

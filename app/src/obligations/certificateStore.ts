@@ -116,4 +116,12 @@ export interface CertificateStore {
   /// Closes an obligation, abandoning any collecting certificate it's in. Refused (`blocked`)
   /// while it's in a fully signed one.
   closeObligation(obligationId: string, by: string): Promise<"closed" | "blocked">;
+  /// Marks an active obligation disputed, abandoning any collecting certificate it's in. Refused
+  /// (`blocked`) while it's in a fully signed one, and `not_active` if it isn't active.
+  disputeObligation(obligationId: string, by: string, note: string | null): Promise<"disputed" | "blocked" | "not_active">;
+  /// Netting rules for these parties; a party with none stored is absent from the map.
+  getPartyRules(parties: string[]): Promise<Map<string, { enabled: boolean; allowed: string[] }>>;
+  setPartyRules(party: string, rules: { enabled: boolean; allowed: string[] }): Promise<void>;
+  /// Back to `active`, only by the party that raised the dispute.
+  withdrawDispute(obligationId: string, by: string): Promise<"withdrawn" | "not_disputer">;
 }

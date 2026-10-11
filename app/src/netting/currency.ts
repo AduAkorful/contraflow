@@ -26,6 +26,14 @@ export function minorUnits(code: string): number {
   return digits;
 }
 
+/// The largest single obligation, in major units (one quadrillion). Far beyond any real invoice,
+/// and far below the ledger's integer range, so a typo can't become a signed absurdity.
+export const MAX_AMOUNT_MAJOR = 10n ** 15n;
+
+export function maxAmountMinor(code: string): bigint {
+  return MAX_AMOUNT_MAJOR * 10n ** BigInt(minorUnits(code));
+}
+
 /// `parseAmount("1250.00", "USD")` is `125000n`. Rejects signs, grouping separators, exponents
 /// and more decimal places than the currency has.
 export function parseAmount(input: string, code: string): bigint {

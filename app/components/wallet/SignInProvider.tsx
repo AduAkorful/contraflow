@@ -82,6 +82,7 @@ export function SignInProvider({
   const pendingRef = useRef(false);
   const completingRef = useRef(false);
   const startedAuto = useRef(false);
+  const attemptRef = useRef(0);
 
   const [phase, setPhase] = useState<SignInPhase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +103,8 @@ export function SignInProvider({
     async (params: { user: User; loginMethod: string | null; loginAccount: LinkedAccountWithMetadata | null }) => {
       if (completingRef.current) return;
       completingRef.current = true;
+      const attempt = ++attemptRef.current;
+      const stale = () => attemptRef.current !== attempt;
       setError(null);
       setPhase("signing");
       try {
@@ -188,7 +191,10 @@ export function SignInProvider({
           expirationTime: new Date(now.getTime() + 5 * 60_000).toISOString(),
         });
         const signature = (await target.sign(message)) as Hex;
+        // Started over while the wallet was waiting: the new attempt owns the state now.
+        if (stale()) return;
         const result = await signIn(message, signature);
+        if (stale()) return;
         if (!result.ok) {
           setError(result.error);
           setPhase("error");
@@ -216,8 +222,10 @@ export function SignInProvider({
         setError(err instanceof Error ? err.message : "Failed to sign in.");
         setPhase("error");
       } finally {
-        completingRef.current = false;
-        pendingRef.current = false;
+        if (!stale()) {
+          completingRef.current = false;
+          pendingRef.current = false;
+        }
       }
     },
     [pathname, router, setSessionAddress],
@@ -255,6 +263,15 @@ export function SignInProvider({
       setPhase("error");
     },
   });
+
+  const cancel = useCallback(() => {
+    attemptRef.current += 1;
+    completingRef.current = false;
+    pendingRef.current = false;
+    setError(null);
+    setPhase("idle");
+    setMenuOpen(true);
+  }, []);
 
   const openMenu = useCallback(() => {
     setError(null);
@@ -334,6 +351,7 @@ export function SignInProvider({
     sendEmailCode,
     submitEmailCode,
     startWallet,
+    cancel,
   };
 
   return (

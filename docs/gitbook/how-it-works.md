@@ -40,6 +40,11 @@ This is the one place these docs set out what you're trusting when you use Contr
   applied: evidence of what they agreed to net. It works alongside your own agreements with your
   counterparties, not in place of them, and doesn't by itself discharge a debt under any legal or
   accounting standard.
+- **What is and isn't checked.** Contraflow checks that every party agreed: each obligation carries
+  both parties' signatures, a loop needs every party's signature, and the amounts can't exceed what
+  is still owed. It does not check that the goods or services behind an obligation were delivered.
+  A party who thinks an obligation is wrong can dispute it: it is then left out of every loop until
+  the dispute is withdrawn, and Contraflow doesn't decide who is right.
 - **Nothing half-completes.** A missing signature, a broken loop or the wrong network means the
   transaction doesn't go through at all.
 - **Anyone can settle.** Settling a valid loop or applying a signed certificate isn't gated

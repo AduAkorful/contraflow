@@ -21,6 +21,8 @@ function row(partial: Partial<ObligationSummary> & Pick<ObligationSummary, "curr
     description: "x",
     status: partial.status ?? "active",
     earlyNetConsent: true,
+    disputedBy: null,
+    disputeNote: null,
     ...partial,
   };
 }

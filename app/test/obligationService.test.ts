@@ -36,6 +36,7 @@ vi.mock("../src/db/obligations", () => ({
     return input.token;
   }),
   getProposalByToken: vi.fn(async (token: string) => db.proposals.get(token) ?? null),
+  getProposalByObligationId: vi.fn(async (id: string) => [...db.proposals.values()].find((p) => p.obligationId === id) ?? null),
   obligationExistsForDocument: vi.fn(async (p: Record<string, string>) =>
     [...db.obligations.values()].some(
       (o) => o.debtor === p.debtor!.toLowerCase() && o.creditor === p.creditor!.toLowerCase() && o.documentHash === p.documentHash,
@@ -161,7 +162,7 @@ describe("obligation proposals", () => {
       proposerRole: "creditor",
       proposerSignature: await f.sign(f.proposer),
     });
-    expect(again).toEqual({ ok: true, token: f.token });
+    expect(again).toEqual({ ok: true, token: f.token, existing: true });
   });
 
   it("shows nothing to anyone who isn't a party, and the same answer for a made-up token", async () => {

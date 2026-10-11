@@ -5,7 +5,7 @@ export type SignInKind = "embedded" | "external";
 export function signingInLabel(kind: SignInKind | "unknown"): string {
   if (kind === "embedded") return "Confirming…";
   if (kind === "unknown") return "Continue in the sign-in window…";
-  return "Check your wallet: a request is waiting. It may show a warning first.";
+  return "Check your wallet: a request is waiting (there may be two). It may show a warning first.";
 }
 
 export function connectedButUnsignedHint(kind: SignInKind, email: string | null): string {

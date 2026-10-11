@@ -115,7 +115,9 @@ function reply(ctx: ReplyContext, status: number, body: unknown): Response {
 function errorReply(ctx: ReplyContext, error: ApiError): Response {
   const wwwAuthenticate = error.status === 401;
   const retryAfter = error.status === 429 && ctx.rateLimit ? Math.max(1, ctx.rateLimit.reset - Math.floor(Date.now() / 1000)) : undefined;
-  return reply({ ...ctx, wwwAuthenticate, retryAfter }, error.status, { error: { code: error.code, message: error.message } });
+  return reply({ ...ctx, wwwAuthenticate, retryAfter }, error.status, {
+    error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) },
+  });
 }
 
 export function publicReply(request: Request, status: number, body: unknown, allowMethods = "GET, OPTIONS"): Response {
@@ -143,7 +145,14 @@ async function run(handler: Handler, request: Request, context: RouteContext, op
     const caller = await authenticate(request.headers.get("authorization"), apiDeps().store);
     const token = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization") ?? "")?.[1];
     ctx.usage = { tenantId: caller.tenantId, operation: operationOf(handler), party: null, keyHash: token ? hashApiKey(token) : null };
-    return await withApiLimitBucket(caller.tenantId, () => runAuthenticated(handler, request, context, options, caller, ctx));
+    return await withApiLimitBucket(
+      caller.tenantId,
+      () => runAuthenticated(handler, request, context, options, caller, ctx),
+      (hit) => {
+        // The party budget that tripped is the one the caller needs to wait for.
+        ctx.rateLimit = { limit: hit.limit, remaining: 0, reset: hit.reset };
+      },
+    );
   } catch (error) {
     if (error instanceof ApiError && error.status < 500) return errorReply(ctx, error);
     if (request.method === "POST" && request.headers.has("idempotency-key")) {
@@ -235,7 +244,7 @@ async function runAuthenticated(
     // A deterministic 4xx is replayed like any other. Unexpected/server failures keep the
     // reservation because the request may have committed a durable mutation before failing.
     if (error instanceof ApiError && error.status < 500) {
-      const safe = { error: { code: error.code, message: error.message } };
+      const safe = { error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) } };
       await idempotency.complete(caller.tenantId, key, error.status, safe, claim.leaseToken);
     }
     // Unexpected/server failures keep the reservation. The request may have committed a durable
