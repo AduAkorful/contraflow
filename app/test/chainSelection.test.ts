@@ -26,22 +26,29 @@ describe("which chain a deployment serves", () => {
     expect((await addressesWith("mainnet")).APP_CHAIN_ID).toBe(5042);
   });
 
-  it("fails closed on mainnet until its addresses are recorded", async () => {
+  it("resolves each chain's own deployment, and fails closed for any chain it has none for", async () => {
     const mod = await addressesWith("mainnet");
-    expect(() => mod.addressesForChain(mod.APP_CHAIN_ID)).toThrow(mod.UnknownChainError);
-    // The testnet contracts stay recorded, for the demo and a testnet deployment.
-    expect(mod.addressesForChain(mod.ARC_TESTNET_CHAIN_ID).registry).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    const mainnet = mod.addressesForChain(mod.APP_CHAIN_ID);
+    const testnet = mod.addressesForChain(mod.ARC_TESTNET_CHAIN_ID);
+    expect(mainnet.nettingLedger).toBe("0xCf7759128399ACF6f69dd76c852074ed9050fc28");
+    expect(mainnet.registryDeployBlock).toBe(25469818n);
+    expect(mainnet.usdc).toBe(testnet.usdc);
+    // Never the testnet ledger, whose signatures are bound to another chain id.
+    expect(mainnet.nettingLedger).not.toBe(testnet.nettingLedger);
+    expect(() => mod.addressesForChain(1)).toThrow(mod.UnknownChainError);
   });
 
-  it("builds Mode B signing domains for the chain it serves, and refuses without a deployment", async () => {
+  it("builds Mode B signing domains for the chain it serves", async () => {
     await addressesWith("mainnet");
-    const domain = await import("../src/netting/domain");
-    expect(() => domain.appLedgerDomain()).toThrow();
-    const testnet = await addressesWith("testnet");
+    const mainnet = await import("../src/netting/domain");
+    expect(mainnet.appLedgerDomain().chainId).toBe(5042n);
+    expect(mainnet.appLedgerDomain().verifyingContract).toBe("0xCf7759128399ACF6f69dd76c852074ed9050fc28");
+
     vi.resetModules();
     vi.stubEnv("NEXT_PUBLIC_ARC_NETWORK", "testnet");
-    const d = await import("../src/netting/domain");
-    expect(d.appLedgerDomain().chainId).toBe(BigInt(testnet.ARC_TESTNET_CHAIN_ID));
+    const testnet = await import("../src/netting/domain");
+    expect(testnet.appLedgerDomain().chainId).toBe(5042002n);
+    expect(testnet.appLedgerDomain().verifyingContract).not.toBe("0xCf7759128399ACF6f69dd76c852074ed9050fc28");
   });
 });
 

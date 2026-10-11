@@ -21,8 +21,7 @@ export const ARC_TESTNET_CHAIN_ID = 5042002;
 export const ARC_MAINNET_CHAIN_ID = 5042;
 /// The chain this deployment serves, fixed at build time from `NEXT_PUBLIC_ARC_NETWORK` (the
 /// variable is public because client components read this constant). Anything other than the exact
-/// value `mainnet` is testnet, so a typo can never select mainnet. Selecting mainnet before its
-/// addresses are recorded below fails closed: `addressesForChain` throws.
+/// value `mainnet` is testnet, so a typo can never select mainnet.
 export const APP_CHAIN_ID = process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
 
 /// `registryDeployBlock` is read directly from the deploy broadcast's transaction receipts, not
@@ -37,9 +36,21 @@ const ARC_TESTNET_ADDRESSES: ChainAddresses = {
   nettingLedger: "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
 };
 
+/// From Foundry's broadcast output for chain 5042 (`scripts/addresses-from-broadcast.mjs`),
+/// confirmed with `cast`. The Registry and Settler proxies share addresses with the 2026-09-18
+/// testnet deployment because the same deployer sent them from nonce 0 on each chain; the chain id is
+/// part of every signed domain, so nothing signed for one can be used on the other.
+const ARC_MAINNET_ADDRESSES: ChainAddresses = {
+  registry: "0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312",
+  settler: "0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03",
+  usdc: "0x3600000000000000000000000000000000000000",
+  registryDeployBlock: 25469818n,
+  nettingLedger: "0xCf7759128399ACF6f69dd76c852074ed9050fc28",
+};
+
 const ADDRESSES_BY_CHAIN_ID: Record<number, ChainAddresses> = {
   [ARC_TESTNET_CHAIN_ID]: ARC_TESTNET_ADDRESSES,
-  // [ARC_MAINNET_CHAIN_ID]: not deployed yet.
+  [ARC_MAINNET_CHAIN_ID]: ARC_MAINNET_ADDRESSES,
 };
 
 export class UnknownChainError extends Error {
