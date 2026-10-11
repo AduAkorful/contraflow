@@ -39,7 +39,7 @@ describe("signOutEverywhere", () => {
     });
 
     await expect(signOutEverywhere(deps)).resolves.toEqual({ ok: true });
-    await expect(received).resolves.toEqual({ type: "signed-out" });
+    await expect(received).resolves.toEqual({ type: "signed-out", from: expect.any(String) });
     listener.close();
 
     expect(calls.slice(0, 4)).toEqual(["signOut", "logout", "disconnect", "clear"]);

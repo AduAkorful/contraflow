@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { SESSION_CHANNEL, type SessionChannelMessage } from "../../src/session/channel";
+import { isSignOutFromAnotherTab, SESSION_CHANNEL, type SessionChannelMessage } from "../../src/session/channel";
 import { sessionOwns } from "../../src/session/owned";
 
 interface SessionContextValue {
@@ -32,7 +32,8 @@ export function SessionProvider({
     if (typeof BroadcastChannel === "undefined") return;
     const channel = new BroadcastChannel(SESSION_CHANNEL);
     channel.onmessage = (event: MessageEvent<SessionChannelMessage>) => {
-      if (event.data?.type === "signed-out") {
+      // This tab's own sign-out already navigates (to `/app?switch=1` for "Switch account").
+      if (isSignOutFromAnotherTab(event.data)) {
         window.location.assign("/app");
       }
     };
