@@ -42,8 +42,8 @@ Send your key as a bearer token:
 Authorization: Bearer cfk_test_…
 ```
 
-* **Test and live keys.** Keys starting `cfk_live_` act on Arc mainnet and are issued by request. Keys starting `cfk_test_` act on Arc testnet and work only on a testnet deployment; a mainnet deployment answers `403 test_unavailable`, and a testnet deployment answers `403 live_unavailable` to a live key. The network always comes from the key, never from the request.
-* **Issuing keys.** Live keys are issued by request. On a testnet deployment you can also sign in and create a test key at `/app/api-keys`. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime.
+* **Test and live keys.** Keys starting `cfk_live_` act on Arc mainnet. Keys starting `cfk_test_` act on Arc testnet and work only on a testnet deployment; a mainnet deployment answers `403 test_unavailable`, and a testnet deployment answers `403 live_unavailable` to a live key. The network always comes from the key, never from the request.
+* **Issuing keys.** Sign in and create a key at `/app/api-keys`: a live key on the mainnet deployment, a test key on the test network. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime.
 * **Failures.** A missing, malformed, unknown or revoked key gets `401 unauthorized`, with `WWW-Authenticate: Bearer realm="Contraflow API"`. The scheme is case-insensitive (`Bearer` or `bearer`).
 * **Request id.** Send `X-Request-Id` (1–128 visible ASCII characters) and the same value comes back on every response. If you omit it, Contraflow generates one.
 * **CORS.** Browser clients may call the API from any origin. Allowed headers: `Authorization`, `Content-Type`, `Idempotency-Key`, `X-Request-Id`. Wrong methods return JSON `405 method_not_allowed` with `Allow`.

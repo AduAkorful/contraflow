@@ -1,4 +1,4 @@
-import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { selfServeKeyMode } from "@/src/api/ownKeys";
 import { SignInGate } from "@/components/wallet/SignInGate";
 import type { OwnTenantView } from "@/src/api/ownKeys";
 import { UsagePanel } from "@/components/api/UsagePanel";
@@ -15,12 +15,12 @@ import { WebhookPanel } from "./WebhookPanel";
 export const metadata = pageMeta(
   "/app/api-keys",
   "API keys",
-  "Your API keys, webhook and usage for your signed-in address. Keys are shown once.",
+  "Create API keys for your signed-in address, set a webhook and see usage. Keys are shown once.",
 );
 
 export default async function ApiKeysPage() {
   const session = await getSession();
-  const selfServe = APP_CHAIN_ID === ARC_TESTNET_CHAIN_ID;
+  const keyMode = selfServeKeyMode();
   let tenant: OwnTenantView | null = null;
   let unavailable = false;
   let usage: TenantUsage | null = null;
@@ -62,17 +62,17 @@ export default async function ApiKeysPage() {
     <section className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="heading-1">API keys</h1>
       <p className="mt-4 text-sm text-muted">
-        {selfServe
-          ? "A test key lets your product call the API for parties who grant it permission. Contraflow never signs for you. The key is shown once, and you can hold two active keys."
-          : "An API key lets your product call the API for parties who grant it permission. Contraflow never signs for you. Keys are issued on request and shown once."}
+        {keyMode === "live"
+          ? "A live key lets your product call the API on Arc for parties who grant it permission. Contraflow never signs for you. The key is shown once, and you can hold two active keys."
+          : "A test key lets your product call the API on the test network for parties who grant it permission. Contraflow never signs for you. The key is shown once, and you can hold two active keys."}
       </p>
       {!session ? (
-        <SignInGate title={selfServe ? "Sign in to create a key" : "Sign in to manage your keys"} reason="Sign in with your email or wallet. The key belongs to that address." />
+        <SignInGate title="Sign in to create a key" reason="Sign in with your email or wallet. The key belongs to that address." />
       ) : unavailable ? (
         <p className="mt-8 text-sm text-muted">API keys aren&apos;t available right now.</p>
       ) : (
         <>
-          <ApiKeysPanel tenant={tenant} selfServe={selfServe} />
+          <ApiKeysPanel tenant={tenant} keyMode={keyMode} />
           {tenant && <WebhookPanel webhook={webhook} deliveries={deliveries} unavailable={webhookUnavailable} suspended={tenant.status === "suspended"} />}
           {tenant && <UsagePanel usage={usage} />}
         </>

@@ -16,8 +16,8 @@ export function apiBaseUrl(): string {
 
 function keyLine(): string {
   return APP_CHAIN_ID === ARC_MAINNET_CHAIN_ID
-    ? "This deployment runs on Arc mainnet (chain 5042). Live keys (`cfk_live_`) are issued on request. Test keys (`cfk_test_`) answer `403 test_unavailable` here. The chain always comes from the key, never from a request."
-    : "This deployment runs on Arc testnet (chain 5042002). Test keys (`cfk_test_`) work here and are self-serve. Live keys (`cfk_live_`) act on Arc mainnet, are issued on request, and answer `403 live_unavailable` on this deployment. The chain always comes from the key, never from a request.";
+    ? "This deployment runs on Arc mainnet (chain 5042). Live keys (`cfk_live_`) are self-serve here: sign in and create one at `/app/api-keys`. Test keys (`cfk_test_`) answer `403 test_unavailable` here. The chain always comes from the key, never from a request."
+    : "This deployment runs on Arc testnet (chain 5042002). Test keys (`cfk_test_`) work here and are self-serve. Live keys (`cfk_live_`) act on Arc mainnet, are created on the mainnet deployment, and answer `403 live_unavailable` on this deployment. The chain always comes from the key, never from a request.";
 }
 
 function origin(): string {
@@ -61,7 +61,7 @@ Contraflow finds loops of debt between counterparties and nets them out, so mone
 ## Authentication and conventions
 
 - \`Authorization: Bearer cfk_test_…\` (scheme is case-insensitive). A bad or revoked key is \`401 unauthorized\`.
-- Create a test key at \`${origin()}/app/api-keys\` after signing in. Two active keys at a time. Live keys are issued by request.
+- Create a key at \`${origin()}/app/api-keys\` after signing in (a live key on mainnet, a test key on the test network). Two active keys at a time.
 - JSON in, JSON out. Optional \`X-Request-Id\` is echoed back.
 - List and summary amounts are \`amountMinor\` (integer string in minor units) and \`amountDisplay\` (major units). Timestamps on those responses are unix-second strings. \`chainId\` is a JSON number.
 - Rate limits: 600 requests a minute per tenant (\`RateLimit-*\` headers, \`Retry-After\` on 429), and per party per 10 minutes: 120 obligation writes through the API (propose, accept, withdraw; each batch item counts), 120 obligation reads, 10 loop searches, 30 certificate writes, 120 certificate reads. A 429 carries \`RateLimit-*\` and \`Retry-After\`. For a bulk import use \`POST /obligations/proposals/batch\` (up to 25 per call) and resume after \`Retry-After\`.

@@ -4,7 +4,8 @@
 
 import { randomBytes } from "node:crypto";
 import { getAddress, type Address } from "viem";
-import { hashApiKey, issueApiKey, type IssuedKey } from "./keys";
+import { APP_CHAIN_ID, ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
+import { hashApiKey, issueApiKey, type IssuedKey, type KeyMode } from "./keys";
 
 export const MAX_ACTIVE_OWN_KEYS = 2;
 
@@ -27,8 +28,9 @@ export interface OwnTenantView {
   keys: OwnKeyView[];
 }
 
-export interface IssueTestKeyInput {
+export interface IssueKeyInput {
   owner: string;
+  mode: KeyMode;
   tenantId: string;
   name: string;
   keyHash: string;
@@ -36,7 +38,7 @@ export interface IssueTestKeyInput {
 }
 
 export interface OwnKeyStore {
-  issueTestKey(input: IssueTestKeyInput): Promise<IssueOutcome>;
+  issueKey(input: IssueKeyInput): Promise<IssueOutcome>;
   list(owner: string): Promise<OwnTenantView | null>;
   revoke(owner: string, prefix: string): Promise<RevokeOutcome>;
 }
@@ -62,15 +64,27 @@ function ownerLower(owner: Address): string {
   return getAddress(owner).toLowerCase();
 }
 
-/// Issues a test key (`cfk_test_`). Live keys stay on the operator script until mainnet addresses exist.
-export async function createTestKeyForOwner(owner: Address, store: OwnKeyStore, issue: () => IssuedKey = () => issueApiKey("test")): Promise<OwnKeyResult> {
+/// The kind of key a signed-in address creates for itself: the one that acts on the chain this
+/// deployment serves (`live` on mainnet, `test` on testnet), never the other.
+export function selfServeKeyMode(): KeyMode {
+  return APP_CHAIN_ID === ARC_MAINNET_CHAIN_ID ? "live" : "test";
+}
+
+/// Issues a key of `mode` for the signed-in owner (`cfk_test_` or `cfk_live_`).
+export async function createKeyForOwner(
+  owner: Address,
+  store: OwnKeyStore,
+  mode: KeyMode = selfServeKeyMode(),
+  issue: () => IssuedKey = () => issueApiKey(mode),
+): Promise<OwnKeyResult> {
   const ownerAddress = ownerLower(owner);
   const issued = issue();
-  if (!issued.key.startsWith("cfk_test_") || issued.hash !== hashApiKey(issued.key)) {
+  if (!issued.key.startsWith(`cfk_${mode}_`) || issued.hash !== hashApiKey(issued.key)) {
     return { ok: false, error: "API keys aren't available right now." };
   }
-  const outcome = await store.issueTestKey({
+  const outcome = await store.issueKey({
     owner: ownerAddress,
+    mode,
     tenantId: `0x${randomBytes(32).toString("hex")}`,
     name: `Self-serve ${ownerAddress.slice(2, 8)}`,
     keyHash: issued.hash,

@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import type { OwnTenantView } from "@/src/api/ownKeys";
-import { createOwnTestKey, revokeOwnTestKey } from "./actions";
+import { createOwnKey, revokeOwnKey } from "./actions";
 
-export function ApiKeysPanel({ tenant, selfServe }: { tenant: OwnTenantView | null; selfServe: boolean }) {
+export function ApiKeysPanel({ tenant, keyMode }: { tenant: OwnTenantView | null; keyMode: "test" | "live" }) {
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -17,7 +17,7 @@ export function ApiKeysPanel({ tenant, selfServe }: { tenant: OwnTenantView | nu
     setError(null);
     setCopied(false);
     startTransition(async () => {
-      const result = await createOwnTestKey();
+      const result = await createOwnKey();
       if (!result.ok) {
         setError(result.error);
         return;
@@ -29,7 +29,7 @@ export function ApiKeysPanel({ tenant, selfServe }: { tenant: OwnTenantView | nu
   function revoke(prefix: string) {
     setError(null);
     startTransition(async () => {
-      const result = await revokeOwnTestKey(prefix);
+      const result = await revokeOwnKey(prefix);
       if (!result.ok) setError(result.error);
       else if (secret?.startsWith(prefix)) setSecret(null);
     });
@@ -69,11 +69,6 @@ export function ApiKeysPanel({ tenant, selfServe }: { tenant: OwnTenantView | nu
       <div>
         {suspended ? (
           <p className="text-sm text-muted">This API access is suspended.</p>
-        ) : !selfServe ? (
-          <p className="text-sm text-muted">
-            Live API keys are issued on request. <a href="/contact" className="text-gold hover:underline">Ask for one</a> and
-            tell us the address that should own it.
-          </p>
         ) : (
           <button
             type="button"
@@ -81,7 +76,7 @@ export function ApiKeysPanel({ tenant, selfServe }: { tenant: OwnTenantView | nu
             disabled={pending || atCap}
             className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
           >
-            {pending ? "Working…" : "Create a test key"}
+            {pending ? "Working…" : keyMode === "live" ? "Create a live key" : "Create a test key"}
           </button>
         )}
         {atCap && !suspended && (

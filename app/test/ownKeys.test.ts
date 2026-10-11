@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAddress, type Address } from "viem";
 import { hashApiKey, keyMode } from "../src/api/keys";
 import {
-  createTestKeyForOwner,
+  createKeyForOwner,
+  selfServeKeyMode,
   ownKeyIssueError,
   ownKeyPrefixOk,
   ownKeyRevokeError,
@@ -19,7 +20,7 @@ function store(outcome: IssueOutcome): OwnKeyStore & { inputPrefix: string } {
     get inputPrefix() {
       return seen.inputPrefix;
     },
-    async issueTestKey(input) {
+    async issueKey(input) {
       seen.inputPrefix = input.prefix;
       expect(input.owner).toBe(OWNER.toLowerCase());
       expect(input.name.startsWith("Self-serve ")).toBe(true);
@@ -38,7 +39,7 @@ function store(outcome: IssueOutcome): OwnKeyStore & { inputPrefix: string } {
 describe("self-serve API keys", () => {
   it("issues a test key and returns the secret once", async () => {
     const backing = store("issued");
-    const result = await createTestKeyForOwner(OWNER, backing);
+    const result = await createKeyForOwner(OWNER, backing, "test");
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.key.startsWith("cfk_test_")).toBe(true);
@@ -62,7 +63,7 @@ describe("self-serve API keys", () => {
     expect(ownKeyPrefixOk(`cfk_test_${"a".repeat(43)}`)).toBe(false);
     const calls: string[] = [];
     const backing: OwnKeyStore = {
-      async issueTestKey() {
+      async issueKey() {
         return "issued";
       },
       async list() {
@@ -81,7 +82,7 @@ describe("self-serve API keys", () => {
   it("lowercases a checksummed owner before revoke", async () => {
     let seen = "";
     const backing: OwnKeyStore = {
-      async issueTestKey() {
+      async issueKey() {
         return "issued";
       },
       async list() {
@@ -95,5 +96,51 @@ describe("self-serve API keys", () => {
     const mixed = getAddress(OWNER) as Address;
     await revokeKeyForOwner(mixed, "cfk_test_abcd", backing);
     expect(seen).toBe(OWNER.toLowerCase());
+  });
+});
+
+describe("self-serve key mode follows the deployment", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("issues a live key, and tells the store it is live", async () => {
+    let seenMode = "";
+    const backing: OwnKeyStore = {
+      async issueKey(input) {
+        seenMode = input.mode;
+        return "issued";
+      },
+      async list() {
+        return null;
+      },
+      async revoke() {
+        return "not_found";
+      },
+    };
+    const result = await createKeyForOwner(OWNER, backing, "live");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.key.startsWith("cfk_live_")).toBe(true);
+    expect(keyMode(result.key)).toBe("live");
+    expect(seenMode).toBe("live");
+  });
+
+  it("refuses a key that isn't of the requested mode", async () => {
+    const backing = store("issued");
+    const { issueApiKey } = await import("../src/api/keys");
+    const result = await createKeyForOwner(OWNER, backing, "live", () => issueApiKey("test"));
+    expect(result).toEqual({ ok: false, error: "API keys aren't available right now." });
+    expect(backing.inputPrefix).toBe("");
+  });
+
+  it("creates live keys on a mainnet deployment and test keys everywhere else", async () => {
+    for (const [network, expected] of [["mainnet", "live"], ["testnet", "test"], ["", "test"], ["Mainnet", "test"]] as const) {
+      vi.resetModules();
+      vi.stubEnv("NEXT_PUBLIC_ARC_NETWORK", network);
+      const mod = await import("../src/api/ownKeys");
+      expect(mod.selfServeKeyMode()).toBe(expected);
+    }
   });
 });

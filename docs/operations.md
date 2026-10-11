@@ -109,15 +109,16 @@ node --env-file=app/.env.local app/scripts/tenant.mjs usage <tenantId> [days]
 node --env-file=app/.env.local app/scripts/tenant.mjs list
 ```
 
-- **Self-serve test keys.** A signed-in address creates its own tenant and test keys at `/app/api-keys` (migration 013).
-  The secret is shown once. This script remains the path for live keys, webhook endpoints and tenants with no owner.
+- **Self-serve keys.** A signed-in address creates its own tenant and keys at `/app/api-keys` (migration 013): a live
+  key on a mainnet deployment, a test key on testnet. The secret is shown once. This script remains the path for
+  named tenants with no owner, extra webhook endpoints, and anything done on a tenant's behalf.
 - **Shown once.** Keys and webhook secrets are printed once and never stored in the clear (webhook secrets are
   stored, since signing needs them). Send them to the tenant over a secure channel.
 - **Key limit.** A tenant can hold at most two active keys.
 - **Usage.** `usage` prints a tenant's recorded calls (operation, status class, error code, count) for the last 1–90 days and
   each key's last use. The same counts reach the tenant at `GET /api/v1/usage`, and its owner at `/app/api-keys`. Counts are
   kept 90 days; the daily cron deletes older rows.
-- **Live keys.** `live` keys only work once mainnet addresses are in `app/src/contracts/addresses.ts`.
+- **Live keys.** A `live` key only works on the mainnet deployment; a `test` key only on a testnet deployment.
 - **Webhook URLs.** They must be `https` (plain `http` is allowed for `localhost` only).
 
 ### Contract ABIs

@@ -97,7 +97,7 @@ export async function authenticate(authorization: string | null, store: TenantSt
   if (chainId !== APP_CHAIN_ID) {
     throw mode === "live"
       ? new ApiError(403, "live_unavailable", "Live keys work on Contraflow's Arc mainnet deployment. This deployment serves the test network; use a test key.")
-      : new ApiError(403, "test_unavailable", "Test keys aren't available on Arc mainnet. Live keys are issued on request.");
+      : new ApiError(403, "test_unavailable", "Test keys aren't available on Arc mainnet. Sign in and create a live key at /app/api-keys.");
   }
   if (!chainDeployed(chainId)) {
     throw new ApiError(403, "live_unavailable", "Live keys work once Contraflow is on Arc mainnet.");

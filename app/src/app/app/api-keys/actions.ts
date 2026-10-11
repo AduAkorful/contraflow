@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getAddress } from "viem";
-import { createTestKeyForOwner, revokeKeyForOwner, type OwnKeyResult } from "@/src/api/ownKeys";
+import { createKeyForOwner, revokeKeyForOwner, type OwnKeyResult } from "@/src/api/ownKeys";
 import { postgresOwnKeyStore } from "@/src/db/ownKeys";
 import {
   OWN_WEBHOOK_UNAVAILABLE,
@@ -16,7 +16,7 @@ import {
 import { postgresOwnWebhookStore } from "@/src/db/ownWebhook";
 import { enqueueWebhookTest } from "@/src/db/webhooks";
 import { runWebhookPipelineQuietly } from "@/src/api/webhookRunner";
-import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { getSession } from "@/src/session/getSession";
 
@@ -29,16 +29,15 @@ async function limitWrites(address: string): Promise<string | null> {
   }
 }
 
-export async function createOwnTestKey(): Promise<OwnKeyResult> {
-  // Test keys act on testnet. A deployment serving mainnet issues live keys on request only.
-  if (APP_CHAIN_ID !== ARC_TESTNET_CHAIN_ID) return { ok: false, error: "Live API keys are issued on request." };
+/// Creates a key for the signed-in address: a live key on a mainnet deployment, a test key on testnet.
+export async function createOwnKey(): Promise<OwnKeyResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
   const owner = getAddress(session.address);
   const limited = await limitWrites(owner.toLowerCase());
   if (limited) return { ok: false, error: limited };
   try {
-    const result = await createTestKeyForOwner(owner, postgresOwnKeyStore);
+    const result = await createKeyForOwner(owner, postgresOwnKeyStore);
     if (result.ok) revalidatePath("/app/api-keys");
     return result;
   } catch {
@@ -46,7 +45,7 @@ export async function createOwnTestKey(): Promise<OwnKeyResult> {
   }
 }
 
-export async function revokeOwnTestKey(prefix: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function revokeOwnKey(prefix: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
   const owner = getAddress(session.address);

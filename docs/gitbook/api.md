@@ -2,7 +2,7 @@
 
 The Contraflow API lets a platform you already use, such as an ERP, an accounting app or a marketplace, record offchain obligations for its customers, find netting loops and apply netting certificates, over HTTPS. Every endpoint, with request and response examples, is in the [API reference](reference/api.md). The machine-readable contract is the OpenAPI document served by the app at `/api/v1/openapi.json`.
 
-Test keys (`cfk_test_…`) run against Arc testnet and are self-serve: sign in and create one at `/app/api-keys`. Live keys (`cfk_live_…`) are issued by request through the Contact page once Contraflow is live on Arc mainnet.
+Sign in and create a key at `/app/api-keys`. On Contraflow's Arc mainnet deployment that is a live key (`cfk_live_…`); on the test network it is a test key (`cfk_test_…`). The key decides the network, and the two never mix.
 
 ## What other companies see
 

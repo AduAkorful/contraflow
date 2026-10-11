@@ -578,7 +578,7 @@ export const OPENAPI = {
         type: "http",
         scheme: "bearer",
         description:
-          "`Authorization: Bearer cfk_test_...` (scheme is case-insensitive). A signed-in address creates a test key in the app; it is shown once. Live keys are issued separately.",
+          "`Authorization: Bearer cfk_test_...` (scheme is case-insensitive). A signed-in address creates its own key in the app (a live key on the mainnet deployment, a test key on the test network); it is shown once.",
       },
     },
     parameters: {

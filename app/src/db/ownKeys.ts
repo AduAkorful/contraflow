@@ -1,7 +1,7 @@
 /// Postgres store for self-serve API keys. The two-key cap is enforced inside one transaction
 /// that locks the owned tenant row, so two clicks cannot both pass a count check.
 
-import type { IssueTestKeyInput, OwnKeyStore, OwnKeyView, OwnTenantView } from "../api/ownKeys";
+import type { IssueKeyInput, OwnKeyStore, OwnKeyView, OwnTenantView } from "../api/ownKeys";
 import { sql, withDbRetry } from "./client";
 
 type KeyRow = {
@@ -21,7 +21,7 @@ function createdAtIso(value: Date | string): string {
 }
 
 export const postgresOwnKeyStore: OwnKeyStore = {
-  async issueTestKey(input: IssueTestKeyInput) {
+  async issueKey(input: IssueKeyInput) {
     const ensure = sql()`INSERT INTO tenants (tenant_id, name, owner_address)
                          VALUES (${input.tenantId}, ${input.name}, ${input.owner})
                          ON CONFLICT (owner_address) WHERE owner_address IS NOT NULL DO NOTHING`;
@@ -32,7 +32,7 @@ export const postgresOwnKeyStore: OwnKeyStore = {
                        WHERE t.owner_address = ${input.owner}
                        FOR UPDATE`;
     const insert = sql()`INSERT INTO tenant_api_keys (key_hash, tenant_id, mode, prefix)
-                         SELECT ${input.keyHash}, t.tenant_id, 'test', ${input.prefix}
+                         SELECT ${input.keyHash}, t.tenant_id, ${input.mode}::text, ${input.prefix}
                          FROM tenants t
                          WHERE t.owner_address = ${input.owner}
                            AND t.status = 'active'
