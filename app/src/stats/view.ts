@@ -5,7 +5,7 @@
 import { blockscoutBaseFor } from "../blockscout/client";
 import { ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
 import { isCaughtUp, type StatsState } from "./aggregate";
-import { formatAsOf, formatCount, formatDate, formatUsdc, type Formatted } from "./format";
+import { formatAsOf, formatCount, formatDate, formatUpdated, formatUsdc, type Formatted } from "./format";
 
 export interface StatTile extends Formatted {
   label: string;
@@ -15,11 +15,11 @@ export interface StatTile extends Formatted {
 export interface StatsView {
   chainName: string;
   asOf: string;
+  /// Short form for the line under the card: "16:53 UTC", or with the date when not today.
+  updated: string;
   since: string | null;
   headline: StatTile[];
   detail: StatTile[];
-  /// Plain notes shown under the figures.
-  notes: string[];
   /// Set when the figures are behind: still backfilling, older than the threshold, or the last
   /// refresh failed. Shown prominently; the figures are still true as of `asOf`.
   staleness: string | null;
@@ -30,9 +30,7 @@ function plural(n: number, one: string, many: string): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 }
 
-export const SETTLEMENT_NOTE = "Settlement reduces balances in place: no tokens move.";
-export const CERTIFICATE_NOTE =
-  "Certificates net obligations in other currencies, kept off-chain, so they add to loops settled but not to value netted.";
+export const VALUE_NETTED_NOTE = "USDC invoices only. Certificates are off-chain.";
 
 export function buildStatsView(
   state: StatsState,
@@ -45,11 +43,11 @@ export function buildStatsView(
 
   const headline: StatTile[] = [
     { label: "Invoices registered", ...formatCount(totals.invoicesRegistered) },
-    { label: "Value netted", ...formatUsdc(totals.valueNetted), note: "USDC invoices only" },
+    { label: "Value netted", ...formatUsdc(totals.valueNetted), note: VALUE_NETTED_NOTE },
     {
       label: "Loops settled",
       ...formatCount(loops),
-      note: `${plural(totals.invoiceLoopsSettled, "invoice loop", "invoice loops")} · ${plural(totals.certificatesApplied, "certificate", "certificates")}`,
+      note: `${plural(totals.invoiceLoopsSettled, "invoice loop", "invoice loops")} · ${plural(totals.certificatesApplied, "certificate", "certificates")} · no tokens move`,
     },
   ];
 
@@ -82,10 +80,10 @@ export function buildStatsView(
   return {
     chainName: state.chainId === ARC_MAINNET_CHAIN_ID ? "Arc" : "Arc testnet",
     asOf: formatAsOf(state.updatedAt),
+    updated: formatUpdated(state.updatedAt, opts.now),
     since: state.firstEventAt ? formatDate(state.firstEventAt) : null,
     headline,
     detail,
-    notes: [SETTLEMENT_NOTE, CERTIFICATE_NOTE],
     staleness,
     contracts: [
       { label: "Registry", url: `${explorer}/address/${contracts.registry}` },

@@ -24,6 +24,7 @@ import { buildSiweMessage } from "../../src/siwe/message";
 import { connectedButUnsignedHint, signingInLabel } from "../../src/session/signInCopy";
 import { loginCreatesEmbeddedWallet, pickSigningWallet } from "../../src/session/signingWallet";
 import { useSession } from "../session/SessionProvider";
+import { waitFor } from "../../src/session/waitFor";
 import { WalletSwitchedBanner } from "./WalletSwitchedBanner";
 import {
   SignInApiProvider,
@@ -80,7 +81,7 @@ export function SignInProvider({
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { setActiveWallet } = useSetActiveWallet();
-  const { authenticated, logout } = usePrivy();
+  const { ready, authenticated, logout } = usePrivy();
 
   const walletsRef = useRef(wallets);
   walletsRef.current = wallets;
@@ -88,6 +89,8 @@ export function SignInProvider({
   createWalletRef.current = createWallet;
   const setActiveWalletRef = useRef(setActiveWallet);
   setActiveWalletRef.current = setActiveWallet;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
   const authenticatedRef = useRef(authenticated);
   authenticatedRef.current = authenticated;
   const logoutRef = useRef(logout);
@@ -310,6 +313,8 @@ export function SignInProvider({
       pendingRef.current = true;
       setPhase("connecting");
       try {
+        // Same as the wallet path: Privy may have only just loaded.
+        if (!(await waitFor(() => readyRef.current, 15_000))) throw new Error("Sign-in is still loading. Try again in a moment.");
         await clearStalePrivySession();
         await sendCode({ email });
         setPhase("idle");
@@ -349,7 +354,19 @@ export function SignInProvider({
     pendingRef.current = true;
     setPhase("connecting");
     setMenuOpen(false);
-    void clearStalePrivySession().then(() => login({ loginMethods: ["wallet"] }));
+    void (async () => {
+      // On a fresh visit Privy has only just loaded (WalletHost mounts it on the Sign in click).
+      // Before `ready` it doesn't know the user or the detected wallets, so `login()` showed an
+      // empty wallet list and only a second try worked. Wait for it first.
+      if (!(await waitFor(() => readyRef.current, 15_000))) {
+        pendingRef.current = false;
+        setError("Sign-in is still loading. Try again in a moment.");
+        setPhase("error");
+        return;
+      }
+      await clearStalePrivySession();
+      login({ loginMethods: ["wallet"] });
+    })();
   }, [login, clearStalePrivySession]);
 
   useEffect(() => {

@@ -4,7 +4,7 @@
 /// If the stats can't be loaded it shows no figures at all: a zero here would be a false statement,
 /// not a placeholder.
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { loadProtocolStats, type ProtocolStatsResult } from "../../src/app/app/stats/actions";
 import type { StatTile, StatsView } from "../../src/stats/view";
 
@@ -19,12 +19,14 @@ function Figure({ tile, className }: { tile: StatTile; className: string }) {
   return (
     <span className={className} title={tile.exact} aria-label={`${tile.label}: ${tile.exact}`}>
       {figure}
-      {unit && <span className="ml-1.5 text-sm font-normal text-muted">{unit}</span>}
+      {unit && <span className="text-sm font-normal text-muted">{` ${unit}`}</span>}
     </span>
   );
 }
 
 function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "full" }) {
+  const [howOpen, setHowOpen] = useState(false);
+  const howId = useId();
   return (
     <div>
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-3">
@@ -55,54 +57,54 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
         </dl>
       )}
 
-      <div className="mt-4 space-y-1.5 text-xs leading-relaxed text-muted">
+      <div className="mt-4 space-y-2 text-xs leading-relaxed text-muted">
         {view.staleness && (
-          <p role="status" className="font-medium text-gold">
+          <p role="status" className="text-center font-medium text-gold">
             {view.staleness}
           </p>
         )}
-        {view.notes.map((note) => (
-          <p key={note}>{note}</p>
-        ))}
-        <p>
-          As of {view.asOf} · {view.chainName}
-          {view.since && <> · since {view.since}</>} · counted from contract events:{" "}
-          {view.contracts.map((c, i) => (
+        <p className="text-center" title={`As of ${view.asOf}${view.since ? `, counting since ${view.since}` : ""}`}>
+          Updated {view.updated} · {view.chainName}
+          {view.contracts.map((c) => (
             <span key={c.label}>
-              {i > 0 && " · "}
-              <a
-                href={c.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="tap-inline text-gold underline"
-              >
+              {" · "}
+              <a href={c.url} target="_blank" rel="noopener noreferrer" className="tap-inline text-gold underline">
                 {c.label}
               </a>
             </span>
           ))}
+          {" · "}
+          <button
+            type="button"
+            aria-expanded={howOpen}
+            aria-controls={howId}
+            onClick={() => setHowOpen((o) => !o)}
+            className="tap-inline text-gold underline"
+          >
+            How these are counted
+          </button>
         </p>
-        <details className="group">
-          <summary className="tap-inline cursor-pointer text-gold underline">How these are counted</summary>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
+        {howOpen && (
+          <ul id={howId} className="mx-auto max-w-2xl list-disc space-y-1 pl-5 text-left">
             <li>Invoices registered and face value: every invoice registered with the Registry.</li>
             <li>
-              Value netted: the total each settlement reduced invoice balances by, across every invoice in the
+              Value netted: the total each settlement reduced USDC invoice balances by, across every invoice in the
               loop.
             </li>
             <li>
               Loops settled: invoice loops settled through the Settler, plus netting certificates applied to the
-              Netting ledger.
+              Netting ledger. Settlement reduces balances in place, so no tokens move.
             </li>
             <li>
-              Offchain obligations only ever contribute counts. Their amounts never go onchain, so they can&apos;t
-              be totalled here.
+              Certificates net obligations in other currencies, kept off-chain. They add to loops settled, but their
+              amounts never go onchain, so they aren&apos;t in value netted.
             </li>
             <li>
               Every event counts, including the live demo and our own test runs, so anyone can recount these
-              figures from the chain.
+              figures from the chain{view.since ? ` (counting since ${view.since})` : ""}.
             </li>
           </ul>
-        </details>
+        )}
       </div>
     </div>
   );
