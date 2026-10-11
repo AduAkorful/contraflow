@@ -298,6 +298,8 @@ export async function withdrawProposal(session: Address, token: unknown): Promis
     return { ok: false, error: NOT_FOUND };
   }
   if (row.status === "accepted") return { ok: false, error: "This proposal was already accepted." };
+  // Withdrawing or declining twice is the same as once.
+  if (row.status === "withdrawn") return { ok: true };
   const withdrawn = await markProposalWithdrawn(token, session);
   return withdrawn
     ? { ok: true }

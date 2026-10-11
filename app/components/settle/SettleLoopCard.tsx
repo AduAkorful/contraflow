@@ -11,6 +11,7 @@ import { starterGrantToast } from "../../src/attest/grantCopy";
 import { contraflowSettlerAbi } from "../../src/contracts/abi/index";
 import { findSettleableLoop, recordSettlement, type FindSettleableLoopResult, type InvoiceLoopView } from "../../src/app/app/settle/actions";
 import { settleLoopSentence } from "../../src/settle/copy";
+import { isUserRejection } from "../../src/wallet/rejection";
 
 type Phase = "loading" | "none" | "incomplete" | "loop" | "settling" | "pending" | "reverted" | "done";
 
@@ -141,7 +142,7 @@ export function SettleLoopCard({
       if (submittedHash) {
         setError("The transaction was submitted, but follow-up confirmation failed. Check its status before trying again.");
         setPhase("pending");
-      } else if ((err as { code?: unknown })?.code === 4001) {
+      } else if (isUserRejection(err)) {
         setError("You cancelled in your wallet. Nothing was submitted.");
         setPhase("loop");
       } else if (writeAttempted) {

@@ -205,6 +205,13 @@ describe("obligation proposals", () => {
     expect(db.obligations.size).toBe(0);
   });
 
+  it("treats a repeated withdraw or decline as done", async () => {
+    const f = await proposeFixture();
+    expect(await service.withdrawProposal(f.proposer.address, f.token)).toEqual({ ok: true });
+    expect(await service.withdrawProposal(f.proposer.address, f.token)).toEqual({ ok: true });
+    expect(await service.withdrawProposal(f.counterparty.address, f.token)).toEqual({ ok: true });
+  });
+
   it("lets the counterparty decline", async () => {
     const f = await proposeFixture();
     expect(await service.withdrawProposal(f.counterparty.address, f.token)).toEqual({ ok: true });

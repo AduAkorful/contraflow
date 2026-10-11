@@ -26,6 +26,7 @@ export const ERROR_CODES = [
   "no_webhook",
   "already_applied",
   "duplicate_proposal",
+  "conflict",
 ] as const;
 
 const errorRef = { $ref: "#/components/responses/Error" as const };
@@ -107,6 +108,7 @@ export const API_INDEX = {
     { method: "POST", path: "/parties/{address}/rules", description: "Set a party's approved-counterparty rule" },
     { method: "POST", path: "/parties/{address}/loops", description: "Find and propose a loop" },
     { method: "GET", path: "/certificates/{token}", description: "Read a certificate" },
+    { method: "DELETE", path: "/certificates/{token}", description: "Decline a certificate that is still collecting signatures" },
     { method: "POST", path: "/certificates/{token}/signatures", description: "Submit a certificate signature" },
     { method: "GET", path: "/certificates/{token}/apply-transaction", description: "Unsigned apply calldata" },
     { method: "POST", path: "/certificates/{token}/transactions", description: "Report an apply transaction" },
@@ -326,7 +328,7 @@ export const OPENAPI = {
         operationId: "withdrawObligationProposal",
         tags: ["Obligations"],
         summary: "Withdraw a proposal",
-        description: "Needs the proposer's `propose` scope.",
+        description: "Needs the named party's `propose` scope. The proposer withdraws, and the counterparty can send the same request to decline. Repeating it is the same as doing it once.",
         parameters: [tokenPath, partyQuery],
         responses: { "204": { description: "No content" }, ...jsonErrors },
       }),
@@ -406,7 +408,7 @@ export const OPENAPI = {
         operationId: "findLoop",
         tags: ["Certificates"],
         summary: "Find and propose a loop",
-        description: "Needs `propose`. Searches from this party for loops of 2 to 5 parties; a cycle that exists only with more than 5 parties answers `loop-too-long` (maximum 5), not `no-loop`. Limited to 10 searches per party per 10 minutes. Applying the resulting certificate is permissionless and paid by whoever submits it.",
+        description: "Needs `propose`. Searches from this party for loops of 2 to 5 parties and proposes the largest one through it, in the first currency (alphabetically) that has one. A 6-party cycle answers `loop-too-long` (maximum 5); a longer cycle can read as `no-loop`, because only the party's surroundings a couple of hops out are searched. No body is needed. Limited to 10 searches per party per 10 minutes, so search when an event says something changed rather than on a timer. If another search takes the same obligations at that moment this one runs again, and answers `409 conflict` only if it still can't. Obligations held by a certificate that is still collecting signatures are skipped; `pendingCertificates` lists those certificates. Applying the resulting certificate is permissionless and paid by whoever submits it.",
         parameters: [addressPath, idempotencyKey],
         responses: { ...ok({ $ref: "#/components/schemas/LoopSearch" }), ...jsonErrors },
       }),
@@ -416,9 +418,18 @@ export const OPENAPI = {
         operationId: "getCertificate",
         tags: ["Certificates"],
         summary: "Read a certificate",
-        description: "Needs `read`. The summary uses `wNetMinor` and `wNetDisplay`. `view` is the party's `contraflow-netting-certificate/1` file, which keeps the name `wNet`. Once `status` is `applied`, `wNetMinor` is the amount netted, for the platform to record in the party's own books.",
+        description: "Needs `read`. The summary uses `wNetMinor` and `wNetDisplay`. `view` is the party's `contraflow-netting-certificate/1` file, which keeps the name `wNet`. Once `status` is `applied`, `wNetMinor` is the amount netted, for the platform to record in the party's own books. If transactions raced to apply it, `appliedTxHash` stays `null` until the winning transaction is reported.",
         parameters: [tokenPath, partyQuery],
         responses: { ...ok({ $ref: "#/components/schemas/CertificateRead" }), ...jsonErrors },
+      }),
+      delete: op({
+        operationId: "declineCertificate",
+        tags: ["Certificates"],
+        summary: "Decline a certificate",
+        description:
+          "Needs `deliverSignatures`. A party in the loop declines a certificate that is still collecting signatures; its obligations are released at once and the next search can use them. Declining twice is the same as once. A certificate that every party has signed can no longer be declined: anyone may apply it. An unsigned certificate otherwise holds its obligations until it expires after 7 days.",
+        parameters: [tokenPath, partyQuery],
+        responses: { "204": { description: "No content" }, ...authErrors, ...errors("404", "409", "422") },
       }),
     },
     "/certificates/{token}/signatures": {
@@ -762,7 +773,7 @@ export const OPENAPI = {
         required: ["format", "description", "debtor", "creditor", "currency", "amount", "maturity", "earlyNetConsent"],
         properties: {
           format: { type: "string", const: "contraflow-obligation/1" },
-          description: { type: "string" },
+          description: { type: "string", minLength: 1, maxLength: 500, description: "1 to 500 characters (exactly 500 is accepted), no control characters other than tab and newline. Trimmed before hashing." },
           debtor: { $ref: "#/components/schemas/Address" },
           creditor: { $ref: "#/components/schemas/Address" },
           currency: { type: "string", description: "ISO 4217 code" },
@@ -888,6 +899,11 @@ export const OPENAPI = {
                   found: { type: "boolean", const: false },
                   reason: { type: "string", enum: ["no-candidates", "no-loop", "loop-too-long", "blocked-by-rules", "too-many-parties", "search-incomplete", "out-of-sync"] },
                   message: { type: "string" },
+                  pendingCertificates: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Tokens of your certificates that are still open and hold obligations a search would otherwise use. Decline one to release them.",
+                  },
                 },
               },
             ],

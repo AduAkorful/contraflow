@@ -276,9 +276,16 @@ export function DepositPanel({
       ) : (
         <ActionButton
           onClick={handleReview}
-          disabled={busy !== null || pendingDeposit !== null || movePending || !recoveryStorageReady || amount.trim() === ""}
+          disabled={
+            busy !== null ||
+            pendingDeposit !== null ||
+            movePending ||
+            !recoveryStorageReady ||
+            held === 0n ||
+            amount.trim() === ""
+          }
         >
-          {amount.trim() === "" ? "Enter an amount" : "Review deposit"}
+          {held === 0n ? `No USDC on ${chain?.name ?? "this chain"} to deposit` : amount.trim() === "" ? "Enter an amount" : "Review deposit"}
         </ActionButton>
       )}
     </div>

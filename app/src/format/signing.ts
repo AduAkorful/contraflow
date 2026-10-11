@@ -89,3 +89,15 @@ export function certificateSigningConfirmation(params: {
 export function typedDataUiRoute(walletClientType: string | undefined | null): "privy" | "wagmi" {
   return walletClientType === "privy" || walletClientType === "privy-v2" ? "privy" : "wagmi";
 }
+
+/// What the wallet's own signing window will show. Wallets print the signed fields raw: amounts in
+/// the smallest unit, dates as Unix seconds, and an invoice's `nonce`, which is the number of this
+/// invoice between the two accounts (it can repeat across different pairs and can't be reused
+/// within one).
+export function walletWindowNote(invoiceNumber?: bigint | string): string {
+  const nonce =
+    invoiceNumber === undefined
+      ? ""
+      : ` The nonce (${invoiceNumber.toString()}) is the number of this invoice between these two accounts.`;
+  return `Your wallet shows these terms raw: the amount in its smallest unit and the due date as a Unix timestamp.${nonce}`;
+}

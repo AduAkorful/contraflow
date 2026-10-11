@@ -7,7 +7,7 @@ import { useWallets } from "@privy-io/react-auth";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
 import { useSignerWallet } from "@/components/wallet/useSignerWallet";
 import { SignerWalletNotice } from "@/components/wallet/SignerWalletNotice";
-import { earlyNettingHelper, invoiceSigningConfirmation } from "@/src/format/signing";
+import { earlyNettingHelper, invoiceSigningConfirmation, walletWindowNote } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { ReviewAndSign } from "@/components/attest/ReviewAndSign";
@@ -229,6 +229,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
               earlyNetConsent: invoice.earlyNetConsent,
             })}
           </p>
+          <p className="max-w-sm text-center text-xs text-faint">{walletWindowNote(invoice.nonce)}</p>
           <SignerWalletNotice wallet={signerWallet} signerAddress={signerAddress} />
           <button
             onClick={handleSign}

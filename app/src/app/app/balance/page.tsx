@@ -31,6 +31,10 @@ export default async function BalancePage({ searchParams }: { searchParams: Prom
           ? "Send USDC from your wallet on Arc, or bring USDC from another chain. Your wallet signs every step, and Contraflow never holds the funds."
           : "Send USDC from your wallet on Arc. Your wallet signs it and pays the network fee, and Contraflow never holds the funds."}
       </p>
+      <p className="mt-2 text-xs text-faint">
+        The first time an account signs in, Contraflow sends it a small amount of USDC to cover network fees. After that,
+        fees are paid from your own balance.
+      </p>
 
       {session ? (
         <BalanceClient

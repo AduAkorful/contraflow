@@ -14,7 +14,7 @@ import {
 import { displayMinorAmount } from "@/components/netting/format";
 import { parseCertificateView } from "@/src/netting/serialize";
 import type { ChainReader } from "@/src/netting/signature";
-import { verifyCertificateView, type VerificationResult } from "@/src/netting/verify";
+import { blockOfTransaction, verifyCertificateView, type VerificationResult } from "@/src/netting/verify";
 import type { CertificateView } from "@/src/netting/types";
 import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { createArcPublicClient } from "@/src/chain/client";
@@ -22,6 +22,8 @@ import sampleCertificate from "./sample-certificate.json";
 
 const publicClient = createArcPublicClient(APP_CHAIN_ID);
 const sampleJson = JSON.stringify(sampleCertificate, null, 2);
+/// A certificate file is a few kilobytes; anything past this is not one and is not read.
+const MAX_FILE_BYTES = 1_000_000;
 
 export function VerifyCertificate() {
   const [text, setText] = useState("");
@@ -33,12 +35,17 @@ export function VerifyCertificate() {
   const [dragging, setDragging] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [sample, setSample] = useState(false);
+  const [applyTx, setApplyTx] = useState("");
 
   async function verify(json: string) {
     setResult(null);
     setView(null);
     setSummary(null);
     setError(null);
+    if (json.length > MAX_FILE_BYTES) {
+      setError(`That is too large to be a certificate (over ${MAX_FILE_BYTES / 1_000_000} MB).`);
+      return;
+    }
     const isSample = json.trim() === sampleJson.trim();
     setSample(isSample);
     let parsed;
@@ -50,10 +57,18 @@ export function VerifyCertificate() {
     }
     setChecking(true);
     try {
+      const applicationBlock =
+        !isSample && publicClient && applyTx.trim()
+          ? await blockOfTransaction(
+              publicClient as unknown as Parameters<typeof blockOfTransaction>[0],
+              applyTx.trim(),
+            )
+          : undefined;
       const outcome = await verifyCertificateView(parsed, {
         now: BigInt(Math.floor(Date.now() / 1000)),
         stage: isSample ? "signed" : "applied",
         client: isSample ? undefined : (publicClient as unknown as ChainReader | undefined),
+        applicationBlock,
       });
       setView(parsed);
       setResult(outcome);
@@ -70,12 +85,17 @@ export function VerifyCertificate() {
 
   async function onFile(file: File | undefined) {
     if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      setError(`That file is too large to be a certificate (over ${MAX_FILE_BYTES / 1_000_000} MB).`);
+      return;
+    }
     const content = await file.text();
     setText(content);
     await verify(content);
   }
 
-  const failed = result ? result.checks.filter((c) => c.status !== "pass").length : 0;
+  const failed = result ? result.checks.filter((c) => c.status === "fail").length : 0;
+  const unconfirmed = result ? result.checks.filter((c) => c.status === "unverifiable").length : 0;
   const fullCount = view ? view.entries.filter((e) => e.kind === "full").length : 0;
   const totalCount = view ? view.certificate.entries.length : 0;
   const groups = result ? groupChecks(result.checks) : [];
@@ -105,6 +125,16 @@ export function VerifyCertificate() {
           className="mt-3 text-sm text-muted file:mr-3 file:rounded-pill file:border file:border-white/15 file:bg-transparent file:px-4 file:py-1.5 file:text-sm file:text-foreground"
         />
       </div>
+      <label className="text-xs uppercase tracking-wide text-muted" htmlFor="apply-tx">
+        Apply transaction hash (optional, for certificates applied a while ago)
+      </label>
+      <input
+        id="apply-tx"
+        value={applyTx}
+        onChange={(e) => setApplyTx(e.target.value)}
+        placeholder="0x…"
+        className="w-full rounded-lg border border-white/10 bg-white/[0.02] p-3 font-mono text-xs"
+      />
       <label className="text-xs uppercase tracking-wide text-muted" htmlFor="certificate-json">
         Or paste its contents
       </label>
@@ -143,7 +173,9 @@ export function VerifyCertificate() {
               ? sample
                 ? "The sample's signatures and hashes check out."
                 : verificationPassedHeadline(fullCount, totalCount)
-              : `${failed} of ${result.checks.length} checks did not pass.`}
+              : failed > 0
+                ? `${failed} of ${result.checks.length} checks failed.`
+                : `${unconfirmed} of ${result.checks.length} checks couldn't be made, and none failed. See what couldn't be confirmed below.`}
           </p>
           {summary && <p className="mt-1 text-xs text-muted">{summary}</p>}
           <ul className="mt-4 flex flex-col gap-2 text-sm">

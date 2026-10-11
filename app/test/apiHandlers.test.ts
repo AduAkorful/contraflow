@@ -619,3 +619,31 @@ describe("disputes over the API", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe("declining a certificate over the API", () => {
+  it("declines as the party under deliverSignatures, and a propose-only grant can't", async () => {
+    const { d, store, certificates } = deps();
+    await grant(store, SCOPE.deliverSignatures, party);
+    const decline = vi.fn(async () => ({ ok: true as const }));
+    (certificates as unknown as Record<string, unknown>).declineCertificate = decline;
+    const res = await handlers.declineCertificateHandler(
+      caller,
+      req({ params: { token: "tok" }, query: new URLSearchParams({ party }) }),
+      d,
+    );
+    expect(res).toEqual({ status: 204, body: null });
+    expect(decline).toHaveBeenCalledWith(party, "tok");
+  });
+
+  it("answers 409 conflict when searches collide and stay lost", async () => {
+    const { d, store, certificates } = deps();
+    await grant(store, SCOPE.propose, party);
+    (certificates as unknown as Record<string, unknown>).findAndProposeLoop = async () => ({
+      ok: false,
+      error: "Another search took these obligations at the same moment. Try again.",
+    });
+    await expect(
+      handlers.findLoop(caller, req({ params: { address: party } }), d),
+    ).rejects.toMatchObject({ status: 409, code: "conflict" });
+  });
+});

@@ -23,6 +23,7 @@ const OPERATIONS = new Map<unknown, string>([
   [h.setPartyRulesHandler, "setPartyRules"],
   [h.findLoop, "findLoop"],
   [h.getCertificate, "getCertificate"],
+  [h.declineCertificateHandler, "declineCertificate"],
   [h.signCertificate, "signCertificate"],
   [h.applyTransaction, "applyTransaction"],
   [h.reportTransaction, "reportTransaction"],

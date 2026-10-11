@@ -7,7 +7,7 @@ import { commitment } from "../src/netting/commitment";
 import { obligationKey } from "../src/netting/obligation";
 import { parseCertificateView } from "../src/netting/serialize";
 import type { CertificateView, LedgerDomain } from "../src/netting/types";
-import { verifyCertificateView } from "../src/netting/verify";
+import { blockOfTransaction, verifyCertificateView } from "../src/netting/verify";
 import { CERTIFICATE_LIFETIME_SECONDS, createCertificateService, type CertificateService } from "../src/obligations/certificates";
 import { fakeLedgerChain } from "./helpers/fakeLedgerChain";
 import { createMemoryCertificateStore, seedObligation, type MemoryCertificateStore } from "./helpers/memoryCertificateStore";
@@ -186,7 +186,7 @@ describe("finding and proposing a loop", () => {
     expect(await service.findAndProposeLoop(parties[1]!.address)).toMatchObject({ ok: true, outcome: { found: false } });
   });
 
-  it("gives the loser of two simultaneous proposals a plain retry message", async () => {
+  it("lets the loser of two simultaneous proposals look again and find nothing left, not an error", async () => {
     const { parties } = await seededLoop([100n, 100n, 100n]);
     const [first, second] = await Promise.all([
       service.findAndProposeLoop(parties[0]!.address),
@@ -194,9 +194,9 @@ describe("finding and proposing a loop", () => {
     ]);
     const outcomes = [first, second];
     expect(outcomes.filter((r) => r.ok && r.outcome.found)).toHaveLength(1);
-    expect(outcomes.filter((r) => !r.ok)).toEqual([
-      { ok: false, error: "One of these obligations was just included in another certificate. Try again." },
-    ]);
+    expect(outcomes.every((r) => r.ok)).toBe(true);
+    const loser = outcomes.find((r) => r.ok && !r.outcome.found);
+    expect(loser && loser.ok && !loser.outcome.found && loser.outcome.pendingCertificates).toHaveLength(1);
     expect(store.certificates.size).toBe(1);
   });
 
@@ -412,6 +412,63 @@ describe("declining, closing and expiry", () => {
   });
 });
 
+describe("an unsigned certificate holds obligations", () => {
+  it("tells a held party why a search finds nothing, and frees them when a party declines", async () => {
+    const { parties } = await seededLoop([100n, 100n, 100n]);
+    const token = await propose(parties[0]!.address);
+
+    const held = await service.findAndProposeLoop(parties[1]!.address);
+    expect(held.ok && !held.outcome.found && held.outcome.reason).toBe("no-candidates");
+    expect(held.ok && !held.outcome.found && held.outcome.pendingCertificates).toEqual([token]);
+
+    expect(await service.declineCertificate(parties[1]!.address, token)).toEqual({ ok: true });
+    const freed = await service.findAndProposeLoop(parties[1]!.address);
+    expect(freed).toMatchObject({ ok: true, outcome: { found: true } });
+  });
+
+  it("says nothing extra to a party with no open certificate", async () => {
+    const { parties } = await seededLoop([100n, 100n]);
+    const stranger = privateKeyToAccount(generatePrivateKey());
+    const none = await service.findAndProposeLoop(stranger.address);
+    expect(none.ok && !none.outcome.found && none.outcome.pendingCertificates).toBeUndefined();
+    void parties;
+  });
+});
+
+describe("two searches at once", () => {
+  it("searches again when another search took the obligations first, instead of failing", async () => {
+    const { parties } = await seededLoop([100n, 100n, 100n]);
+    const original = store.insertCertificate.bind(store);
+    let calls = 0;
+    store.insertCertificate = async (input) => {
+      calls += 1;
+      if (calls === 1) return "locked";
+      return original(input);
+    };
+    const result = await service.findAndProposeLoop(parties[0]!.address);
+    expect(result).toMatchObject({ ok: true, outcome: { found: true } });
+    expect(calls).toBe(2);
+  });
+
+  it("reports a conflict when every attempt loses", async () => {
+    const { parties } = await seededLoop([100n, 100n, 100n]);
+    store.insertCertificate = async () => "locked";
+    const result = await service.findAndProposeLoop(parties[0]!.address);
+    expect(result).toEqual({ ok: false, error: "Another search took these obligations at the same moment. Try again." });
+  });
+});
+
+describe("disputing a netted obligation", () => {
+  it("refuses once nothing is left to dispute", async () => {
+    const { parties, rows } = await seededLoop([100n, 100n]);
+    const row = rows[0]!;
+    store.obligations.get(row.obligationId)!.remaining = "0";
+    const result = await service.disputeObligation(parties[0]!.address, row.obligationId, null);
+    expect(result).toMatchObject({ ok: false });
+    expect(!result.ok && result.error).toMatch(/fully netted/);
+  });
+});
+
 describe("following the ledger", () => {
   it("advances obligations only after the ledger applies the certificate, then nets them again", async () => {
     const { parties, rows } = await seededLoop([700_00n, 450_00n, 900_00n]);
@@ -539,6 +596,60 @@ describe("export", () => {
       const substitutedResult = await verifyCertificateView(substituted, { now: clock, stage: "applied", client: chain.client });
       expect(substitutedResult.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("fail");
     }
+  });
+});
+
+describe("a certificate applied long ago", () => {
+  /// The chain's head is far past the block the application sits in, as it is an hour or more
+  /// after an apply; events exist only at their own block.
+  const APPLIED_AT = 100n;
+  const HEAD = 50_000n;
+
+  async function appliedLongAgo() {
+    const { parties } = await seededLoop([100n, 60n, 80n]);
+    const token = await propose(parties[0]!.address);
+    await signAll(token, parties);
+    const view = await partyView(parties[0]!.address, token);
+    const txHash = chain.apply(view);
+    const exported = await service.exportCertificate(parties[0]!.address, token);
+    if (!exported.ok) throw new Error(exported.error);
+    const base = chain.client as unknown as {
+      getLogs: (a: { fromBlock?: bigint; toBlock?: bigint; args: { certificateId?: Hex } }) => Promise<unknown[]>;
+    };
+    const client = {
+      ...(chain.client as object),
+      getBlockNumber: async () => HEAD,
+      getTransactionReceipt: async () => ({ status: "success", blockNumber: APPLIED_AT }),
+      getLogs: async (a: { fromBlock?: bigint; toBlock?: bigint; args: { certificateId?: Hex } }) =>
+        a.fromBlock! <= APPLIED_AT && APPLIED_AT <= a.toBlock! ? base.getLogs(a) : [],
+    } as unknown as typeof chain.client;
+    return { view: parseCertificateView(exported.json), client, txHash };
+  }
+
+  it("is unconfirmed, not failed, when the event is outside the searched window", async () => {
+    const { view, client } = await appliedLongAgo();
+    const result = await verifyCertificateView(view, { now: clock, stage: "applied", client });
+    expect(result.checks.filter((c) => c.status === "fail")).toEqual([]);
+    expect(result.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("unverifiable");
+    // The ledger's own flag and state are still read.
+    expect(result.checks.find((c) => c.name === "onchain:applied")?.status).toBe("pass");
+    expect(result.ok).toBe(false);
+  });
+
+  it("passes every check when the application block is known", async () => {
+    const { view, client, txHash } = await appliedLongAgo();
+    const block = await blockOfTransaction(client as unknown as Parameters<typeof blockOfTransaction>[0], txHash);
+    expect(block).toBe(APPLIED_AT);
+    const result = await verifyCertificateView(view, { now: clock, stage: "applied", client, applicationBlock: block });
+    expect(result.checks.filter((c) => c.status !== "pass")).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("still fails a certificate the ledger has not applied", async () => {
+    const { view, client } = await appliedLongAgo();
+    const other = { ...view, certificate: { ...view.certificate, certificateId: `0x${"99".repeat(32)}` as Hex } };
+    const result = await verifyCertificateView(other, { now: clock, stage: "applied", client });
+    expect(result.checks.some((c) => c.status === "fail")).toBe(true);
   });
 });
 

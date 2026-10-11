@@ -265,6 +265,7 @@ Scope: `propose` (as `party`, the proposer).
 
 **How to build it:**
 
+* `document.description` is required, at most 500 characters (exactly 500 is accepted) and can't contain control characters other than tab and newline. It is trimmed before hashing.
 * `document.amount` is in major units, exactly as shown to the parties. `obligation.amount` is the same value in minor units. An amount must be greater than zero and at most 1,000,000,000,000,000 (10^15) in major units; larger amounts answer `422 rejected`.
 * Proposing the same obligation again (same document and pair) creates nothing new: it answers **409** `duplicate_proposal`, with `error.details.proposalToken` and `error.details.appUrl` for the stored proposal. A new proposal answers **201**.
 * The response includes `appUrl`, the link the counterparty opens in the Contraflow app (`/app/o/{token}`). Certificates carry the same (`/app/c/{token}`).
@@ -395,11 +396,11 @@ Scope: `deliverSignatures` (as the counterparty).
 
 ### DELETE `/obligations/proposals/{token}?party=`
 
-Scope: `propose`. Withdraws an open proposal. **204**.
+Scope: `propose`. Withdraws an open proposal. The counterparty can send the same request to decline it. Repeating it is the same as doing it once. **204**.
 
 ### POST `/obligations/{obligationId}/dispute`
 
-Scope: `propose` (as `party`, who must be the obligation's debtor or creditor). Marks the obligation disputed.
+Scope: `propose` (as `party`, who must be the obligation's debtor or creditor). Marks the obligation disputed. An obligation with nothing remaining can't be disputed (**422**).
 
 ```json
 { "party": "0x504d…FA18", "note": "Work not delivered" }
@@ -434,7 +435,7 @@ Scope: `read`. It brings any certificate the ledger has applied up to date first
 
 An obligation's `status` is `active`, `closed`, `out_of_sync` or `disputed`. A fully netted obligation (nothing remaining) is `closed` with `closedReason` of `netted`; one a party closed is `closed` with `closedReason` of `closed_by_party`. Optional `?limit=` (1–100, default 50) and `?cursor=` (the previous page's `nextCursor`). Order is proposals, then obligations, then certificates, each by id. `nextCursor` is `null` when this is the last page.
 
-Obligation `status` is `active`, `closed` or `out_of_sync`. The last means the stored state disagrees with the ledger, and the obligation won't be netted until that's resolved.
+`out_of_sync` means the stored state disagrees with the ledger, and the obligation won't be netted until that's resolved.
 
 ### GET `/parties/{address}/rules`
 
@@ -458,9 +459,13 @@ or
 { "outcome": { "found": false, "reason": "no-loop", "message": "…" } }
 ```
 
-`reason` is `no-candidates`, `no-loop`, `loop-too-long`, `blocked-by-rules`, `too-many-parties`, `search-incomplete` or `out-of-sync`.
+`reason` is `no-candidates`, `no-loop`, `loop-too-long`, `blocked-by-rules`, `too-many-parties`, `search-incomplete` or `out-of-sync`. When the party's obligations are held by a certificate that is still collecting signatures, `pendingCertificates` lists its tokens (decline one with `DELETE /certificates/{token}?party=`).
 
-Loops are found with 2 to 5 parties (the maximum is 5). When a cycle runs through the party but only with more than 5 parties, the answer is `loop-too-long`; it is never partly netted. `no-loop` means no cycle runs through the party at all, or none can be netted now. `too-many-parties` is a different case: so many parties are connected to this party that the search can't be done safely.
+Send the request with no body (or `{}`) and an `Idempotency-Key`. The party is the one in the path.
+
+Loops are found with 2 to 5 parties (the maximum is 5). A 6-party cycle through the party answers `loop-too-long`. A longer cycle may read as `no-loop`, because the search only loads the party's surroundings a couple of hops out. Either way it is never partly netted. `no-loop` also covers "none can be netted now". `too-many-parties` is a different case: so many parties are connected to this party that the search can't be done safely. See [How loops are chosen](offchain-netting.md#how-loops-are-chosen).
+
+Search when something changes (a `certificate.applied` or `obligation.recorded` event), not on a timer: each party has 10 searches per 10 minutes. If another search takes the same obligations at that moment, yours runs again on what is left, and only if it still can't answers **409** `conflict`: search again.
 
 ## Certificates
 
@@ -501,6 +506,10 @@ Scope: `read`. Returns the party's view and the typed data it signs.
 
 `status` is `collecting`, `ready`, `applied`, `expired` or `abandoned`. `view` holds this party's own obligations in full and every other entry as a hash only.
 
+### DELETE `/certificates/{token}?party=`
+
+Scope: `deliverSignatures`. A party in the loop declines a certificate that is still collecting signatures. Its obligations are released at once, so the next search can use them. Repeating it is the same as doing it once. A certificate every party has signed can no longer be declined: anyone can apply it (**422**). An unsigned certificate otherwise holds its obligations until it expires 7 days after it was proposed. **204**.
+
 ### POST `/certificates/{token}/signatures`
 
 Scope: `deliverSignatures`. `{ "party": "0x…", "signature": "0x…" }` → **200** `{ "signed": true }`.
@@ -536,6 +545,8 @@ Applying is a plain transaction that anyone can send, and the sender pays the ga
 ### POST `/certificates/{token}/transactions`
 
 Scope: `read`. `{ "party": "0x…", "txHash": "0x…" }` → **200** `{ "status": "applied" }`.
+
+If two transactions race to apply the same certificate, one reverts. Reporting the reverted one answers **422** (it didn't apply the certificate). The certificate still reads `applied`, because the ledger applied it, but `appliedTxHash` stays `null` until the winning transaction is reported.
 
 This reads the ledger and brings the certificate and its obligations up to date straight away. It isn't required: Contraflow also catches up the next time the certificate or the party's obligations are read.
 
@@ -612,7 +623,7 @@ function verify(header: string, rawBody: string, secret: string, now = Date.now(
 * **Verify against the raw body.** Do it before parsing, since re-serialised JSON won't match.
 * **De-duplicate.** Use the event `id`: a delivery can arrive more than once.
 * **Respond quickly.** Return any 2xx; anything else, a redirect or a timeout (10 seconds) is a failure.
-* **Retries.** A failed delivery becomes due again after 1, 2, 4… minutes (capped at 6 hours between tries) and stops after 3 days. A due retry runs the next time the delivery pipeline runs, which is after any authenticated API request, after any obligation action in the Contraflow web app (including loading the Obligations page), after a test event from the API keys page, and at the daily 04:15 UTC job. For a company that is using the API or the app, that is usually within minutes. If nothing at all calls Contraflow, a retry waits for the daily job, up to about a day. To make sure a retry isn't left waiting, make any authenticated call on your own timer, for example `GET /webhooks/endpoint`; it also shows the latest delivery outcomes.
+* **Retries.** A failed delivery becomes due again after 1, 2, 4… minutes (capped at 6 hours between tries) and stops after 3 days. A due retry goes out the next time the delivery pipeline runs after it is due, which is after any authenticated API request, after any obligation action in the Contraflow web app (including loading the Obligations page), after a test event from the API keys page, and at the daily 04:15 UTC job. For a company that is using the API or the app, that is usually within minutes. If nothing at all calls Contraflow, a retry waits for the daily job, up to about a day. To make sure a retry isn't left waiting, make any authenticated call on your own timer, for example `GET /events`, and catch up with `GET /events?after=<cursor>`.
 * **Order.** Events aren't guaranteed to arrive in order. Use the certificate's `status`, or read it back through the API.
 
 ### Webhook endpoint (API)

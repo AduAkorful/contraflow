@@ -15,8 +15,14 @@ export async function checkAsParty(
   me: Address,
   client: ChainReader | undefined,
   stage: VerificationStage,
+  applicationBlock?: bigint,
 ): Promise<VerificationResult> {
-  const result = await verifyCertificateView(view, { now: BigInt(Math.floor(Date.now() / 1000)), stage, client });
+  const result = await verifyCertificateView(view, {
+    now: BigInt(Math.floor(Date.now() / 1000)),
+    stage,
+    client,
+    applicationBlock,
+  });
   const checks = [...result.checks];
 
   let ownFull = true;
@@ -52,4 +58,10 @@ export async function checkAsParty(
   }
 
   return { ok: checks.every((c) => c.status === "pass"), checks };
+}
+
+/// A check that definitely failed, as opposed to one that couldn't be made. Only this should
+/// tell a party a certificate is bad.
+export function hasFailedCheck(result: VerificationResult): boolean {
+  return result.checks.some((c) => c.status === "fail");
 }

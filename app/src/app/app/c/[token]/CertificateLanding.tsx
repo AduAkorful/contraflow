@@ -13,13 +13,14 @@ import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSig
 import { SessionBound, useSession } from "@/components/session/SessionProvider";
 import { displayDate, displayMinorAmount, shortAddr } from "@/components/netting/format";
 import { groupChecks, type CheckGroup } from "@/components/netting/checks";
-import { checkAsParty } from "@/components/netting/partyChecks";
+import { checkAsParty, hasFailedCheck } from "@/components/netting/partyChecks";
 import { ActionButton, CheckList, LoopParties, OwnObligation } from "@/components/netting/CertificateParts";
 import { arcTestnet } from "@/src/chain/client";
 import { contraflowNettingLedgerAbi } from "@/src/contracts/abi/index";
 import { certificateTypedData } from "@/src/netting/certificate";
 import { ledgerChainId } from "@/src/netting/domain";
 import { resolveCertificateCheckStage } from "@/src/netting/certificateStage";
+import { blockOfTransaction } from "@/src/netting/verify";
 import { parseCertificateView } from "@/src/netting/serialize";
 import type { ChainReader } from "@/src/netting/signature";
 import type { CertificateView } from "@/src/netting/types";
@@ -41,12 +42,14 @@ import {
   recordCertificateApplied,
   signCertificate,
 } from "../../obligations/actions";
+import { isUserRejection } from "@/src/wallet/rejection";
 
 type Phase = "signin" | "loading" | "not-found" | "invalid" | "loaded";
 
 const SYNC_RETRY_LIMIT = 3;
 const SYNC_RETRY_DELAY_MS = 3_000;
 const INVALID = "This certificate failed a check in your browser. Don't sign or apply it.";
+const UNCONFIRMED = "We couldn't finish checking this certificate in your browser. Reload to try again before you sign or apply it.";
 const EXPLORER = arcTestnet.blockExplorers?.default.url;
 
 export function CertificateLanding({ token }: { token: string }) {
@@ -111,17 +114,39 @@ export function CertificateLanding({ token }: { token: string }) {
       syncRetries.current += 1;
       setTimeout(() => void load(session, true), SYNC_RETRY_DELAY_MS);
     }
-    const checked = await checkAsParty(parsed, session, publicClient as unknown as ChainReader | undefined, stage);
+    const applicationBlock =
+      stage === "applied" && publicClient
+        ? await blockOfTransaction(publicClient as unknown as Parameters<typeof blockOfTransaction>[0], result.certificate.appliedTxHash)
+        : undefined;
+    const checked = await checkAsParty(
+      parsed,
+      session,
+      publicClient as unknown as ChainReader | undefined,
+      stage,
+      applicationBlock,
+    );
     setSummary(result.certificate);
     setView(parsed);
     setGroups(groupChecks(checked.checks));
     // An expired or abandoned certificate is shown as closed, not checked for action.
     // INVALID only against the stage the ledger confirms, so a lagging database row can't
     // turn a successful apply into a false failure.
-    if (!checked.ok && (resolved.ledgerApplied || status === "collecting" || status === "ready" || status === "applied")) {
-      setMessage(INVALID);
-      setPhase("invalid");
-      return;
+    const actionable = resolved.ledgerApplied || status === "collecting" || status === "ready" || status === "applied";
+    if (!checked.ok && actionable) {
+      // A check that couldn't be made is not a failed check. Once the ledger has applied the
+      // certificate nothing is left to sign or apply, so the page just notes it; before that,
+      // the actions stay closed until the check can be made.
+      if (hasFailedCheck(checked)) {
+        setMessage(INVALID);
+        setPhase("invalid");
+        return;
+      }
+      if (stage !== "applied") {
+        setMessage(UNCONFIRMED);
+        setPhase("invalid");
+        return;
+      }
+      setMessage(null);
     }
     setPhase("loaded");
   }
@@ -145,7 +170,13 @@ export function CertificateLanding({ token }: { token: string }) {
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message.split("\n")[0]! : "Something went wrong.");
+      setError(
+        isUserRejection(err)
+          ? "You cancelled in your wallet. Nothing was sent."
+          : err instanceof Error
+            ? err.message.split("\n")[0]!
+            : "Something went wrong.",
+      );
     } finally {
       setBusy(null);
     }

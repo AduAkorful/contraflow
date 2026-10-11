@@ -47,6 +47,11 @@ export interface VerifyOptions {
   /// A client for the ledger's chain. Without one, smart-account signatures and onchain state
   /// are `unverifiable`.
   client?: ChainReader;
+  /// The block the certificate was applied in, when known (from the apply transaction's receipt).
+  /// The `CertificateApplied` event is then read at exactly that block, so an old certificate
+  /// can be confirmed without searching history. A miss at this block falls back to the bounded
+  /// window below rather than failing.
+  applicationBlock?: bigint;
 }
 
 const APPLICATION_LOG_CHUNK = 2_000n;
@@ -143,7 +148,7 @@ async function runChecks(view: CertificateView, options: VerifyOptions, add: Add
       : "The certificate's contentHash doesn't match its contents",
   );
 
-  if (stage === "applied") await checkOnchain(view, add, client);
+  if (stage === "applied") await checkOnchain(view, add, client, options.applicationBlock);
 }
 
 async function checkFullEntry(
@@ -198,7 +203,23 @@ async function checkFullEntry(
   );
 }
 
-async function checkOnchain(view: CertificateView, add: AddCheck, client: ChainReader | undefined): Promise<void> {
+function isExactApplication(
+  logs: { args?: { certificateId?: Hex; contentHash?: Hex } }[],
+  certificate: CertificateView["certificate"],
+): boolean {
+  return logs.some(
+    (log) =>
+      log.args?.certificateId?.toLowerCase() === certificate.certificateId.toLowerCase() &&
+      log.args?.contentHash?.toLowerCase() === certificate.contentHash.toLowerCase(),
+  );
+}
+
+async function checkOnchain(
+  view: CertificateView,
+  add: AddCheck,
+  client: ChainReader | undefined,
+  applicationBlock?: bigint,
+): Promise<void> {
   if (!client) {
     add("onchain", "unverifiable", "No chain client given, so the ledger wasn't read");
     return;
@@ -209,47 +230,68 @@ async function checkOnchain(view: CertificateView, add: AddCheck, client: ChainR
   const applicationLogs: { args?: { certificateId?: Hex; contentHash?: Hex } }[] = [];
   let completeHistory = false;
   try {
-    const latest = await client.getBlockNumber();
-    const first = latest > APPLICATION_LOG_LOOKBACK ? latest - APPLICATION_LOG_LOOKBACK : 0n;
-    completeHistory = first === 0n;
-    for (let fromBlock = first; fromBlock <= latest; fromBlock += APPLICATION_LOG_CHUNK) {
-      const toBlock = fromBlock + APPLICATION_LOG_CHUNK - 1n < latest ? fromBlock + APPLICATION_LOG_CHUNK - 1n : latest;
-      const logs = await client.getLogs({
+    if (applicationBlock !== undefined) {
+      const atBlock = await client.getLogs({
         address: ledger,
         event: CERTIFICATE_APPLIED_EVENT,
         args: { certificateId: certificate.certificateId },
-        fromBlock,
-        toBlock,
+        fromBlock: applicationBlock,
+        toBlock: applicationBlock,
       });
-      applicationLogs.push(...logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]);
-      if (applicationLogs.some((log) =>
-        log.args?.certificateId?.toLowerCase() === certificate.certificateId.toLowerCase() &&
-        log.args?.contentHash?.toLowerCase() === certificate.contentHash.toLowerCase(),
-      )) break;
+      applicationLogs.push(...(atBlock as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]));
+    }
+    if (!isExactApplication(applicationLogs, certificate)) {
+      const latest = await client.getBlockNumber();
+      const first = latest > APPLICATION_LOG_LOOKBACK ? latest - APPLICATION_LOG_LOOKBACK : 0n;
+      completeHistory = first === 0n;
+      for (let fromBlock = first; fromBlock <= latest; fromBlock += APPLICATION_LOG_CHUNK) {
+        const toBlock = fromBlock + APPLICATION_LOG_CHUNK - 1n < latest ? fromBlock + APPLICATION_LOG_CHUNK - 1n : latest;
+        const logs = await client.getLogs({
+          address: ledger,
+          event: CERTIFICATE_APPLIED_EVENT,
+          args: { certificateId: certificate.certificateId },
+          fromBlock,
+          toBlock,
+        });
+        applicationLogs.push(...(logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]));
+        if (isExactApplication(applicationLogs, certificate)) break;
+      }
     }
   } catch {
     add("onchain:application-event", "unverifiable", "The ledger's application history is unavailable");
+    // The ledger's own flag can still be read, so the remaining checks aren't skipped.
+    await checkLedgerState(view, add, client);
     return;
   }
-  const exactApplication = applicationLogs.some((log) =>
-    log.args?.certificateId?.toLowerCase() === certificate.certificateId.toLowerCase() &&
-    log.args?.contentHash?.toLowerCase() === certificate.contentHash.toLowerCase(),
-  );
+  const exactApplication = isExactApplication(applicationLogs, certificate);
   add(
     "onchain:application-event",
     exactApplication ? "pass" : completeHistory ? "fail" : "unverifiable",
     exactApplication ? undefined : completeHistory
       ? "No ledger event applies this certificate ID and content hash"
-      : "The bounded history window did not contain this certificate; older history is unavailable",
+      : "This certificate is older than the part of the ledger's history the browser searches, so the event that binds its contents couldn't be read",
   );
-  if (!exactApplication) return;
+  // A complete search that found nothing is a definite failure; a window that merely missed it
+  // is not, and the ledger's own state is still worth reading.
+  if (!exactApplication && completeHistory) return;
+  await checkLedgerState(view, add, client);
+}
 
-  const applied = (await client.readContract({
-    address: ledger,
-    abi: contraflowNettingLedgerAbi,
-    functionName: "isApplied",
-    args: [certificate.certificateId],
-  })) as boolean;
+async function checkLedgerState(view: CertificateView, add: AddCheck, client: ChainReader): Promise<void> {
+  const ledger = view.domain.verifyingContract;
+  const { certificate } = view;
+  let applied: boolean;
+  try {
+    applied = (await client.readContract({
+      address: ledger,
+      abi: contraflowNettingLedgerAbi,
+      functionName: "isApplied",
+      args: [certificate.certificateId],
+    })) as boolean;
+  } catch {
+    add("onchain:applied", "unverifiable", "The ledger could not be read");
+    return;
+  }
   add("onchain:applied", applied ? "pass" : "fail", applied ? undefined : "The ledger has not applied this certificate");
   if (!applied) return;
 
@@ -266,6 +308,21 @@ async function checkOnchain(view: CertificateView, add: AddCheck, client: ChainR
     // commitment is exactly this one's next, so a different value means it was netted again.
     const current = state.toLowerCase() === entry.nextCommitment.toLowerCase();
     add(`onchain:entry:${i}:state`, "pass", current ? "Current state" : "Netted again since");
+  }
+}
+
+/// The block a transaction was mined in, or undefined when it can't be read. Used only as a
+/// search hint for `applicationBlock`; the event found there is still matched exactly.
+export async function blockOfTransaction(
+  client: { getTransactionReceipt: (args: { hash: Hex }) => Promise<{ blockNumber: bigint; status: string }> },
+  hash: string | null | undefined,
+): Promise<bigint | undefined> {
+  if (!hash || !isHex(hash) || size(hash) !== 32) return undefined;
+  try {
+    const receipt = await client.getTransactionReceipt({ hash });
+    return receipt.status === "success" ? receipt.blockNumber : undefined;
+  } catch {
+    return undefined;
   }
 }
 

@@ -105,6 +105,17 @@ describe("maturity dates", () => {
 });
 
 describe("obligationDocumentProblem", () => {
+  it("refuses control characters, which the database can't hold, and accepts ordinary whitespace", () => {
+    expect(obligationDocumentProblem({ ...DOC, description: "x\u0000y" })).toBe("The description can't contain control characters");
+    expect(obligationDocumentProblem({ ...DOC, description: "bell\u0007" })).not.toBeNull();
+    expect(obligationDocumentProblem({ ...DOC, description: "line one\nline two\tend" })).toBeNull();
+  });
+
+  it("accepts exactly the maximum length and says 'at most' when over it", () => {
+    expect(obligationDocumentProblem({ ...DOC, description: "a".repeat(500) })).toBeNull();
+    expect(obligationDocumentProblem({ ...DOC, description: "a".repeat(501) })).toBe("The description can be at most 500 characters");
+  });
+
   it("accepts a valid document", () => {
     expect(obligationDocumentProblem(DOC)).toBeNull();
   });

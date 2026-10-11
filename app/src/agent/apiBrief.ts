@@ -74,12 +74,22 @@ A party grants a permission by signing typed data you fetch with \`GET /permissi
 ## The flow
 
 1. Get each party's signed permission: \`GET /permissions/typed-data\`, the party signs, \`POST /permissions\`.
-2. Propose an obligation with the proposer's signature: \`POST /obligations/proposals\`. The response includes \`typedData\` for the counterparty.
+2. Propose an obligation with the proposer's signature: \`POST /obligations/proposals\`. The response includes \`typedData\` for the counterparty. How to build the proposal is in "Building a proposal" below.
 3. The counterparty signs; accept with \`POST /obligations/proposals/{token}/accept\`. The obligation is recorded and \`obligation.recorded\` fires.
-4. Find a loop: \`POST /parties/{address}/loops\`. If one exists you get a certificate \`token\` (\`outcome.found\`). Loops have 2 to 5 parties; a cycle that only exists with more parties answers \`loop-too-long\`, not \`no-loop\`. Reasons for none: \`no-candidates\`, \`no-loop\`, \`loop-too-long\`, \`blocked-by-rules\` (a party in the loop only nets with approved counterparties; see \`POST /parties/{address}/rules\`), \`too-many-parties\`, \`search-incomplete\`, \`out-of-sync\`.
-5. Collect each party's signature on the certificate: \`GET /certificates/{token}?party=\` for its typed data, then \`POST /certificates/{token}/signatures\`.
+4. Find a loop: \`POST /parties/{address}/loops\` (no body needed). If one exists you get a certificate \`token\` (\`outcome.found\`). Loops have 2 to 5 parties and are searched from the party asking: the largest loop through that party wins, in the first currency alphabetically, so there is no network-wide ordering. A 6-party cycle answers \`loop-too-long\`; a longer one can read as \`no-loop\`. Search when an event says something changed, not on a timer (10 searches per party per 10 minutes). A certificate waiting for signatures holds its obligations until it is signed, applied, declined or expires after 7 days; \`pendingCertificates\` lists them. Reasons for none: \`no-candidates\`, \`no-loop\`, \`loop-too-long\`, \`blocked-by-rules\` (a party in the loop only nets with approved counterparties; see \`POST /parties/{address}/rules\`), \`too-many-parties\`, \`search-incomplete\`, \`out-of-sync\`.
+5. Collect each party's signature on the certificate: \`GET /certificates/{token}?party=\` for its typed data, then \`POST /certificates/{token}/signatures\`. A party that won't sign can decline with \`DELETE /certificates/{token}?party=\`, which releases the obligations.
 6. Apply it: \`GET /certificates/{token}/apply-transaction?party=\` returns \`to\`, \`data\`, \`chainId\`. Send that transaction from a wallet that holds USDC for gas (see below), then report the hash with \`POST /certificates/{token}/transactions\`.
 7. Keep each party's copy: \`GET /certificates/{token}/export\`.
+
+## Building a proposal
+
+You build the proposal (the API doesn't invent it), then the proposer signs it.
+
+- Document: \`{ format: "contraflow-obligation/1", description, debtor, creditor, currency, amount, maturity, earlyNetConsent }\`. \`amount\` is major units as a string (\`"1250.00"\`), \`maturity\` is \`yyyy-mm-dd\`, \`description\` is 1 to 500 characters with no control characters.
+- \`documentHash\` = \`keccak256(utf8(JSON.stringify({ amount, creditor: creditor.toLowerCase(), currency, debtor: debtor.toLowerCase(), description: description.trim(), earlyNetConsent, format, maturity })))\` (keys in exactly that sorted order).
+- Obligation: \`{ documentHash, debtor, creditor, currency, amount (minor units, bigint), maturity (unix seconds at midnight UTC, bigint), earlyNetConsent, salt (32 random bytes) }\`.
+- Typed data: primary type \`NettingObligation\` with those eight fields in that order, domain \`{ name: "ContraflowNettingLedger", version: "1", chainId, verifyingContract }\` (read \`chainId\` and the ledger address from \`GET /tenant\`). The proposer signs it; the counterparty signs the \`typedData\` the API returns.
+- The full code and three known hashes to test against are in the API reference under "Propose an obligation".
 
 ## Signing correctly
 
@@ -91,6 +101,10 @@ A party grants a permission by signing typed data you fetch with \`GET /permissi
 
 Contraflow never sends or sponsors the apply transaction. The sender pays gas in native USDC on Arc. A company that signed in with an email only has a wallet that signs inside the Contraflow app, so a server cannot send from it. Use a funded wallet your platform controls, or have a party open the certificate link (\`/app/c/{token}\`) and choose **Apply on Arc**, or use any other funded wallet. The \`apply-transaction\` response includes a \`submit\` block with an estimated gas cost and the app link. The API reads the result from the ledger either way.
 
+## What other companies see
+
+Companies in one loop see the loop's addresses and, in full, only their own two obligations (amounts, descriptions, the amount netted). Everyone else's obligations are hashes to them. A platform acting for several companies gets each company's own view, never another company's amounts.
+
 ## Updating the customer's books
 
 Contraflow does not post to anyone's accounting system. \`obligation.recorded\` carries the obligation's amount, currency, maturity and \`proposalToken\`. Key your books on the \`certificate.applied\` webhook. It carries \`currency\`, \`wNetMinor\`, \`wNetDisplay\` (the amount netted) and \`appliedTxHash\`. Read \`GET /parties/{address}/obligations\` (\`remainingMinor\`) for what is still owed.
@@ -100,14 +114,14 @@ Contraflow does not post to anyone's accounting system. \`obligation.recorded\` 
 - Register one HTTPS endpoint: \`POST /webhooks/endpoint\` with \`{ "url": "https://…" }\`, or on the API keys page. The \`whsec_\` signing secret is returned once. \`GET /webhooks/endpoint\` shows the endpoint and recent deliveries (never the secret). \`POST /webhooks/endpoint/secret\` rolls it (the old one also signs for 24 hours). Send an \`Idempotency-Key\`.
 - The URL must be public HTTPS on the default port. Private, loopback, link-local and metadata addresses are refused. Redirects are not followed.
 - Each request carries \`Contraflow-Signature: t=<unix>,v1=<hex>\`, an HMAC-SHA256 of \`<t>.<raw body>\` with your secret (the same scheme as Stripe). Verify against the **raw** body, reject timestamps more than five minutes old, and de-duplicate by the event \`id\`. Return 2xx quickly.
-- Retries become due after 1, 2, 4… minutes (up to 6 hours) for three days, but they only run when the pipeline does: after any authenticated API request and at a daily job. A due retry runs the next time the pipeline does: after any authenticated API request, after obligation activity in the web app, and at a daily job. That is usually within minutes for an active company and up to about a day if nothing calls Contraflow. Call the API (for example \`GET /webhooks/endpoint\`) on a timer to be sure, or catch up with \`GET /events?after=<cursor>\`, which lists your events oldest first for 30 days whether or not a webhook endpoint is registered. De-duplicate by event \`id\`.
+- A failed delivery becomes due again after 1, 2, 4… minutes (up to 6 hours) for three days, and goes out the next time the delivery pipeline runs after it is due: after any authenticated API request, after obligation activity in the web app, and in a daily job. For a company that is calling the API that is usually within minutes; if nothing calls Contraflow it can wait up to about a day. Call the API on a timer (for example \`GET /events\`) to be sure, and catch up with \`GET /events?after=<cursor>\`, which lists your events oldest first for 30 days whether or not a webhook endpoint is registered. De-duplicate by event \`id\`.
 - Event types: ${WEBHOOK_EVENT_TYPES.map((t) => `\`${t}\``).join(", ")}. Events only name parties that granted you \`read\`.
 
 ## Error codes
 
 ${ERROR_CODES.map((c) => `\`${c}\``).join(", ")}.
 
-- \`409 not_ready\`: not every party has signed yet (or the certificate expired or was cancelled). \`409 already_applied\`: the certificate was already applied. \`409 duplicate_proposal\`: that obligation was already proposed; \`error.details\` has the stored proposal's token and \`appUrl\`. \`409 duplicate_nonce\`: the party already used that permission nonce.
+- \`409 not_ready\`: not every party has signed yet (or the certificate expired or was cancelled). \`409 already_applied\`: the certificate was already applied. \`409 duplicate_proposal\`: that obligation was already proposed; \`error.details\` has the stored proposal's token and \`appUrl\`. \`409 duplicate_nonce\`: the party already used that permission nonce. \`409 conflict\`: another search took the same obligations at the same moment; search again.
 - \`422 rejected\` carries the reason in \`message\` (for example an invalid signature).
 - \`500 internal_error\` on a POST with an \`Idempotency-Key\`: keep the key and retry with the same one.
 

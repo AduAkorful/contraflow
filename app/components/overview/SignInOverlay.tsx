@@ -7,7 +7,7 @@ import { OVERVIEW_ILLUSTRATION_CAPTION } from "./OverviewIllustration";
 import { useSignIn, useWalletReady } from "../wallet/signInContext";
 
 const STEPS = [
-  { title: "Sign in", body: "Email or a wallet. One signature, no transaction." },
+  { title: "Sign in", body: "Email or a wallet. A free signature, no transaction." },
   { title: "Record a debt", body: "A USDC invoice on Arc, or an obligation in any currency." },
   { title: "Share the link", body: "Your counterparty signs the same terms." },
   { title: "Net a loop", body: "When debts close a circle, settle from Overview." },

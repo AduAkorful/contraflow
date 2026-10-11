@@ -5,8 +5,7 @@ offchain obligations for its customers, find netting loops and apply netting cer
 with request and response examples, is in the [API reference](../reference/api.md). The machine-readable contract
 is the OpenAPI document served by the app at `/api/v1/openapi.json`.
 
-API access is by request: Contraflow issues keys to platforms through the Contact page. Test keys
-(`cfk_test_…`) run against Arc testnet.
+Test keys (`cfk_test_…`) run against Arc testnet and are self-serve: sign in and create one at `/app/api-keys`. Live keys (`cfk_live_…`) are issued by request through the Contact page once Contraflow is live on Arc mainnet.
 
 ## How signing works
 
@@ -56,7 +55,9 @@ reusing a key for a different request answers `409`.
 
 * **Missed webhooks:** `GET /events?after=<cursor>` returns your events oldest first, so you can catch up after an outage without waiting for retries. Events are recorded with or without an endpoint and kept for 30 days.
 * **Bulk import:** `POST /obligations/proposals/batch` takes up to 25 signed proposals and answers per item. Obligation writes are limited to 120 per party per 10 minutes through the API; a 429 carries `RateLimit-*` and `Retry-After`.
-* **Loops:** a loop has 2 to 5 parties. A cycle that only exists with more parties answers `loop-too-long`.
+* **Loops:** a loop has 2 to 5 parties and is searched from the party asking (see [How loops are chosen](../reference/offchain-netting.md#how-loops-are-chosen)). A 6-party cycle answers `loop-too-long`; a longer one can read as `no-loop`, because the search only looks a couple of hops out. Cycles over 5 parties are never netted whole.
+* **Searching:** search when something changes (an `obligation.recorded` or `certificate.applied` event), not on a timer. Each party has 10 searches per 10 minutes. If two searches collide you may get `409 conflict`: search again.
+* **Stuck certificates:** a certificate waiting for signatures holds its obligations until it is signed, applied, declined (`DELETE /certificates/{token}?party=`) or expires after 7 days. A search that finds nothing for that reason lists them in `pendingCertificates`.
 * **Links:** proposals and certificates include `appUrl`, the link to open in the Contraflow app.
 
 ## Your books
@@ -91,7 +92,7 @@ Contraflow sends signed events to your registered URL:
 
 Each request carries `Contraflow-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `<t>.<raw body>` with your
 `whsec_` secret, the same scheme Stripe uses. Verify it against the raw body, reject timestamps more than five
-minutes old, and de-duplicate by the event's `id`. A failed delivery is retried with backoff (1, 2, 4… minutes, up to 6 hours) for three days, but a retry runs the next time the pipeline does: after any authenticated API request, after obligation activity in the web app, and at the daily job. That is usually within minutes for an active company, and up to about a day if nothing calls Contraflow. Call the API, for example `GET /webhooks/endpoint`, on your own timer to be sure.
+minutes old, and de-duplicate by the event's `id`. A failed delivery becomes due again after 1, 2, 4… minutes (up to 6 hours) for three days, and goes out the next time the delivery pipeline runs after it is due: after any authenticated API request, after obligation activity in the web app, and in a daily job. For a company that is calling the API this is usually within minutes; if nothing calls Contraflow it can wait up to about a day. Call the API on your own timer, for example `GET /events`, to be sure, and catch up with `GET /events?after=<cursor>`.
 Events only name parties that gave you the read scope.
 
 ## Using an AI agent

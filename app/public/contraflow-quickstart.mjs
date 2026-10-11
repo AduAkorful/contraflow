@@ -38,7 +38,7 @@ const arcTestnet = defineChain({
 
 async function api(method, path, body) {
   const headers = { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
-  // Every POST carries an Idempotency-Key; a retry would reuse the same one.
+  // Every POST carries an Idempotency-Key. If you add retries, resend the same key so a repeat can't create a second effect.
   if (method === "POST") headers["Idempotency-Key"] = randomUUID();
   const res = await fetch(`${API}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const text = await res.text();
@@ -201,10 +201,18 @@ console.log(`   applied in ${hash}`);
 
 // 6. Read the result back.
 log("6. Result");
-const { certificates, obligations } = await api("GET", `/parties/${A.account.address}/obligations`);
-const cert = certificates.find((c) => c.token === token);
-console.log(`   certificate ${cert?.status}, netted ${cert?.wNetDisplay} USD`);
-for (const o of obligations) {
-  console.log(`   ${o.youOwe ? "Atlas owes" : "owed to Atlas"} ${o.amountDisplay} USD, remaining ${o.remainingDisplay}, ${o.status}`);
+// Each company sees only its own obligations, so read all three and show every one once.
+const nameOf = (address) => companies.find((c) => c.account.address.toLowerCase() === address.toLowerCase())?.name ?? address;
+const seen = new Map();
+let cert;
+for (const company of companies) {
+  const { certificates, obligations } = await api("GET", `/parties/${company.account.address}/obligations`);
+  cert ??= certificates.find((c) => c.token === token);
+  for (const o of obligations) {
+    if (!o.youOwe) continue; // each obligation is listed once, from its debtor's side
+    seen.set(o.obligationId, `${company.name} owes ${nameOf(o.counterparty)} ${o.amountDisplay} USD, remaining ${o.remainingDisplay}, ${o.status}`);
+  }
 }
+console.log(`   certificate ${cert?.status}, netted ${cert?.wNetDisplay} USD`);
+for (const line of seen.values()) console.log(`   ${line}`);
 console.log("\nDone. Verify the certificate at https://contraflow.vercel.app/app/verify");

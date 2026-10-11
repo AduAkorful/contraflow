@@ -3,6 +3,7 @@
 /// lowercased addresses, trimmed description), plus a `format` tag so an obligation document can
 /// never hash-equal an invoice document. Browser-safe: both parties' browsers compute this.
 
+import { descriptionTextProblem } from "../format/description";
 import { isAddress, isAddressEqual, keccak256, toHex, zeroAddress, type Address, type Hex } from "viem";
 import { isIsoCurrency, parseAmount, MAX_AMOUNT_MAJOR, maxAmountMinor } from "./currency";
 import type { NettingObligation } from "./types";
@@ -69,7 +70,11 @@ export function obligationDocumentProblem(doc: CanonicalObligationDocument): str
   if (typeof doc.description !== "string") return "Missing description";
   const description = doc.description.trim();
   if (description.length === 0) return "Add a description";
-  if (description.length > MAX_DESCRIPTION_LENGTH) return `Keep the description under ${MAX_DESCRIPTION_LENGTH} characters`;
+  if (description.length > MAX_DESCRIPTION_LENGTH) {
+    return `The description can be at most ${MAX_DESCRIPTION_LENGTH} characters`;
+  }
+  const textProblem = descriptionTextProblem(description);
+  if (textProblem) return textProblem;
   if (!isAddress(doc.debtor, { strict: false }) || !isAddress(doc.creditor, { strict: false })) return "Invalid address";
   if (isAddressEqual(doc.debtor, zeroAddress) || isAddressEqual(doc.creditor, zeroAddress)) return "Invalid address";
   if (isAddressEqual(doc.debtor, doc.creditor)) return "Debtor and creditor must be different";

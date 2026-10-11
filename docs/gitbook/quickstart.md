@@ -5,7 +5,7 @@ This script runs a complete loop on Arc testnet: three companies, three obligati
 You need:
 
 * **A test API key.** Sign in at the app, open **API keys**, and create a test key (`cfk_test_…`).
-* **A payer wallet** holding a little Arc testnet USDC for gas. This is the only wallet that pays; the three companies only sign, so they need no funds. Get testnet USDC from the Circle faucet.
+* **A payer wallet** holding a little Arc testnet USDC for gas. This is the only wallet that pays; the three companies only sign, so they need no funds. Get testnet USDC from Circle's faucet at `faucet.circle.com` (choose Arc Testnet).
 * **Node 20 or later** and `viem`.
 
 ## Run it
@@ -27,7 +27,7 @@ Use environment variables for both keys, as above, and never commit them.
 3. Finds the loop through Atlas. The amount netted is the smallest obligation in the loop, 600.
 4. Collects each company's signature on the certificate.
 5. Fetches the apply transaction and sends it from the payer wallet, then reports the hash.
-6. Reads the obligations back: the 600 is netted off each, so they show 400, 200 and 0 remaining, and the third is `closed`.
+6. Reads all three obligations back, one per company: the 600 is netted off each, so they show 400, 200 and 0 remaining, and the third is `closed`.
 
 No USDC moves between the companies. The only transfer is the gas the payer pays.
 

@@ -164,10 +164,16 @@ Integers are decimal strings. The file never contains another party's amounts.
 | Coverage | At least one entry is held in full |
 | Per full entry | The obligation hashes to the entry's ID; the parties match; both parties signed the obligation; the currency matches; the prior commitment reproduces; `remainingAfter = remainingBefore − wNet`; the next commitment reproduces; the obligation was mature or both consented to early netting |
 | Content hash | Recomputing `contentHash` from the file gives the certificate's value |
-| Onchain | The ledger reports the certificate applied, and shows each held obligation's current state |
+| Onchain | The ledger's `CertificateApplied` event carries this certificate's ID and content hash, the ledger reports it applied, and shows each held obligation's current state |
 
 The result is **"Every check passed"** only if every check passes. A signature that can't be checked is reported
 as unverifiable, never as a pass.
+
+A check can end three ways: passed, failed, or **couldn't be made**. A certificate that the ledger applied long
+ago can come back with only "couldn't be made" for the event: the browser searches the most recent part of the
+ledger's history for it. That is not a failure, and the page says so. Paste the apply transaction's hash into
+**Apply transaction hash** (it is shown on the certificate's page and on the explorer) and the browser reads the
+event at exactly that block. The certificate page does this itself when it knows the transaction.
 
 ## Loop search
 
@@ -180,4 +186,17 @@ as unverifiable, never as a pass.
 - **Counterparty rules.** A party can restrict itself to an approved list. A candidate loop is refused when any
   party in it has the allowlist on and another member isn't on that list. The same check runs again before a
   signature is stored. A loop blocked this way is reported as `blocked-by-rules`.
-- **Longer cycles.** A cycle that runs through the party but has more than 5 parties is never netted. The search reports `loop-too-long` (maximum 5), not `no-loop`.
+- **Longer cycles.** A cycle that runs through the party but has more than 5 parties is never netted whole. A 6-party cycle is reported as `loop-too-long` (maximum 5). The search only loads the party's neighbourhood a couple of hops out, so a longer cycle can read as `no-loop`. Only loops of up to 5 that other obligations create inside a long chain are netted.
+
+### How loops are chosen
+
+- **Per search, not global.** Each search starts from the party asking and picks among the loops through that party. There is no network-wide ordering: the order in which loops are netted is the order in which parties search.
+- **Which one.** Among the loops of 2–5 parties through the party, in the first currency (alphabetically) that has one, it takes the loop that nets the most (its smallest remaining amount). Size and age of the obligations don't count.
+- **Greedy.** Because each search takes the largest loop it sees, a dense group of obligations can end with some circulation left un-netted, even when a different order would have netted more. Nothing is lost: what isn't netted stays an ordinary obligation.
+- **Held obligations.** An obligation in a certificate that is still collecting signatures is skipped by every search until that certificate is signed, applied, declined or expired (7 days). A search that finds nothing for that reason lists the certificate in `pendingCertificates`.
+- **Busy parties.** A party connected to more than 32 other parties within two hops gets `too-many-parties` from its own search. Its obligations are still netted when its counterparties search.
+- **Two searches at once.** If another search takes an obligation at the same moment, the search runs again on what is left; only if that fails too does it answer `409 conflict`.
+
+### What other companies see
+
+When companies are in one loop, each sees the addresses of the loop and its own two obligations in full: amounts, descriptions and the certificate's netted amount. For the other companies' obligations it holds only a hash, so it cannot read their amounts or terms. A platform acting for several companies gets each company's own view.

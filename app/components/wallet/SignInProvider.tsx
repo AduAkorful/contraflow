@@ -8,6 +8,7 @@ import {
   useCreateWallet,
   useLogin,
   useLoginWithEmail,
+  usePrivy,
   useWallets,
   type ConnectedWallet,
   type LinkedAccountWithMetadata,
@@ -23,6 +24,7 @@ import { buildSiweMessage } from "../../src/siwe/message";
 import { connectedButUnsignedHint, signingInLabel } from "../../src/session/signInCopy";
 import { loginCreatesEmbeddedWallet, pickSigningWallet } from "../../src/session/signingWallet";
 import { useSession } from "../session/SessionProvider";
+import { WalletSwitchedBanner } from "./WalletSwitchedBanner";
 import {
   SignInApiProvider,
   type SignInApi,
@@ -41,6 +43,12 @@ function loginAccountAddress(account: LinkedAccountWithMetadata | null | undefin
 
 function emailOf(user: User | null | undefined): string | null {
   return user?.email?.address ?? null;
+}
+
+/// Privy's own wording for a bad address reads like an API error.
+function friendlyAuthError(message: string): string {
+  if (/invalid email/i.test(message)) return "Enter a valid email address.";
+  return message;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -72,6 +80,7 @@ export function SignInProvider({
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { setActiveWallet } = useSetActiveWallet();
+  const { authenticated, logout } = usePrivy();
 
   const walletsRef = useRef(wallets);
   walletsRef.current = wallets;
@@ -79,6 +88,10 @@ export function SignInProvider({
   createWalletRef.current = createWallet;
   const setActiveWalletRef = useRef(setActiveWallet);
   setActiveWalletRef.current = setActiveWallet;
+  const authenticatedRef = useRef(authenticated);
+  authenticatedRef.current = authenticated;
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
   const pendingRef = useRef(false);
   const completingRef = useRef(false);
   const startedAuto = useRef(false);
@@ -279,24 +292,37 @@ export function SignInProvider({
   }, []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
+  /// Privy refuses to log in again while it still holds a user ("already logged in"), which is
+  /// what is left over when the previous account's Privy session outlived the app session. The
+  /// user chose to sign in, so end the stale Privy session first.
+  const clearStalePrivySession = useCallback(async () => {
+    if (!authenticatedRef.current) return;
+    try {
+      await logoutRef.current();
+    } catch {
+      // Logging in below reports anything that is still wrong.
+    }
+  }, []);
+
   const sendEmailCode = useCallback(
     async (email: string) => {
       setError(null);
       pendingRef.current = true;
       setPhase("connecting");
       try {
+        await clearStalePrivySession();
         await sendCode({ email });
         setPhase("idle");
         return null;
       } catch (err) {
         pendingRef.current = false;
-        const message = err instanceof Error ? err.message : "Couldn't send the code.";
+        const message = friendlyAuthError(err instanceof Error ? err.message : "Couldn't send the code.");
         setError(message);
         setPhase("error");
         return message;
       }
     },
-    [sendCode],
+    [sendCode, clearStalePrivySession],
   );
 
   const submitEmailCode = useCallback(
@@ -323,8 +349,8 @@ export function SignInProvider({
     pendingRef.current = true;
     setPhase("connecting");
     setMenuOpen(false);
-    login({ loginMethods: ["wallet"] });
-  }, [login]);
+    void clearStalePrivySession().then(() => login({ loginMethods: ["wallet"] }));
+  }, [login, clearStalePrivySession]);
 
   useEffect(() => {
     if (!initialMenuOpen || startedAuto.current) return;
@@ -357,6 +383,7 @@ export function SignInProvider({
   return (
     <SignInApiProvider value={value} walletReady>
       {children}
+      <WalletSwitchedBanner />
     </SignInApiProvider>
   );
 }

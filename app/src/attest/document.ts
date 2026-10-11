@@ -4,6 +4,7 @@
 /// Node-only APIs), since `ComposeForm.tsx` and `LandingClient.tsx` both call this client-side —
 /// same constraint `src/attest/link.ts` already documents for itself.
 
+import { descriptionTextProblem } from "../format/description";
 import { isAddress, keccak256, toHex, type Address, type Hex } from "viem";
 import { formatUsdcAmount, parseUsdcAmount } from "./amount";
 
@@ -43,6 +44,8 @@ export function invoiceDocumentProblem(doc: CanonicalInvoiceDocument): string | 
   if (typeof doc.description !== "string" || doc.description.length === 0 || doc.description !== doc.description.trim()) {
     return "Invoice description must be non-empty and trimmed";
   }
+  const textProblem = descriptionTextProblem(doc.description);
+  if (textProblem) return textProblem;
   if (!isAddress(doc.debtor) || !isAddress(doc.creditor)) return "Invoice parties must be valid addresses";
   if (/^0x0{40}$/i.test(doc.debtor) || /^0x0{40}$/i.test(doc.creditor)) return "Invoice parties cannot be the zero address";
   if (doc.debtor.toLowerCase() === doc.creditor.toLowerCase()) return "Invoice parties must be different";

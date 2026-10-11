@@ -7,7 +7,7 @@ import { useWallets } from "@privy-io/react-auth";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
 import { useSignerWallet } from "@/components/wallet/useSignerWallet";
 import { SignerWalletNotice } from "@/components/wallet/SignerWalletNotice";
-import { earlyNettingHelper, obligationSigningConfirmation } from "@/src/format/signing";
+import { earlyNettingHelper, obligationSigningConfirmation, walletWindowNote } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { ObligationTerms } from "@/components/netting/ObligationTerms";
@@ -80,6 +80,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
     const me = getAddress(signerAddress);
     if (other === me) return setError("The counterparty must be a different address from yours.");
     if (!isIsoCurrency(currency)) return setError("Enter a three-letter ISO currency code, like USD or GHS.");
+    if (!maturityDate) return setError("Pick a maturity date.");
 
     let amount: string;
     try {
@@ -189,6 +190,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
               earlyNetConsent: draft.document.earlyNetConsent,
             })}
           </p>
+          <p className="max-w-sm text-center text-xs text-faint">{walletWindowNote()}</p>
           <SignerWalletNotice wallet={signerWallet} signerAddress={signerAddress} />
           <button
             onClick={handleSign}

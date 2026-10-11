@@ -29,6 +29,7 @@ import { contraflowRegistryAbi } from "@/src/contracts/abi/index";
 import { arcTestnet } from "@/src/chain/client";
 import { checkLinkFreshness, getInvoiceDocument, getInvoiceLink, preCheck, record } from "../actions";
 import { requestGrant } from "../../grant/actions";
+import { isUserRejection } from "@/src/wallet/rejection";
 
 type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
 const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
@@ -263,7 +264,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
       if (submittedHash) {
         setError("The transaction was submitted, but follow-up confirmation failed. Check its status before trying again.");
         setPhase("pending");
-      } else if ((err as { code?: unknown })?.code === 4001) {
+      } else if (isUserRejection(err)) {
         setError("You cancelled in your wallet. Nothing was submitted.");
         setPhase("ready");
       } else if (writeAttempted) {

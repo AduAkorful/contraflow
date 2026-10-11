@@ -15,6 +15,7 @@ import {
 } from "@/src/obligations/position";
 import { ReadyToNet } from "@/components/settle/ReadyToNet";
 import { ObligationLoopBanner } from "@/components/obligations/ObligationLoopBanner";
+import { NETTING_STATUS_LABEL, nettingStatus } from "@/src/format/netting";
 import { OVERVIEW_SECTION_ORDER } from "@/components/overview/sections";
 
 const RECENT_INVOICES = 5;
@@ -213,7 +214,9 @@ export async function Overview({ address }: { address: string }) {
                           Receipt →
                         </Link>
                       ) : (
-                        <span className="shrink-0 text-xs text-muted">Registered</span>
+                        <span className="shrink-0 text-xs text-muted">
+                          {NETTING_STATUS_LABEL[nettingStatus(inv.amountUsdc, inv.remainingUsdc)]}
+                        </span>
                       )}
                     </li>
                   );

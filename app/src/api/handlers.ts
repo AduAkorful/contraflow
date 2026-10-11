@@ -34,7 +34,7 @@ export interface ApiDeps {
   >;
   certificates: Pick<
     CertificateService,
-    "listCertificates" | "disputeObligation" | "withdrawDispute" | "getMyRules" | "setMyRules" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
+    "listCertificates" | "declineCertificate" | "disputeObligation" | "withdrawDispute" | "getMyRules" | "setMyRules" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
   /// The tenant's webhook endpoint, keyed by tenant id. Plain `http://localhost` receivers are
@@ -80,6 +80,7 @@ function unwrap<T extends ServiceResult>(result: T): Extract<T, { ok: true }> {
   const error = (result as { error: string }).error;
   if (error === "Not found.") throw new ApiError(404, "not_found", "Not found.");
   if (error.startsWith("Too many requests")) throw new ApiError(429, "rate_limited", error);
+  if (error.startsWith("Another search took")) throw new ApiError(409, "conflict", error);
   throw new ApiError(422, "rejected", error);
 }
 
@@ -575,6 +576,15 @@ export async function getCertificate(caller: ApiCaller, req: ApiRequest, deps: A
       digest: envelope.digest,
     },
   };
+}
+
+/// A party in a loop declines a certificate that is still collecting signatures. Its obligations
+/// are released and every party can be searched into a new loop. Once every party has signed it
+/// can no longer be declined.
+export async function declineCertificateHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, req.query.get("party"), "deliverSignatures", deps);
+  unwrap(await deps.certificates.declineCertificate(party, req.params.token));
+  return { status: 204, body: null };
 }
 
 export async function signCertificate(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {

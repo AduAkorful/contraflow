@@ -328,6 +328,9 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     if (!isAddressEqual(session, row.debtor as Address) && !isAddressEqual(session, row.creditor as Address)) {
       return { ok: false, error: NOT_FOUND };
     }
+    if (row.remaining === "0") {
+      return { ok: false, error: "This obligation is fully netted, so there is nothing left to dispute." };
+    }
     const result = await store.disputeObligation(id, session, reason);
     if (result === "disputed") return { ok: true };
     if (result === "blocked") {

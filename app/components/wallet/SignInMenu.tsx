@@ -41,6 +41,10 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
   const [switching, setSwitching] = useState(false);
   const titleId = useId();
   const opened = useRef(false);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const sessionRef = useRef(sessionAddress);
+  sessionRef.current = sessionAddress;
 
   useEffect(() => {
     if (!initialOpen || opened.current) return;
@@ -112,7 +116,16 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
     setLocalError(null);
     const message = await submitEmailCode(next);
     setBusy(false);
-    if (message) setLocalError(message);
+    if (message) {
+      setLocalError(message);
+      return;
+    }
+    // The code was accepted but nothing followed: say so instead of leaving the dialog idle.
+    window.setTimeout(() => {
+      if (!sessionRef.current && phaseRef.current !== "signing" && phaseRef.current !== "signed-in") {
+        setLocalError("That didn't finish signing you in. Press Continue again.");
+      }
+    }, 6000);
   }
 
   const dialog = (
@@ -140,10 +153,18 @@ export function SignInMenu({ initialOpen = false }: { initialOpen?: boolean }) {
         <div className="flex flex-col items-center text-center">
           <Image src="/logo-mark.png" alt="" width={44} height={44} className="size-11" />
           <h2 id={titleId} className="mt-4 text-xl font-medium">
-            {view === "code" ? "Check your email" : switching ? "Sign in with another account" : "Sign in to Contraflow"}
+            {view === "code" && phase === "signing"
+              ? "Signing you in"
+              : view === "code"
+                ? "Check your email"
+                : switching
+                  ? "Sign in with another account"
+                  : "Sign in to Contraflow"}
           </h2>
           <p className="mt-1.5 text-sm text-muted">
-            {view === "code"
+            {view === "code" && phase === "signing"
+              ? "Confirm in the sign-in window if it asks."
+              : view === "code"
               ? `We sent a code to ${email}.`
               : "Use your email or a wallet. Signing in sends nothing onchain."}
           </p>

@@ -18,4 +18,4 @@
 
 **What happens if my counterparty never signs?** Nothing. A debt with only one signature is never registered or netted.
 
-**Is there an API?** Yes. Platforms such as ERPs, accounting apps and marketplaces can record offchain obligations, find netting loops and apply certificates for their customers over HTTPS. Access is by request. See [API](api.md).
+**Is there an API?** Yes. Platforms such as ERPs, accounting apps and marketplaces can record offchain obligations, find netting loops and apply certificates for their customers over HTTPS. Test keys are self-serve at `/app/api-keys`; live keys are issued by request. See [API](api.md).

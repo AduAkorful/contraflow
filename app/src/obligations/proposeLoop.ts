@@ -32,7 +32,14 @@ const MAX_SEARCH_ATTEMPTS = 3;
 
 export type SearchOutcome =
   | { found: true; token: string; currency: string; wNet: string; parties: number }
-  | { found: false; reason: "no-candidates" | "no-loop" | "loop-too-long" | "blocked-by-rules" | "too-many-parties" | "search-incomplete" | "out-of-sync"; message: string };
+  | {
+      found: false;
+      reason: "no-candidates" | "no-loop" | "loop-too-long" | "blocked-by-rules" | "too-many-parties" | "search-incomplete" | "out-of-sync";
+      message: string;
+      /// Tokens of the caller's certificates that are still open. Their obligations are held
+      /// until the certificate is signed, applied, declined or expires.
+      pendingCertificates?: string[];
+    };
 
 export function obligationFromRow(row: ObligationRow): NettingObligation {
   return {
@@ -190,15 +197,15 @@ export async function findAndProposeLoop(
     console.error(`findAndProposeLoop: caller-local ${loaded.cap} work cap reached; not searching a partial graph`);
     return none("search-incomplete");
   }
-  const rows = loaded.rows;
-  const byId = new Map(rows.map((r) => [r.obligationId.toLowerCase(), r]));
+  let rows = loaded.rows;
+  let byId = new Map(rows.map((r) => [r.obligationId.toLowerCase(), r]));
   const excluded = new Set<string>();
   let sawOutOfSync = false;
 
   for (let attempt = 0; attempt < MAX_SEARCH_ATTEMPTS; attempt++) {
     const candidates = rows.filter((r) => !excluded.has(r.obligationId.toLowerCase())).map(candidateFromRow);
     const mine = candidates.filter((c) => isAddressEqual(c.debtor, session) || isAddressEqual(c.creditor, session));
-    if (mine.length === 0) return none(sawOutOfSync ? "out-of-sync" : "no-candidates");
+    if (mine.length === 0) return noneWithHint(deps, session, sawOutOfSync ? "out-of-sync" : "no-candidates");
 
     const screened = await screenAddresses([...neighbourhoodParties(candidates, session, now)], deps.complianceProvider);
     const flagged = new Set(screened.filter((s) => s.status !== "clear").map((s) => s.address.toLowerCase() as Address));
@@ -208,7 +215,7 @@ export async function findAndProposeLoop(
       excludedParties: flagged,
       allowLoop: (parties) => loopRejectedBy(parties, rules) === null,
     });
-    if (search.kind === "none") return none(sawOutOfSync ? "out-of-sync" : "no-loop");
+    if (search.kind === "none") return noneWithHint(deps, session, sawOutOfSync ? "out-of-sync" : "no-loop");
     if (search.kind === "blocked-by-rules") return none(sawOutOfSync ? "out-of-sync" : "blocked-by-rules");
     if (search.kind === "too-long") return none(sawOutOfSync ? "out-of-sync" : "loop-too-long");
     if (search.kind === "too-many-parties") {
@@ -278,16 +285,53 @@ export async function findAndProposeLoop(
         blinding: l.blinding,
       })),
     });
-    if (inserted === "locked") {
-      return { ok: false, error: "One of these obligations was just included in another certificate. Try again." };
+    if (inserted === "locked" || inserted === "changed") {
+      // Another search got there first. Read the neighbourhood again, now without the
+      // obligations it took, and look for the next best loop instead of making the caller retry.
+      const reloaded = await loadCallerNeighbourhood(store, session, chainId, ledger, deps.now());
+      if (!reloaded.complete) return none("search-incomplete");
+      rows = reloaded.rows;
+      byId = new Map(rows.map((r) => [r.obligationId.toLowerCase(), r]));
+      excluded.clear();
+      continue;
     }
-    if (inserted === "changed") return { ok: false, error: "One of these obligations just changed. Try again." };
     return {
       ok: true,
       outcome: { found: true, token, currency: view.currency, wNet: view.wNet.toString(), parties: loop.length },
     };
   }
-  return none("out-of-sync");
+  return {
+    ok: false,
+    error: "Another search took these obligations at the same moment. Try again.",
+  };
+}
+
+/// "Nothing to net" for a caller whose obligations are held by a certificate that is still open
+/// says so, with the certificate's token, instead of looking identical to "no loop exists".
+async function noneWithHint(
+  deps: CertificateServiceDeps,
+  session: Address,
+  reason: "no-candidates" | "no-loop" | "out-of-sync",
+): Promise<Result<{ outcome: SearchOutcome }>> {
+  const base = none(reason);
+  if (reason === "out-of-sync" || !base.ok || base.outcome.found) return base;
+  try {
+    const now = deps.now();
+    const open = (await deps.store.listCertificatesForParty(session)).filter(
+      (c) => (c.status === "collecting" || c.status === "ready") && BigInt(c.deadline) > now,
+    );
+    if (open.length === 0) return base;
+    return {
+      ok: true,
+      outcome: {
+        ...base.outcome,
+        message: `${base.outcome.message} ${open.length === 1 ? "One certificate you're in is" : `${open.length} certificates you're in are`} still open and holds your obligations until ${open.length === 1 ? "it is" : "they are"} signed, applied or declined.`,
+        pendingCertificates: open.map((c) => c.token),
+      },
+    };
+  } catch {
+    return base;
+  }
 }
 
 function none(reason: Extract<SearchOutcome, { found: false }>["reason"]): Result<{ outcome: SearchOutcome }> {
