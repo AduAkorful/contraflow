@@ -7,7 +7,7 @@ import { useWallets } from "@privy-io/react-auth";
 import { useContraflowSignTypedData } from "@/components/wallet/useContraflowSignTypedData";
 import { useSignerWallet } from "@/components/wallet/useSignerWallet";
 import { SignerWalletNotice } from "@/components/wallet/SignerWalletNotice";
-import { earlyNettingHelper, obligationSigningConfirmation, walletWindowNote } from "@/src/format/signing";
+import { earlyNettingHelper, obligationSigningConfirmation, obligationWalletWindowNote } from "@/src/format/signing";
 import { signingInLabel } from "@/src/session/signInCopy";
 import { isEmbeddedWalletClient } from "@/src/session/signingWallet";
 import { ObligationTerms } from "@/components/netting/ObligationTerms";
@@ -190,7 +190,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
               earlyNetConsent: draft.document.earlyNetConsent,
             })}
           </p>
-          <p className="max-w-sm text-center text-xs text-faint">{walletWindowNote()}</p>
+          <p className="max-w-sm text-center text-xs text-faint">{obligationWalletWindowNote()}</p>
           <SignerWalletNotice wallet={signerWallet} signerAddress={signerAddress} />
           <button
             onClick={handleSign}

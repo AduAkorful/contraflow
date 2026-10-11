@@ -101,3 +101,9 @@ export function walletWindowNote(invoiceNumber?: bigint | string): string {
       : ` The nonce (${invoiceNumber.toString()}) is the number of this invoice between these two accounts.`;
   return `Your wallet shows these terms raw: the amount in its smallest unit and the due date as a Unix timestamp.${nonce}`;
 }
+
+/// The obligation version: its signed terms carry no nonce. Instead `salt` (random) makes each
+/// obligation unique and `documentHash` fingerprints the full terms.
+export function obligationWalletWindowNote(): string {
+  return "Your wallet shows these terms raw: the amount in its smallest unit and the due date as a Unix timestamp. The salt is a random value that makes this obligation unique, so the same terms can't be signed twice by mistake, and the document hash is a fingerprint of the full terms.";
+}

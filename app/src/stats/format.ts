@@ -68,12 +68,3 @@ export function formatDate(iso: string): string {
   return dateOnly.format(new Date(iso));
 }
 
-const timeOnly = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-const dayTime = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-
-/// "16:53 UTC" on the same UTC day as `now`, otherwise "10 Oct, 16:53 UTC".
-export function formatUpdated(iso: string, now: Date): string {
-  const at = new Date(iso);
-  const sameDay = at.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
-  return `${(sameDay ? timeOnly : dayTime).format(at)} UTC`;
-}

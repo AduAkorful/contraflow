@@ -12,10 +12,13 @@ import { Money } from "../ui/Money";
 import { formatUsdcAmount } from "../../src/attest/amount";
 
 function formatMaturity(maturity: bigint): string {
-  return new Date(Number(maturity) * 1000).toLocaleDateString(undefined, {
+  // Same format as every other date in the signing flow ("31 December 2026", UTC), not the
+  // browser's locale, which printed "December 31, 2026" next to "31 December 2026".
+  return new Date(Number(maturity) * 1000).toLocaleDateString("en-GB", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 

@@ -64,7 +64,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
           </p>
         )}
         <p className="text-center" title={`As of ${view.asOf}${view.since ? `, counting since ${view.since}` : ""}`}>
-          Updated {view.updated} · {view.chainName}
+          {view.chainName}
           {view.contracts.map((c) => (
             <span key={c.label}>
               {" · "}

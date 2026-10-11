@@ -240,8 +240,6 @@ describe("buildStatsView", () => {
     expect(view.headline.map((t) => t.label)).toEqual(["Invoices registered", "Value netted", "Loops settled"]);
     expect(view.headline[1]?.note).toBe(VALUE_NETTED_NOTE);
     expect(view.headline[2]?.note).toBe("0 invoice loops · 0 certificates · no tokens move");
-    expect(view.updated).toBe("10:00 UTC");
-    expect(buildStatsView(caughtUp(), contracts, opts("2026-09-26T09:00:00.000Z")).updated).toBe("25 Sept, 10:00 UTC");
     expect(JSON.stringify(view)).not.toMatch(/operator wallet|USDC moved/);
     expect(view.chainName).toBe("Arc testnet");
     expect(view.since).toBe("22 Sept 2026");

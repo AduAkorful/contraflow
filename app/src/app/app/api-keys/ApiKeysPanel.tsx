@@ -53,7 +53,7 @@ export function ApiKeysPanel({ tenant }: { tenant: OwnTenantView | null }) {
           <p className="mt-1 text-sm text-muted">
             If you leave this page before copying it, revoke that prefix and create another.
           </p>
-          <p className="mt-3 break-all font-mono text-sm">{secret}</p>
+          <p className="mt-3 break-all font-mono text-sm tracking-wide slashed-zero">{secret}</p>
           <button
             type="button"
             onClick={() => void copy()}
@@ -96,7 +96,7 @@ export function ApiKeysPanel({ tenant }: { tenant: OwnTenantView | null }) {
               {tenant.keys.map((key) => (
                 <li key={`${key.prefix}-${key.createdAt}`} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                   <span>
-                    <span className="font-mono">{key.prefix}</span>
+                    <span className="font-mono tracking-wide slashed-zero">{key.prefix}</span>
                     <span className="ml-3 text-muted">{key.revoked ? "Revoked" : "Active"}</span>
                   </span>
                   {!key.revoked && (

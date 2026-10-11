@@ -62,7 +62,9 @@ export function AddressMenu({ address }: { address: string }) {
     const result = await signOutEverywhere({
       signOut,
       logout,
-      disconnect: disconnectAsync,
+      // Switching keeps the wallet connected (the session is still revoked server-side and Privy is
+      // logged out), so the sign-in that opens next lists it without a MetaMask reconnect prompt.
+      disconnect: then === "switch" ? async () => undefined : disconnectAsync,
       queryClient,
       then,
     });

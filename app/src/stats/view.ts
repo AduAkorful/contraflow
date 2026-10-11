@@ -5,7 +5,7 @@
 import { blockscoutBaseFor } from "../blockscout/client";
 import { ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
 import { isCaughtUp, type StatsState } from "./aggregate";
-import { formatAsOf, formatCount, formatDate, formatUpdated, formatUsdc, type Formatted } from "./format";
+import { formatAsOf, formatCount, formatDate, formatUsdc, type Formatted } from "./format";
 
 export interface StatTile extends Formatted {
   label: string;
@@ -15,8 +15,6 @@ export interface StatTile extends Formatted {
 export interface StatsView {
   chainName: string;
   asOf: string;
-  /// Short form for the line under the card: "16:53 UTC", or with the date when not today.
-  updated: string;
   since: string | null;
   headline: StatTile[];
   detail: StatTile[];
@@ -71,7 +69,7 @@ export function buildStatsView(
     const pct = span > 0n ? Number((done * 100n) / span) : 0;
     staleness = `Still counting from the chain (${pct}% done). These figures are incomplete.`;
   } else if (age > opts.staleAfterMs) {
-    staleness = `Not updated for ${Math.round(age / 60_000)} minutes. Figures are as of the time below.`;
+    staleness = `Not updated for ${Math.round(age / 60_000)} minutes. Figures are as of ${formatAsOf(state.updatedAt)}.`;
   }
   if (opts.lastError && Date.parse(opts.lastError.at) >= Date.parse(state.updatedAt)) {
     staleness = `${staleness ?? "The latest update failed."} Retrying automatically.`;
@@ -80,7 +78,6 @@ export function buildStatsView(
   return {
     chainName: state.chainId === ARC_MAINNET_CHAIN_ID ? "Arc" : "Arc testnet",
     asOf: formatAsOf(state.updatedAt),
-    updated: formatUpdated(state.updatedAt, opts.now),
     since: state.firstEventAt ? formatDate(state.firstEventAt) : null,
     headline,
     detail,
