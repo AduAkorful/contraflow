@@ -45,6 +45,10 @@ This is the one place these docs set out what you're trusting when you use Contr
   is still owed. It does not check that the goods or services behind an obligation were delivered.
   A party who thinks an obligation is wrong can dispute it: it is then left out of every loop until
   the dispute is withdrawn, and Contraflow doesn't decide who is right.
+- **What Contraflow isn't connected to.** Contraflow doesn't connect to your bank accounts or treasury, or to
+  the asset or receivable behind a debt, and it holds no funds for anyone. Netting changes what the parties have
+  signed as owed; it doesn't change a balance anywhere else. Paying what's left, and keeping your own books in
+  step, stays with you. See the [Roadmap](roadmap.md) for what isn't available yet.
 - **Nothing half-completes.** A missing signature, a broken loop or the wrong network means the
   transaction doesn't go through at all.
 - **Anyone can settle.** Settling a valid loop or applying a signed certificate isn't gated
@@ -91,26 +95,25 @@ To pay what you owe on Arc, you need USDC in your wallet there. **Bring USDC fro
 deposits USDC from your wallet on another network into Circle Gateway, then moves it to your own
 wallet on Arc. You don't need gas on Arc for the move, and Circle's fees are shown before you sign.
 
+Contraflow doesn't pay the remainder for you. See the [Roadmap](roadmap.md).
+
 ## Protocol stats
 
-The stats on the home page are counted from the contracts' own events, read from
-the Arc explorer. They aren't estimates, and nothing is entered by hand.
+The stats on the home page are counted from the contracts' own events, read directly from Arc. They
+aren't estimates, and nothing is entered by hand. The page asks again every 30 seconds while it's open.
 
-- **Invoices registered** and **face value registered** count every invoice registered with the
-  Registry.
-- **Value netted** is the total each settlement reduced invoice balances by, summed across every
+* **Invoices registered** counts every invoice registered with the Registry.
+* **Value netted** is the total each settlement reduced USDC invoice balances by, summed across every
   invoice in the loop.
-- **Loops settled** counts invoice loops settled through the Settler, plus netting certificates
-  applied to the Netting Ledger.
-- **USDC moved by settlement** is zero because neither contract transfers tokens. Settlement
-  reduces balances in place, and the only cost is gas.
-- **Gas paid for settlement** is the network fee of every settlement and certificate transaction,
-  in native USDC.
-- **Offchain obligations contribute counts only.** Their amounts never go onchain, so they can't
-  be totalled.
-- **Activity sent from Contraflow's operator wallet is counted separately.** The wallet runs the
-  live demo and our own test runs, so the headline figures only count activity from other parties.
+* **Loops settled** counts invoice loops settled through the Settler, plus netting certificates applied to
+  the Netting Ledger. Settlement reduces balances in place, so no tokens move and the only cost is gas.
+* **Face value registered**, **Invoices fully netted** and **Parties** (distinct invoice debtors and creditors)
+  are shown in the detail below the headline figures.
+* **Obligation updates** counts offchain obligation changes. Their amounts never go onchain, so they can't be
+  totalled and they aren't in value netted.
+* **Every event counts**, whoever sent it, including Contraflow's own test runs, so anyone can recount the
+  figures from the chain.
 
-Every figure carries an "as of" time and names the network it's counted on. If the full history
-is ever too long to read in one pass, the figures say "at least" instead of presenting a partial
-count as exact.
+Every figure carries an "as of" time and names the network it's counted on. While the full history is still
+being read, the page says it's still counting and that the figures are incomplete, instead of presenting a
+partial count as exact.

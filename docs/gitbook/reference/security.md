@@ -123,4 +123,5 @@ random tokens, but the token is a handle, not the access control: reads always c
 | Address screening is a maintained list, not a vendor integration | Stated plainly in the Terms; it isn't AML or sanctions clearance |
 | Webhook signing secrets are stored as-is | HMAC signing needs the secret itself. They sit in a table no public path reads. |
 | On Vercel's Hobby plan, webhook retries aren't on their own schedule | First deliveries go out straight after each request or action. A retry runs the next time any API call or web-app obligation action happens, or at the daily job, so it can wait up to about a day if nothing calls Contraflow. `GET /events` lets a company catch up without waiting |
+| Contraflow isn't linked to the funds or assets behind a debt | A netted record changes what the parties signed as owed. It doesn't check that a debt is backed by a real asset or receivable, and it doesn't change a balance outside Arc. Paying what's left stays with the parties (see the [Roadmap](../roadmap.md)) |
 | A settlement or certificate isn't a legal discharge of a debt | It's a signed record used alongside the parties' own agreements (see the Terms) |

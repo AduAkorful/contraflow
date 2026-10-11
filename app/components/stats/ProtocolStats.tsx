@@ -102,7 +102,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
               Netting ledger. Settlement reduces balances in place, so no tokens move.
             </li>
             <li>
-              Certificates net obligations in other currencies, kept off-chain. They add to loops settled, but their
+              Certificates net obligations in other currencies, kept offchain. They add to loops settled, but their
               amounts never go onchain, so they aren&apos;t in value netted.
             </li>
             <li>

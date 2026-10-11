@@ -15,6 +15,7 @@ If a DSP owes an ad exchange $100k, the exchange owes a publisher $100k, and the
 * [Offchain obligations](offchain-obligations.md): recording obligations, netting certificates, and checking a certificate yourself.
 * [Using the app](using-the-app.md): a step-by-step walkthrough.
 * [FAQ](faq.md)
+* [Roadmap](roadmap.md): what isn't available yet, and where it's headed.
 * [API](api.md): for platforms that net obligations for their customers.
 
 For developers, integrators and reviewers, the **Reference** section goes deeper: [architecture](reference/architecture.md), [contracts](reference/contracts.md), the [offchain netting protocol](reference/offchain-netting.md), the [API reference](reference/api.md), the [security model](reference/security.md) and the [data model](reference/data-model.md).

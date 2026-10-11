@@ -95,7 +95,21 @@ describe("Gateway recovery records", () => {
       "https://gateway-api-testnet.circle.com/v1/transfer/transfer-id",
       { method: "GET", cache: "no-store" },
     );
-    await expect(getForwarderStatus("transfer-id", ARC_MAINNET_CHAIN_ID)).rejects.toThrow("only for Arc Testnet");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads mainnet transfers from Circle's mainnet API, and refuses a chain it doesn't know", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "pending" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    await expect(getForwarderStatus("transfer-id", ARC_MAINNET_CHAIN_ID)).resolves.toEqual({ status: "pending" });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://gateway-api.circle.com/v1/transfer/transfer-id",
+      { method: "GET", cache: "no-store" },
+    );
+    await expect(getForwarderStatus("transfer-id", 1)).rejects.toThrow("Unsupported Arc chain id 1");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

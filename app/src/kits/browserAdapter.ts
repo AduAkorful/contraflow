@@ -6,10 +6,9 @@ import { AppKitUnifiedBalance } from "@circle-fin/app-kit/unifiedBalance";
 import { createAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { createPublicClient, getAddress, http, type EIP1193Provider } from "viem";
 
-import { viemChainFor, type GatewayChain } from "./gatewayChains";
+import { networkTypeForChainId, viemChainFor, type GatewayChain } from "./gatewayChains";
 import type { FeeLine, GatewayBalancesLike } from "./gatewayBalance";
 import type { GatewayMintRetry } from "./unifiedBalance";
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
 
 const TOKEN = "USDC" as const;
 
@@ -111,6 +110,11 @@ export async function retryMoveMint(
 
 export type GatewayForwarderStatus = "pending" | "confirmed" | "finalized" | "failed" | "expired";
 
+/// Circle's Gateway API hosts, as the installed App Kit defines them (`GATEWAY_API_BASE_URL` and
+/// `GATEWAY_API_TESTNET_BASE_URL`). The transfer status path is the same on both.
+const GATEWAY_API_MAINNET = "https://gateway-api.circle.com";
+const GATEWAY_API_TESTNET = "https://gateway-api-testnet.circle.com";
+
 /// Reads only the original transfer's forwarding state. A status check never creates a new transfer.
 export async function getForwarderStatus(transferId: string, arcChainId: number): Promise<{
   status: GatewayForwarderStatus;
@@ -118,9 +122,10 @@ export async function getForwarderStatus(transferId: string, arcChainId: number)
   failureReason?: string;
   expirationBlock?: string;
 }> {
-  if (arcChainId !== ARC_TESTNET_CHAIN_ID) throw new Error("Gateway recovery status is currently enabled only for Arc Testnet.");
+  // Throws for any chain it doesn't know, so an unrecognised network never reads the wrong API.
+  const base = networkTypeForChainId(arcChainId) === "mainnet" ? GATEWAY_API_MAINNET : GATEWAY_API_TESTNET;
   if (!transferId || transferId.length > 256) throw new Error("Gateway transfer identifier is invalid.");
-  const response = await fetch(`https://gateway-api-testnet.circle.com/v1/transfer/${encodeURIComponent(transferId)}`, {
+  const response = await fetch(`${base}/v1/transfer/${encodeURIComponent(transferId)}`, {
     method: "GET",
     cache: "no-store",
   });

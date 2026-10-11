@@ -125,7 +125,8 @@ time it was taken. It's a quote only: nothing is swapped and nothing on the page
 ## The live demo
 
 The demo runs a whole invoice loop, from signing to settlement, with freshly generated test
-parties, so you can see it work without lining up real counterparties first.
+parties, so you can see it work without lining up real counterparties first. It always runs on Arc's test network
+with test funds, so nothing it does touches real funds, and what it records isn't part of the mainnet figures.
 
 ## Send USDC
 
