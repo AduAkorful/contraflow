@@ -5,7 +5,10 @@
 /// to move. Reads retry quietly; deposits and moves only ever happen on a click.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSetActiveWallet } from "@privy-io/wagmi";
+import { useAccount } from "wagmi";
+import { isAddressEqual } from "viem";
 
 import { readGatewayBalances, walletUsdc } from "@/src/kits/browserAdapter";
 import { fromBaseUnits, parseGatewayBalances, toBaseUnits, type GatewayBalanceView } from "@/src/kits/gatewayBalance";
@@ -56,6 +59,20 @@ export function BalanceClient({
   const arc = useMemo(() => gatewayArcChain(arcChainId), [arcChainId]);
   const wallet = useOwnerWallet(owner);
   const { connectWallet } = usePrivy();
+  const { wallets } = useWallets();
+  const { setActiveWallet } = useSetActiveWallet();
+  const { address: wagmiAddress } = useAccount();
+
+  // Point wagmi at the session's own embedded wallet (email accounts), so Send, which signs
+  // through wagmi, uses it too. Deposit and move already use its provider directly.
+  const ownEmbedded = wallets.find(
+    (w) => w.walletClientType?.startsWith("privy") && isAddressEqual(w.address as `0x${string}`, owner),
+  );
+  useEffect(() => {
+    if (!ownEmbedded) return;
+    if (wagmiAddress && isAddressEqual(wagmiAddress, owner)) return;
+    void setActiveWallet(ownEmbedded).catch(() => undefined);
+  }, [ownEmbedded, wagmiAddress, owner, setActiveWallet]);
 
   const [balances, setBalances] = useState<GatewayBalanceView | "loading" | "error">("loading");
   const [arcWallet, setArcWallet] = useState<string | null>(null);

@@ -161,7 +161,9 @@ describe("isUnsupportedSmartAccount", () => {
 
 describe("useOwnerWallet", () => {
   const useAccount = vi.fn();
+  const useWallets = vi.fn(() => ({ wallets: [] as unknown[] }));
   vi.doMock("wagmi", () => ({ useAccount }));
+  vi.doMock("@privy-io/react-auth", () => ({ useWallets }));
 
   it("blocks when disconnected or connected as a different address than the session", async () => {
     const { useOwnerWallet } = await import("../src/app/app/balance/wallet");
@@ -173,6 +175,21 @@ describe("useOwnerWallet", () => {
 
     useAccount.mockReturnValue({ isConnected: true, address: OWNER.toLowerCase(), connector: {} });
     expect(useOwnerWallet(OWNER).status).toBe("ready");
+  });
+
+  it("uses the session's own Privy embedded wallet when wagmi isn't on it (email accounts)", async () => {
+    const { useOwnerWallet } = await import("../src/app/app/balance/wallet");
+    useWallets.mockReturnValue({
+      wallets: [{ address: OWNER, walletClientType: "privy", getEthereumProvider: async () => ({}) }],
+    });
+    useAccount.mockReturnValue({ isConnected: false });
+    expect(useOwnerWallet(OWNER).status).toBe("ready");
+    useAccount.mockReturnValue({ isConnected: true, address: OTHER, connector: {} });
+    expect(useOwnerWallet(OWNER).status).toBe("ready");
+    // An outside wallet at another address is never borrowed.
+    useWallets.mockReturnValue({ wallets: [{ address: OTHER, walletClientType: "metamask", getEthereumProvider: async () => ({}) }] });
+    expect(useOwnerWallet(OWNER)).toEqual({ status: "mismatch", connected: OTHER });
+    useWallets.mockReturnValue({ wallets: [] });
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useAccount } from "wagmi";
 import { queryClient } from "../../src/query/client";
@@ -21,6 +21,13 @@ export function WalletSwitchedBanner() {
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // "Stay as" holds only while the wallet stays on that account. Back on the session's account, the
+  // choice is forgotten, so the next switch away shows the banner again without a reload.
+  const backOnSession = Boolean(address && sessionAddress && address.toLowerCase() === sessionAddress.toLowerCase());
+  useEffect(() => {
+    if (backOnSession) setDismissedFor(null);
+  }, [backOnSession]);
 
   if (!sessionAddress || !address) return null;
   if (address.toLowerCase() === sessionAddress.toLowerCase()) return null;

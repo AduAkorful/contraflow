@@ -1,6 +1,7 @@
 "use client";
 
 import { useAccount } from "wagmi";
+import { useWallets } from "@privy-io/react-auth";
 import { isAddressEqual, numberToHex, type EIP1193Provider } from "viem";
 
 import { userAdapter, type UserAdapter } from "@/src/kits/browserAdapter";
@@ -8,6 +9,8 @@ import type { GatewayChain } from "@/src/kits/gatewayChains";
 
 export type WalletState =
   | { status: "disconnected" }
+  /// The session's own Privy (email) wallet exists but wagmi isn't pointed at it yet. The page makes
+  /// it the active wallet; until then deposit and move use its provider directly.
   | { status: "mismatch"; connected: `0x${string}` }
   | {
       status: "ready";
@@ -20,10 +23,21 @@ export type WalletState =
 /// for a different account than the session's.
 export function useOwnerWallet(owner: `0x${string}`): WalletState {
   const { address, isConnected, connector } = useAccount();
-  if (!isConnected || !address || !connector) return { status: "disconnected" };
-  if (!isAddressEqual(address, owner)) return { status: "mismatch", connected: address };
+  const { wallets } = useWallets();
+  const wagmiIsOwner = Boolean(isConnected && address && connector && isAddressEqual(address, owner));
+  // An email account signs with its Privy embedded wallet. wagmi only follows it once it is the
+  // active wallet, which a reload or a Privy re-login doesn't always restore, so fall back to the
+  // Privy wallet for the session's own address rather than asking for an outside wallet.
+  const ownWallet = wagmiIsOwner
+    ? undefined
+    : wallets.find((w) => w.walletClientType?.startsWith("privy") && isAddressEqual(w.address as `0x${string}`, owner));
+  if (!wagmiIsOwner && !ownWallet) {
+    if (!isConnected || !address || !connector) return { status: "disconnected" };
+    return { status: "mismatch", connected: address };
+  }
 
-  const provider = async () => (await connector.getProvider()) as EIP1193Provider;
+  const provider = async () =>
+    (ownWallet ? await ownWallet.getEthereumProvider() : await connector!.getProvider()) as EIP1193Provider;
   return {
     status: "ready",
     adapter: async () => userAdapter(await provider()),

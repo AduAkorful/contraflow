@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { pageNeedsWallet } from "../../src/session/primarySignInPath";
@@ -23,7 +23,10 @@ export function WalletHost({
   const [requested, setRequested] = useState(false);
   const [pendingSignIn, setPendingSignIn] = useState(false);
 
-  useEffect(() => {
+  // A layout effect, not a passive one: React runs child effects before the parent's, and
+  // SignInMenu (a child) strips `?switch=1` from the URL in its own mount effect. Layout effects all
+  // run before any passive effect, so the marker is still there to read.
+  useLayoutEffect(() => {
     // Coming from "Switch account": load the wallet tree and open the sign-in dialog at once, so
     // the user lands on the choice of account rather than a signed-out page.
     if (new URLSearchParams(window.location.search).get("switch") === "1") {
