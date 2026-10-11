@@ -27,7 +27,7 @@ function Figure({ tile, className }: { tile: StatTile; className: string }) {
 function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "full" }) {
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-3">
         {view.headline.map((tile) => (
           <div key={tile.label} className="bg-surface-1 p-5">
             <dt className="text-xs text-muted">{tile.label}</dt>
@@ -56,10 +56,14 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
       )}
 
       <div className="mt-4 space-y-1.5 text-xs leading-relaxed text-muted">
-        {view.demoNote && <p>{view.demoNote}</p>}
-        {view.lowerBound && (
-          <p>The full history was too long to read in one pass, so these figures are lower bounds.</p>
+        {view.staleness && (
+          <p role="status" className="font-medium text-gold">
+            {view.staleness}
+          </p>
         )}
+        {view.notes.map((note) => (
+          <p key={note}>{note}</p>
+        ))}
         <p>
           As of {view.asOf} · {view.chainName}
           {view.since && <> · since {view.since}</>} · counted from contract events:{" "}
@@ -94,8 +98,8 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
               be totalled here.
             </li>
             <li>
-              Anything sent from Contraflow&apos;s operator wallet, which runs the live demo and our own test runs,
-              is counted separately.
+              Every event counts, including the live demo and our own test runs, so anyone can recount these
+              figures from the chain.
             </li>
           </ul>
         </details>
@@ -107,8 +111,8 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
 function Skeleton({ variant }: { variant: "headline" | "full" }) {
   return (
     <div aria-busy="true" aria-label="Protocol stats, loading">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" aria-hidden="true">
-        {Array.from({ length: 4 }, (_, i) => (
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="animate-skeleton h-[104px] rounded-card" />
         ))}
       </div>

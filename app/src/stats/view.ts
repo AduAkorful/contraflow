@@ -1,11 +1,11 @@
-/// Turns a `StatsState` into exactly what the stats block renders. Wording lives here, not in the
+/// Turns stored stats into exactly what the stats block renders. Wording lives here, not in the
 /// component, so the copy rules are tested: "netted" and "settled" only, never "extinguished",
 /// "paid" or "discharged", and no "+" or "over" rounding.
 
 import { blockscoutBaseFor } from "../blockscout/client";
 import { ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
-import type { StatsState } from "./aggregate";
-import { asLowerBound, formatAsOf, formatCount, formatDate, formatGas, formatUsdc, type Formatted } from "./format";
+import { isCaughtUp, type StatsState } from "./aggregate";
+import { formatAsOf, formatCount, formatDate, formatUsdc, type Formatted } from "./format";
 
 export interface StatTile extends Formatted {
   label: string;
@@ -18,8 +18,11 @@ export interface StatsView {
   since: string | null;
   headline: StatTile[];
   detail: StatTile[];
-  demoNote: string | null;
-  lowerBound: boolean;
+  /// Plain notes shown under the figures.
+  notes: string[];
+  /// Set when the figures are behind: still backfilling, older than the threshold, or the last
+  /// refresh failed. Shown prominently; the figures are still true as of `asOf`.
+  staleness: string | null;
   contracts: { label: string; url: string }[];
 }
 
@@ -27,44 +30,54 @@ function plural(n: number, one: string, many: string): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 }
 
-export function buildStatsView(state: StatsState, contracts: { registry: string; settler: string; ledger: string }): StatsView {
-  const { totals, demo, lowerBound } = state;
-  const bound = (f: Formatted) => asLowerBound(f, lowerBound);
+export const SETTLEMENT_NOTE = "Settlement reduces balances in place: no tokens move.";
+export const CERTIFICATE_NOTE =
+  "Certificates net obligations in other currencies, kept off-chain, so they add to loops settled but not to value netted.";
+
+export function buildStatsView(
+  state: StatsState,
+  contracts: { registry: string; settler: string; ledger: string },
+  opts: { now: Date; staleAfterMs: number; lastError: { message: string; at: string } | null },
+): StatsView {
+  const { totals } = state;
   const loops = totals.invoiceLoopsSettled + totals.certificatesApplied;
   const explorer = blockscoutBaseFor(state.chainId);
 
   const headline: StatTile[] = [
-    { label: "Invoices registered", ...bound(formatCount(totals.invoicesRegistered)) },
-    { label: "Value netted", ...bound(formatUsdc(totals.valueNetted)) },
+    { label: "Invoices registered", ...formatCount(totals.invoicesRegistered) },
+    { label: "Value netted", ...formatUsdc(totals.valueNetted), note: "USDC invoices only" },
     {
       label: "Loops settled",
-      ...bound(formatCount(loops)),
+      ...formatCount(loops),
       note: `${plural(totals.invoiceLoopsSettled, "invoice loop", "invoice loops")} · ${plural(totals.certificatesApplied, "certificate", "certificates")}`,
-    },
-    {
-      label: "USDC moved by settlement",
-      value: "0 USDC",
-      exact: "0 USDC",
-      note: "Settlement reduces balances in place. Neither contract transfers tokens.",
     },
   ];
 
   const detail: StatTile[] = [
-    { label: "Face value registered", ...bound(formatUsdc(totals.faceValueRegistered)) },
-    { label: "Invoices fully netted", ...bound(formatCount(totals.fullyNetted)) },
-    { label: "Parties", ...bound(formatCount(state.parties.length)), note: "Distinct invoice debtors and creditors" },
-    { label: "Gas paid for settlement", ...bound(formatGas(totals.gasPaidWei)), note: "Native USDC" },
+    { label: "Face value registered", ...formatUsdc(totals.faceValueRegistered) },
+    { label: "Invoices fully netted", ...formatCount(totals.fullyNetted) },
+    { label: "Parties", ...formatCount(state.parties.length), note: "Distinct invoice debtors and creditors" },
     {
       label: "Obligation updates",
-      ...bound(formatCount(totals.obligationUpdates)),
+      ...formatCount(totals.obligationUpdates),
       note: "Offchain obligations. Amounts stay offchain, so only counts are shown.",
     },
   ];
 
-  const demoNote =
-    demo.invoicesRegistered + demo.loopsSettled > 0
-      ? `Plus ${plural(demo.invoicesRegistered, "invoice", "invoices")} and ${plural(demo.loopsSettled, "loop", "loops")} sent from Contraflow's operator wallet (the live demo and our own test runs), not counted above.`
-      : null;
+  let staleness: string | null = null;
+  const age = opts.now.getTime() - Date.parse(state.updatedAt);
+  if (!isCaughtUp(state)) {
+    const start = BigInt(state.startBlock);
+    const span = BigInt(state.headBlock) - start + 1n;
+    const done = BigInt(state.cursorBlock) - start + 1n;
+    const pct = span > 0n ? Number((done * 100n) / span) : 0;
+    staleness = `Still counting from the chain (${pct}% done). These figures are incomplete.`;
+  } else if (age > opts.staleAfterMs) {
+    staleness = `Not updated for ${Math.round(age / 60_000)} minutes. Figures are as of the time below.`;
+  }
+  if (opts.lastError && Date.parse(opts.lastError.at) >= Date.parse(state.updatedAt)) {
+    staleness = `${staleness ?? "The latest update failed."} Retrying automatically.`;
+  }
 
   return {
     chainName: state.chainId === ARC_MAINNET_CHAIN_ID ? "Arc" : "Arc testnet",
@@ -72,8 +85,8 @@ export function buildStatsView(state: StatsState, contracts: { registry: string;
     since: state.firstEventAt ? formatDate(state.firstEventAt) : null,
     headline,
     detail,
-    demoNote,
-    lowerBound,
+    notes: [SETTLEMENT_NOTE, CERTIFICATE_NOTE],
+    staleness,
     contracts: [
       { label: "Registry", url: `${explorer}/address/${contracts.registry}` },
       { label: "Settler", url: `${explorer}/address/${contracts.settler}` },

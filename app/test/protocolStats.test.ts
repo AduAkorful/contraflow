@@ -1,314 +1,223 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchContractLogsSince, type LogPosition, type LogsSince, type PositionedLog } from "../src/blockscout/client";
-import { emptyState, foldEvents, type AttributedEvent, type StatsState } from "../src/stats/aggregate";
-import { parseStatsEvent, UnrecognisedStatsEvent } from "../src/stats/events";
-import { STATS_MAX_PAGES, updateStats, type IndexerContext, type IndexerDeps } from "../src/stats/indexer";
-import { loadStats, StatsUnavailableError, type StatsStore } from "../src/stats/load";
-import { formatCount, formatGas, formatUsdc } from "../src/stats/format";
-import { buildStatsView } from "../src/stats/view";
+import { encodeAbiParameters, encodeEventTopics, pad, type Abi, type AbiEvent, type Hex } from "viem";
+import { fetchContractLogsSince } from "../src/blockscout/client";
+import { contraflowNettingLedgerAbi, contraflowRegistryAbi, contraflowSettlerAbi } from "../src/contracts/abi";
+import { emptyState, foldEvents, isCaughtUp, type StatsState } from "../src/stats/aggregate";
+import { parseStatsEvent, UnrecognisedStatsEvent, type RawLog } from "../src/stats/events";
+import { refreshStats, type IndexerContext, type StatsRpc } from "../src/stats/indexer";
+import { needsRefresh, runStatsRefresh, statsContext, type StatsStore, type StoredStats } from "../src/stats/load";
+import { createStatsRpc } from "../src/stats/rpc";
+import { formatCount, formatUsdc } from "../src/stats/format";
+import { buildStatsView, CERTIFICATE_NOTE, SETTLEMENT_NOTE } from "../src/stats/view";
 
-const OPERATOR = "0x74B4134C8d527a8D8AE8cb9503ab2043bCfC0ffd";
+const CHAIN_ID = 5042002;
+const CONTRACTS = {
+  registry: "0x304450Dc27f644AcA55773895409ff500AFb2Bf7",
+  settler: "0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015",
+  ledger: "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
+};
 const PARTY_A = "0xCFd6d6ab5128Da8960882921ff36EC0bBe65adEB";
 const PARTY_B = "0xB76FF3Cb47747590558A4240aB5dadE181331911";
-const OPERATORS = new Set([OPERATOR.toLowerCase()]);
-const CHAIN_ID = 5042002;
+const ID = pad("0x01");
 const T0 = "2026-09-25T10:00:00.000Z";
 
 let nextIndex = 0;
-function log(methodCall: string, params: [string, string | string[]][], opts: Partial<PositionedLog> = {}): PositionedLog {
-  return {
-    transactionHash: opts.transactionHash ?? `0xtx${nextIndex}`,
-    blockNumber: opts.blockNumber ?? 100,
-    logIndex: opts.logIndex ?? nextIndex++,
-    blockTimestamp: opts.blockTimestamp ?? "2026-09-23T10:02:00.000000Z",
-    methodCall,
-    parameters: params.map(([name, value]) => ({ name, type: "", value })),
-  };
-}
-
-const registeredLog = (amount: string, opts: Partial<PositionedLog> = {}, debtor = PARTY_A, creditor = PARTY_B) =>
-  log(
-    "InvoiceRegistered(bytes32 indexed id, address indexed debtor, address indexed creditor, uint256 amount, uint64 maturity, bool earlyNetConsent, uint256 nonce)",
-    [
-      ["id", "0x01"],
-      ["debtor", debtor],
-      ["creditor", creditor],
-      ["amount", amount],
-      ["maturity", "1792749720"],
-      ["earlyNetConsent", "true"],
-      ["nonce", "1"],
-    ],
-    opts,
+function encode(abi: unknown, address: string, eventName: string, args: Record<string, unknown>, block: bigint, opts: Partial<RawLog> = {}): RawLog {
+  const event = (abi as Abi).find((x) => x.type === "event" && x.name === eventName) as AbiEvent;
+  const topics = encodeEventTopics({ abi: [event], eventName, args } as never) as Hex[];
+  const data = encodeAbiParameters(
+    event.inputs.filter((i) => !i.indexed),
+    event.inputs.filter((i) => !i.indexed).map((i) => args[i.name!]),
   );
-const nettedLog = (wNet: string, status: string, opts: Partial<PositionedLog> = {}) =>
-  log(
-    "InvoiceNetted(bytes32 indexed id, uint256 wNet, uint256 remainingAfter, uint8 status)",
-    [
-      ["id", "0x01"],
-      ["wNet", wNet],
-      ["remainingAfter", "0"],
-      ["status", status],
-    ],
-    opts,
-  );
-const settledLog = (opts: Partial<PositionedLog> = {}) =>
-  log("Settled(bytes32[] invoiceIds, uint256 wNet, address indexed caller)", [["invoiceIds", ["0x01"]]], opts);
-const certificateLog = (opts: Partial<PositionedLog> = {}) =>
-  log("CertificateApplied(bytes32 indexed certificateId, bytes32 contentHash, address indexed submitter)", [], opts);
-const advancedLog = (opts: Partial<PositionedLog> = {}) =>
-  log("ObligationAdvanced(bytes32 indexed obligationKey, bytes32 indexed certificateId, bytes32 priorCommitment, bytes32 nextCommitment)", [], opts);
-
-function attributed(l: PositionedLog, contract: "registry" | "settler" | "ledger", from: string, feeWei = "0"): AttributedEvent {
-  return { event: parseStatsEvent(contract, l)!, tx: { from, feeWei } };
+  const logIndex = nextIndex++;
+  return { address, topics, data, blockNumber: block, logIndex, transactionHash: `0xtx${logIndex}`, blockTimestamp: 1_790_000_000 + Number(block), ...opts };
 }
+const registered = (amount: bigint, block: bigint, debtor = PARTY_A, creditor = PARTY_B) =>
+  encode(contraflowRegistryAbi, CONTRACTS.registry, "InvoiceRegistered", { id: ID, debtor, creditor, amount, maturity: 1n, earlyNetConsent: true, nonce: 1n }, block);
+const netted = (wNet: bigint, status: number, block: bigint) =>
+  encode(contraflowRegistryAbi, CONTRACTS.registry, "InvoiceNetted", { id: ID, wNet, remainingAfter: 0n, status }, block);
+const settled = (block: bigint) => encode(contraflowSettlerAbi, CONTRACTS.settler, "Settled", { invoiceIds: [ID], wNet: 1n, caller: PARTY_A }, block);
+const applied = (block: bigint) =>
+  encode(contraflowNettingLedgerAbi, CONTRACTS.ledger, "CertificateApplied", { certificateId: ID, contentHash: ID, submitter: PARTY_A }, block);
+const advanced = (block: bigint) =>
+  encode(contraflowNettingLedgerAbi, CONTRACTS.ledger, "ObligationAdvanced", { obligationKey: ID, certificateId: ID, priorCommitment: ID, nextCommitment: ID }, block);
 
 describe("parseStatsEvent", () => {
+  it("decodes every counted event from raw logs", () => {
+    expect(parseStatsEvent("registry", registered(5n, 10n))).toMatchObject({ kind: "registered", amount: 5n, debtor: PARTY_A });
+    expect(parseStatsEvent("registry", netted(3n, 1, 10n))).toMatchObject({ kind: "netted", wNet: 3n, fullyNetted: true });
+    expect(parseStatsEvent("registry", netted(3n, 0, 10n))).toMatchObject({ fullyNetted: false });
+    expect(parseStatsEvent("settler", settled(10n))).toMatchObject({ kind: "settled" });
+    expect(parseStatsEvent("ledger", applied(10n))).toMatchObject({ kind: "certificateApplied" });
+    expect(parseStatsEvent("ledger", advanced(10n))).toMatchObject({ kind: "obligationAdvanced" });
+  });
+
   it("ignores proxy admin events", () => {
-    expect(parseStatsEvent("registry", log("Upgraded(address indexed implementation)", []))).toBeNull();
-    expect(parseStatsEvent("ledger", log("Initialized(uint64 version)", []))).toBeNull();
+    const log = encode(contraflowRegistryAbi, CONTRACTS.registry, "Initialized", { version: 1n }, 10n);
+    expect(parseStatsEvent("registry", log)).toBeNull();
   });
 
-  it("throws on an event it doesn't know rather than dropping it", () => {
-    expect(() => parseStatsEvent("settler", log("Mystery()", []))).toThrow(UnrecognisedStatsEvent);
-    expect(() => parseStatsEvent("registry", settledLog())).toThrow(UnrecognisedStatsEvent);
-  });
-
-  it("reads InvoiceNetted status 1 as fully netted", () => {
-    expect(parseStatsEvent("registry", nettedLog("5", "1"))).toMatchObject({ kind: "netted", wNet: 5n, fullyNetted: true });
-    expect(parseStatsEvent("registry", nettedLog("5", "0"))).toMatchObject({ fullyNetted: false });
+  it("throws on a log it can't decode rather than dropping it", () => {
+    expect(() => parseStatsEvent("registry", { ...settled(10n), address: CONTRACTS.registry })).toThrow(UnrecognisedStatsEvent);
   });
 });
 
 describe("foldEvents", () => {
-  it("sums every figure, keeping 6- and 18-decimal amounts apart", () => {
-    const state = foldEvents(
-      emptyState(CHAIN_ID, T0),
-      [
-        attributed(registeredLog("2950000000"), "registry", PARTY_A),
-        attributed(registeredLog("1000000", {}, PARTY_B, PARTY_A), "registry", PARTY_B),
-        attributed(nettedLog("1650000000", "0"), "registry", PARTY_A),
-        attributed(nettedLog("1000000", "1"), "registry", PARTY_A),
-        attributed(settledLog(), "settler", PARTY_A, "2502275000000000"),
-        attributed(certificateLog(), "ledger", PARTY_B, "1000000000000000"),
-        attributed(advancedLog(), "ledger", PARTY_B),
-        attributed(advancedLog(), "ledger", PARTY_B),
-      ],
-      OPERATORS,
-    );
-    expect(state.totals).toEqual({
+  const base = () => emptyState(CHAIN_ID, 1n, T0);
+  const ev = (log: RawLog, c: "registry" | "settler" | "ledger") => parseStatsEvent(c, log)!;
+
+  it("sums every figure, operator activity included", () => {
+    const s = foldEvents(base(), [
+      ev(registered(1_000_000n, 5n), "registry"),
+      ev(registered(2_000_000n, 6n, PARTY_B, PARTY_A.toLowerCase()), "registry"),
+      ev(netted(500_000n, 0, 7n), "registry"),
+      ev(netted(1_000_000n, 1, 7n), "registry"),
+      ev(settled(7n), "settler"),
+      ev(applied(8n), "ledger"),
+      ev(advanced(8n), "ledger"),
+    ]);
+    expect(s.totals).toEqual({
       invoicesRegistered: 2,
-      faceValueRegistered: "2951000000",
-      valueNetted: "1651000000",
+      faceValueRegistered: "3000000",
+      valueNetted: "1500000",
       fullyNetted: 1,
       invoiceLoopsSettled: 1,
       certificatesApplied: 1,
-      obligationUpdates: 2,
-      gasPaidWei: "3502275000000000",
+      obligationUpdates: 1,
     });
+    expect(s.parties).toEqual([PARTY_B.toLowerCase(), PARTY_A.toLowerCase()].sort());
+    expect(s.firstEventAt).toBe(new Date((1_790_000_000 + 5) * 1000).toISOString());
   });
 
-  it("counts parties once each, case-insensitively", () => {
-    const state = foldEvents(
-      emptyState(CHAIN_ID, T0),
-      [
-        attributed(registeredLog("1", {}, PARTY_A, PARTY_B), "registry", PARTY_A),
-        attributed(registeredLog("1", {}, PARTY_B.toLowerCase(), PARTY_A.toUpperCase().replace("0X", "0x")), "registry", PARTY_B),
-      ],
-      OPERATORS,
-    );
-    expect(state.parties).toHaveLength(2);
-  });
-
-  it("moves operator-sent activity to the demo totals and out of every headline figure", () => {
-    const state = foldEvents(
-      emptyState(CHAIN_ID, T0),
-      [
-        attributed(registeredLog("100", {}, "0x0000000000000000000000000000000000000001"), "registry", OPERATOR.toLowerCase()),
-        attributed(nettedLog("100", "1"), "registry", OPERATOR),
-        attributed(settledLog(), "settler", OPERATOR, "999"),
-        attributed(registeredLog("7"), "registry", PARTY_A),
-      ],
-      OPERATORS,
-    );
-    expect(state.demo).toEqual({ invoicesRegistered: 1, loopsSettled: 1 });
-    expect(state.totals.invoicesRegistered).toBe(1);
-    expect(state.totals.faceValueRegistered).toBe("7");
-    expect(state.totals.valueNetted).toBe("0");
-    expect(state.totals.invoiceLoopsSettled).toBe(0);
-    expect(state.totals.gasPaidWei).toBe("0");
-    expect(state.parties).not.toContain("0x0000000000000000000000000000000000000001");
-  });
-
-  it("tracks the earliest non-demo event as the window start", () => {
-    const state = foldEvents(
-      emptyState(CHAIN_ID, T0),
-      [
-        attributed(registeredLog("1", { blockTimestamp: "2026-09-20T00:00:00.000000Z" }), "registry", OPERATOR),
-        attributed(registeredLog("1", { blockTimestamp: "2026-09-23T00:00:00.000000Z" }), "registry", PARTY_A),
-        attributed(registeredLog("1", { blockTimestamp: "2026-09-22T00:00:00.000000Z" }), "registry", PARTY_A),
-      ],
-      OPERATORS,
-    );
-    expect(state.firstEventAt).toBe("2026-09-22T00:00:00.000000Z");
+  it("is idempotent: duplicates and already-counted blocks count once", () => {
+    const e = ev(registered(1n, 5n), "registry");
+    const once = foldEvents(base(), [e, e]);
+    expect(once.totals.invoicesRegistered).toBe(1);
+    const replay = foldEvents({ ...once, cursorBlock: "5" }, [e]);
+    expect(replay.totals.invoicesRegistered).toBe(1);
   });
 });
 
-function ctx(): IndexerContext {
-  return { chainId: CHAIN_ID, contracts: { registry: "R", settler: "S", ledger: "L" }, operators: OPERATORS, now: T0 };
-}
-
-/// In-memory explorer: every contract's logs newest-first, served with the same cursor and page-cap
-/// rules as the real client.
-function fakeExplorer(logsByContract: Record<string, PositionedLog[]>, pageSize = 50) {
-  const txCalls: string[] = [];
-  const deps: IndexerDeps = {
-    async fetchLogs(contract, since, maxPages) {
-      const all = [...(logsByContract[contract] ?? [])].sort((a, b) => b.blockNumber - a.blockNumber || b.logIndex - a.logIndex);
-      const after = since
-        ? all.filter((l) => l.blockNumber > since.blockNumber || (l.blockNumber === since.blockNumber && l.logIndex > since.logIndex))
-        : all;
-      const cap = maxPages * pageSize;
-      const logs = after.slice(0, cap);
-      const newest: LogPosition | null = logs[0] ? { blockNumber: logs[0].blockNumber, logIndex: logs[0].logIndex } : null;
-      return { logs, undecoded: 0, newest, truncated: after.length > cap } satisfies LogsSince;
-    },
-    async fetchTransaction(txHash) {
-      txCalls.push(txHash);
-      return { from: txHash.startsWith("0xdemo") ? OPERATOR : PARTY_A, feeWei: "10" };
+function fakeRpc(logs: RawLog[], head: bigint, failAt?: bigint): StatsRpc & { calls: [bigint, bigint][] } {
+  const calls: [bigint, bigint][] = [];
+  return {
+    calls,
+    blockNumber: async () => head,
+    getLogs: async (_a, from, to) => {
+      calls.push([from, to]);
+      if (failAt !== undefined && from <= failAt && failAt <= to) throw new Error("rpc down");
+      return logs.filter((l) => l.blockNumber >= from && l.blockNumber <= to);
     },
   };
-  return { deps, txCalls };
+}
+const ctx = (over: Partial<IndexerContext> = {}): IndexerContext => ({
+  chainId: CHAIN_ID,
+  contracts: CONTRACTS,
+  startBlock: 1n,
+  now: () => new Date(T0),
+  budgetMs: 60_000,
+  chunkBlocks: 10n,
+  confirmations: 2n,
+  ...over,
+});
+
+describe("refreshStats", () => {
+  const logs = [registered(1n, 3n), registered(2n, 15n), netted(1n, 1, 25n), applied(41n), settled(48n), advanced(49n)];
+
+  it("reads in chunks up to head minus confirmations, saving after each chunk", async () => {
+    const saves: StatsState[] = [];
+    const rpc = fakeRpc(logs, 50n);
+    const { state, caughtUp } = await refreshStats(null, ctx(), rpc, async (s) => void saves.push(s));
+    expect(rpc.calls.map(([f, t]) => `${f}-${t}`)).toEqual(["1-10", "11-20", "21-30", "31-40", "41-48"]);
+    expect(caughtUp).toBe(true);
+    expect(state.cursorBlock).toBe("48");
+    // advanced(49) is not yet confirmed.
+    expect(state.totals).toMatchObject({ invoicesRegistered: 2, valueNetted: "1", certificatesApplied: 1, invoiceLoopsSettled: 1, obligationUpdates: 0 });
+    expect(saves.map((s) => s.cursorBlock).slice(0, 5)).toEqual(["10", "20", "30", "40", "48"]);
+  });
+
+  it("keeps progress on a partial failure and finishes on the next run with the same totals", async () => {
+    const saves: StatsState[] = [];
+    await expect(refreshStats(null, ctx(), fakeRpc(logs, 50n, 35n), async (s) => void saves.push(s))).rejects.toThrow("rpc down");
+    const saved = saves.at(-1)!;
+    expect(saved.cursorBlock).toBe("30");
+    const { state } = await refreshStats(saved, ctx(), fakeRpc(logs, 50n), async () => undefined);
+    const full = await refreshStats(null, ctx(), fakeRpc(logs, 50n), async () => undefined);
+    expect(state.totals).toEqual(full.state.totals);
+  });
+
+  it("stops at its time budget with the cursor saved, and is not caught up", async () => {
+    let t = 0;
+    const clock = () => new Date(Date.parse(T0) + (t += 1000));
+    const { caughtUp, state } = await refreshStats(null, ctx({ now: clock, budgetMs: 1500 }), fakeRpc(logs, 50n), async () => undefined);
+    expect(caughtUp).toBe(false);
+    expect(isCaughtUp(state)).toBe(false);
+    expect(state.updatedAt).toBe(state.builtAt);
+  });
+
+  it("counts nothing twice when nothing new has happened, and advances the as-of time", async () => {
+    const first = await refreshStats(null, ctx(), fakeRpc(logs, 50n), async () => undefined);
+    const later = ctx({ now: () => new Date("2026-09-25T11:00:00.000Z") });
+    const again = await refreshStats(first.state, later, fakeRpc(logs, 50n), async () => undefined);
+    expect(again.state.totals).toEqual(first.state.totals);
+    expect(again.chunks).toBe(0);
+    expect(again.state.updatedAt).toBe("2026-09-25T11:00:00.000Z");
+  });
+});
+
+function memoryStore(initial: StatsState | null, lockFree = true): StatsStore & { stored: StoredStats } {
+  const stored: StoredStats = { state: initial, lastError: null };
+  return {
+    stored,
+    get: async () => ({ ...stored }),
+    set: async (s) => void (stored.state = s),
+    setError: async (message, at) => void (stored.lastError = { message, at }),
+    clearError: async () => void (stored.lastError = null),
+    lock: async () => (lockFree ? async () => undefined : null),
+  };
 }
 
-describe("updateStats", () => {
-  it("builds from nothing, then reads only what's new", async () => {
-    const registry = [registeredLog("5", { blockNumber: 1, logIndex: 0, transactionHash: "0xa" })];
-    const { deps, txCalls } = fakeExplorer({ R: registry });
-    const first = await updateStats(null, ctx(), deps);
-    expect(first.totals.invoicesRegistered).toBe(1);
-    expect(first.cursors.registry).toEqual({ blockNumber: 1, logIndex: 0 });
-
-    registry.push(registeredLog("6", { blockNumber: 2, logIndex: 0, transactionHash: "0xb" }));
-    const second = await updateStats(first, { ...ctx(), now: "2026-09-25T10:05:00.000Z" }, deps);
-    expect(second.totals.invoicesRegistered).toBe(2);
-    expect(second.totals.faceValueRegistered).toBe("11");
-    expect(second.builtAt).toBe(T0);
-    expect(txCalls).toEqual(["0xa", "0xb"]);
+describe("runStatsRefresh", () => {
+  const c = { ...statsContext(CHAIN_ID, 60_000), startBlock: 1n };
+  it("records and logs an error instead of hiding it, keeping saved progress", async () => {
+    const store = memoryStore(null);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const rpc = { blockNumber: async () => 30_000n, getLogs: async () => { throw new Error("rpc down"); } };
+    await expect(runStatsRefresh({ store, rpc, ctx: c })).rejects.toThrow("rpc down");
+    expect(store.stored.lastError?.message).toBe("rpc down");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 
-  it("counts nothing twice when nothing new has happened", async () => {
-    const { deps } = fakeExplorer({ R: [registeredLog("5", { blockNumber: 1, logIndex: 3 })] });
-    const first = await updateStats(null, ctx(), deps);
-    const again = await updateStats(first, ctx(), deps);
-    expect(again.totals).toEqual(first.totals);
-    expect(again.cursors).toEqual(first.cursors);
+  it("doesn't run while another refresh holds the lock", async () => {
+    const result = await runStatsRefresh({ store: memoryStore(null, false), rpc: fakeRpc([], 10n), ctx: c });
+    expect(result).toEqual({ ran: false, reason: "another refresh is running" });
   });
 
-  it("does not advance a cursor when an explorer page contains undecoded logs", async () => {
-    const { deps } = fakeExplorer({});
-    const base = await updateStats(null, ctx(), deps);
-    const undecodedDeps: IndexerDeps = {
-      ...deps,
-      async fetchLogs(contract, since, maxPages) {
-        if (contract !== "R") return deps.fetchLogs(contract, since, maxPages);
-        return {
-          logs: [], undecoded: 1, newest: { blockNumber: 2, logIndex: 0 }, truncated: false,
-        };
-      },
+  it("asks for a refresh when nothing is stored, when behind, or when older than the threshold", () => {
+    const now = new Date("2026-09-25T10:05:00.000Z");
+    const s = { ...emptyState(CHAIN_ID, 1n, T0), cursorBlock: "9", headBlock: "9" };
+    expect(needsRefresh({ state: null, lastError: null }, now)).toBe(true);
+    expect(needsRefresh({ state: s, lastError: null }, now)).toBe(false);
+    expect(needsRefresh({ state: { ...s, headBlock: "20" }, lastError: null }, now)).toBe(true);
+    expect(needsRefresh({ state: s, lastError: null }, new Date("2026-09-25T10:11:00.000Z"))).toBe(true);
+  });
+});
+
+describe("createStatsRpc", () => {
+  it("parses logs and falls back to the block timestamp when a log has none", async () => {
+    const log = registered(1n, 16n);
+    const responses: Record<string, unknown> = {
+      eth_getLogs: [{ ...log, blockNumber: "0x10", logIndex: "0x2", blockTimestamp: undefined }],
+      eth_getBlockByNumber: { timestamp: "0x64" },
     };
-    await expect(updateStats(base, ctx(), undecodedDeps)).rejects.toThrow(/cursor was not advanced/);
-    expect(base.cursors.registry).toBeNull();
-  });
-
-  it("marks a first build that hit the page cap as a lower bound", async () => {
-    const many = Array.from({ length: STATS_MAX_PAGES * 2 + 1 }, (_, i) => registeredLog("1", { blockNumber: i + 1, logIndex: 0 }));
-    const { deps } = fakeExplorer({ R: many }, 2);
-    const state = await updateStats(null, ctx(), deps);
-    expect(state.lowerBound).toBe(true);
-    expect(state.totals.invoicesRegistered).toBe(STATS_MAX_PAGES * 2);
-  });
-
-  it("rebuilds rather than skip a gap too large to page through", async () => {
-    const registry = [registeredLog("1", { blockNumber: 1, logIndex: 0 })];
-    const small = fakeExplorer({ R: registry }, 1);
-    const first = await updateStats(null, ctx(), small.deps);
-    for (let i = 0; i < STATS_MAX_PAGES + 1; i++) registry.push(registeredLog("1", { blockNumber: i + 2, logIndex: 0 }));
-    const next = await updateStats(first, { ...ctx(), now: "2026-09-26T00:00:00.000Z" }, small.deps);
-    expect(next.builtAt).toBe("2026-09-26T00:00:00.000Z");
-    expect(next.lowerBound).toBe(true);
-  });
-
-  it("looks each transaction up once even when it emitted several events", async () => {
-    const { deps, txCalls } = fakeExplorer({
-      R: [nettedLog("1", "1", { transactionHash: "0xs", blockNumber: 5, logIndex: 1 }), nettedLog("1", "1", { transactionHash: "0xs", blockNumber: 5, logIndex: 2 })],
-      S: [settledLog({ transactionHash: "0xs", blockNumber: 5, logIndex: 3 })],
+    const f = vi.fn(async (_u: unknown, init: { body: string }) => {
+      const { method } = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ result: responses[method] }) } as Response;
     });
-    const state = await updateStats(null, ctx(), deps);
-    expect(txCalls).toEqual(["0xs"]);
-    expect(state.totals.gasPaidWei).toBe("10");
-  });
-});
-
-function memoryStore(initial: StatsState | null, lockFree = true): StatsStore & { saved: StatsState | null } {
-  const store = {
-    saved: initial,
-    get: async () => store.saved,
-    set: async (s: StatsState) => {
-      store.saved = s;
-    },
-    lock: async () => lockFree,
-    unlock: async () => {},
-  };
-  return store;
-}
-
-describe("loadStats", () => {
-  const now = new Date("2026-09-25T12:00:00.000Z");
-  const stateAt = (updatedAt: string, builtAt = updatedAt): StatsState => ({ ...emptyState(CHAIN_ID, updatedAt), builtAt });
-
-  it("serves fresh stored stats without refreshing", async () => {
-    const stored = stateAt("2026-09-25T11:59:30.000Z");
-    const update = vi.fn();
-    expect(await loadStats(memoryStore(stored), update, now)).toBe(stored);
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it("refreshes stale stats incrementally and stores the result", async () => {
-    const stored = stateAt("2026-09-25T11:00:00.000Z");
-    const store = memoryStore(stored);
-    const fresh = stateAt("2026-09-25T12:00:00.000Z");
-    const update = vi.fn().mockResolvedValue(fresh);
-    expect(await loadStats(store, update, now)).toBe(fresh);
-    expect(update).toHaveBeenCalledWith(stored);
-    expect(store.saved).toBe(fresh);
-  });
-
-  it("rebuilds from nothing once the last full build is a day old", async () => {
-    const stored = stateAt("2026-09-25T11:00:00.000Z", "2026-09-24T11:00:00.000Z");
-    const update = vi.fn().mockResolvedValue(stored);
-    await loadStats(memoryStore(stored), update, now);
-    expect(update).toHaveBeenCalledWith(null);
-  });
-
-  it("keeps serving stored stats, with their real time, when a refresh fails", async () => {
-    const stored = stateAt("2026-09-25T09:00:00.000Z");
-    const result = await loadStats(memoryStore(stored), vi.fn().mockRejectedValue(new Error("explorer down")), now);
-    expect(result).toBe(stored);
-    expect(result.updatedAt).toBe("2026-09-25T09:00:00.000Z");
-  });
-
-  it("reports unavailable, never an empty state, when nothing is stored and the build fails", async () => {
-    await expect(loadStats(memoryStore(null), vi.fn().mockRejectedValue(new Error("explorer down")), now)).rejects.toThrow(
-      StatsUnavailableError,
-    );
-  });
-
-  it("serves stored stats when another request holds the refresh lock", async () => {
-    const stored = stateAt("2026-09-25T09:00:00.000Z");
-    const update = vi.fn();
-    expect(await loadStats(memoryStore(stored, false), update, now)).toBe(stored);
-    expect(update).not.toHaveBeenCalled();
-    await expect(loadStats(memoryStore(null, false), update, now)).rejects.toThrow(StatsUnavailableError);
+    const rpc = createStatsRpc("http://rpc", f as unknown as typeof fetch, 0);
+    const [out] = await rpc.getLogs([CONTRACTS.registry], 1n, 20n);
+    expect(out).toMatchObject({ blockNumber: 16n, logIndex: 2, blockTimestamp: 100 });
   });
 });
 
@@ -319,50 +228,39 @@ describe("format", () => {
     expect(formatUsdc("1650000000")).toEqual({ value: "1,650.00 USDC", exact: "1,650.00 USDC" });
     expect(formatUsdc("12400123456")).toEqual({ value: "12.4K USDC", exact: "12,400.123456 USDC" });
   });
-
-  it("keeps small gas totals readable", () => {
-    expect(formatGas("2502275000000000")).toEqual({ value: "0.0025 USDC", exact: "0.002502275 USDC" });
-    expect(formatGas("0").value).toBe("0 USDC");
-  });
 });
 
 describe("buildStatsView", () => {
   const contracts = { registry: "0xR", settler: "0xS", ledger: "0xL" };
+  const caughtUp = (): StatsState => ({ ...emptyState(CHAIN_ID, 1n, T0), cursorBlock: "9", headBlock: "9", firstEventAt: "2026-09-22T08:18:35.000Z" });
+  const opts = (now = T0) => ({ now: new Date(now), staleAfterMs: 15 * 60_000, lastError: null });
 
-  it("labels testnet, links every contract and notes demo activity separately", () => {
-    const state: StatsState = {
-      ...emptyState(CHAIN_ID, T0),
-      demo: { invoicesRegistered: 12, loopsSettled: 1 },
-      firstEventAt: "2026-09-22T08:18:35.000000Z",
-    };
-    const view = buildStatsView(state, contracts);
+  it("shows three headline figures, the settlement and certificate notes, and no operator line", () => {
+    const view = buildStatsView(caughtUp(), contracts, opts());
+    expect(view.headline.map((t) => t.label)).toEqual(["Invoices registered", "Value netted", "Loops settled"]);
+    expect(view.notes).toEqual([SETTLEMENT_NOTE, CERTIFICATE_NOTE]);
+    expect(JSON.stringify(view)).not.toMatch(/operator wallet|USDC moved/);
     expect(view.chainName).toBe("Arc testnet");
     expect(view.since).toBe("22 Sept 2026");
     expect(view.asOf).toBe("25 Sept 2026, 10:00 UTC");
-    expect(view.demoNote).toBe("Plus 12 invoices and 1 loop sent from Contraflow's operator wallet (the live demo and our own test runs), not counted above.");
+    expect(view.staleness).toBeNull();
     expect(view.contracts.map((c) => c.url)).toEqual([
       "https://explorer.testnet.arc.io/address/0xR",
       "https://explorer.testnet.arc.io/address/0xS",
       "https://explorer.testnet.arc.io/address/0xL",
     ]);
-    expect(view.headline.map((t) => t.label)).toEqual([
-      "Invoices registered",
-      "Value netted",
-      "Loops settled",
-      "USDC moved by settlement",
-    ]);
   });
 
-  it("words every figure as a lower bound when the history was truncated", () => {
-    const view = buildStatsView({ ...emptyState(CHAIN_ID, T0), lowerBound: true }, contracts);
-    expect(view.headline[0]).toMatchObject({ value: "At least 0", exact: "At least 0" });
-    // "USDC moved" is 0 by construction, not counted, so it's never a lower bound.
-    expect(view.headline[3]?.value).toBe("0 USDC");
+  it("says so when figures are old, still backfilling, or the last refresh failed", () => {
+    expect(buildStatsView(caughtUp(), contracts, opts("2026-09-25T10:30:00.000Z")).staleness).toMatch(/Not updated for 30 minutes/);
+    const behind = { ...caughtUp(), cursorBlock: "4", headBlock: "10" };
+    expect(buildStatsView(behind, contracts, opts()).staleness).toMatch(/Still counting from the chain \(40% done\)/);
+    const failed = buildStatsView(caughtUp(), contracts, { ...opts(), lastError: { message: "x", at: "2026-09-25T10:01:00.000Z" } });
+    expect(failed.staleness).toMatch(/Retrying automatically/);
   });
 
   it("never uses claims-discipline words or rounded-up wording", () => {
-    const view = buildStatsView({ ...emptyState(CHAIN_ID, T0), demo: { invoicesRegistered: 1, loopsSettled: 1 } }, contracts);
-    const copy = JSON.stringify(view).toLowerCase();
+    const copy = JSON.stringify(buildStatsView(caughtUp(), contracts, opts())).toLowerCase();
     for (const word of ["extinguish", "paid off", "discharge", "+", " over "]) expect(copy).not.toContain(word);
   });
 });
