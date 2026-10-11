@@ -42,8 +42,8 @@ Send your key as a bearer token:
 Authorization: Bearer cfk_test_…
 ```
 
-* **Test and live keys.** Keys starting `cfk_test_` work against Arc testnet. `cfk_live_` keys work against Arc mainnet once Contraflow is deployed there; until then they get `403 live_unavailable`. The network always comes from the key, never from the request.
-* **Issuing keys.** Sign in and create a test key at `/app/api-keys`. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime. Live keys are still issued by request.
+* **Test and live keys.** Keys starting `cfk_live_` act on Arc mainnet and are issued by request. Keys starting `cfk_test_` act on Arc testnet and work only on a testnet deployment; a mainnet deployment answers `403 test_unavailable`, and a testnet deployment answers `403 live_unavailable` to a live key. The network always comes from the key, never from the request.
+* **Issuing keys.** Live keys are issued by request. On a testnet deployment you can also sign in and create a test key at `/app/api-keys`. Contraflow stores only a hash of each key; the secret is shown once. You can hold two active keys at a time, so you can rotate without downtime.
 * **Failures.** A missing, malformed, unknown or revoked key gets `401 unauthorized`, with `WWW-Authenticate: Bearer realm="Contraflow API"`. The scheme is case-insensitive (`Bearer` or `bearer`).
 * **Request id.** Send `X-Request-Id` (1–128 visible ASCII characters) and the same value comes back on every response. If you omit it, Contraflow generates one.
 * **CORS.** Browser clients may call the API from any origin. Allowed headers: `Authorization`, `Content-Type`, `Idempotency-Key`, `X-Request-Id`. Wrong methods return JSON `405 method_not_allowed` with `Allow`.
@@ -101,7 +101,7 @@ Every error has the same shape:
 | ------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | 400    | `invalid_json`, `invalid_idempotency_key`                                          | Unparseable body; bad `Idempotency-Key`                                                      |
 | 401    | `unauthorized`                                                                     | Missing or invalid key                                                                       |
-| 403    | `live_unavailable`, `chain_unavailable`                                            | Live key before mainnet; a network without the ledger                                        |
+| 403    | `live_unavailable`, `test_unavailable`, `chain_unavailable`                        | A key for the other network; a network without the ledger                                    |
 | 404    | `not_found`                                                                        | No permission, not a party, or doesn't exist                                                 |
 | 405    | `method_not_allowed`                                                               | Wrong HTTP method; see `Allow`                                                               |
 | 409    | `duplicate_nonce`, `duplicate_proposal`, `idempotency_conflict`, `idempotency_in_progress`, `not_ready`, `already_applied` | See each endpoint                                       |

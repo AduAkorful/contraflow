@@ -2,7 +2,7 @@
 /// its domain is `{name: "ContraflowNettingLedger", version: "1", chainId, verifyingContract}`
 /// and the field order below mirrors its type strings. The known-vector test pins both.
 
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 import type { LedgerDomain } from "./types";
 
 export const LEDGER_DOMAIN_NAME = "ContraflowNettingLedger";
@@ -54,8 +54,8 @@ export const NETTING_CERTIFICATE_TYPES = {
 /// the mainnet chain switch.
 export function appLedgerDomain(): LedgerDomain {
   return {
-    chainId: BigInt(ARC_TESTNET_CHAIN_ID),
-    verifyingContract: addressesForChain(ARC_TESTNET_CHAIN_ID).nettingLedger,
+    chainId: BigInt(APP_CHAIN_ID),
+    verifyingContract: addressesForChain(APP_CHAIN_ID).nettingLedger,
   };
 }
 

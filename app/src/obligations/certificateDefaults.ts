@@ -3,7 +3,7 @@
 
 import { createArcPublicClient } from "../chain/client";
 import { defaultComplianceProvider } from "../compliance";
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { APP_CHAIN_ID } from "../contracts/addresses";
 import { postgresCertificateStore } from "../db/certificates";
 import { appLedgerDomain } from "../netting/domain";
 import { checkRateLimit } from "../ratelimit/limiter";
@@ -21,7 +21,7 @@ let cached: CertificateService | undefined;
 export function certificateService(): CertificateService {
   cached ??= createCertificateService({
     store: postgresCertificateStore,
-    client: createArcPublicClient(ARC_TESTNET_CHAIN_ID),
+    client: createArcPublicClient(APP_CHAIN_ID),
     domain: appLedgerDomain(),
     now: () => BigInt(Math.floor(Date.now() / 1000)),
     complianceProvider: defaultComplianceProvider(),

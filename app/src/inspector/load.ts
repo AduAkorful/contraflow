@@ -3,7 +3,7 @@
 /// requests per party, so repeat views are served from cache rather than re-hitting Blockscout,
 /// which has rate-limited this project before.
 
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 import {
   fetchAddressTokenTransfers,
   fetchAddressTransactions,
@@ -23,12 +23,12 @@ const CACHE_TTL_SECONDS = 600;
 const CACHE_VERSION = "v2";
 
 function knownAddresses(): KnownAddresses {
-  const { registry, settler, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+  const { registry, settler, usdc } = addressesForChain(APP_CHAIN_ID);
   return { registry, settler, usdc, operator: operatorAddress() };
 }
 
 function cacheKey(kind: "address" | "cycle", id: string): string {
-  return `inspector:${CACHE_VERSION}:${ARC_TESTNET_CHAIN_ID}:${kind}:${id.toLowerCase()}`;
+  return `inspector:${CACHE_VERSION}:${APP_CHAIN_ID}:${kind}:${id.toLowerCase()}`;
 }
 
 /// Cache failures never fail the lookup — an unreachable cache just means a direct fetch.

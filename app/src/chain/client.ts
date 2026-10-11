@@ -2,9 +2,20 @@
 /// tests can point at a local anvil
 /// instance without touching the real network config.
 
-import { createPublicClient, createWalletClient, http, type Chain, type Hex, type PublicClient, type WalletClient } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  fallback,
+  http,
+  type Chain,
+  type Hex,
+  type PublicClient,
+  type Transport,
+  type WalletClient,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { rpcUrlsFor } from "./rpc";
 
 export const arcTestnet: Chain = {
   id: ARC_TESTNET_CHAIN_ID,
@@ -45,14 +56,27 @@ export function chainById(chainId: number): Chain {
 // without them, `tsconfig.json`'s `declaration: true` fails to build a `.d.ts` for these
 // functions at all (TS2742: the inferred type reaches into viem's internal per-action type
 // files, which isn't a "portable" type it can re-emit).
+/// An explicit `rpcUrl` (tests, a local anvil) is used as given. On the server the configured
+/// endpoint comes first and Arc's documented public endpoints follow, tried in that order when one
+/// fails (rate limit, outage); concurrent calls to one endpoint travel as a single JSON-RPC batch.
+/// In the browser the chain's own default endpoint is used.
+function transportFor(chainId: number, rpcUrl?: string): Transport {
+  if (rpcUrl) return http(rpcUrl);
+  if (typeof window !== "undefined") return http();
+  const urls = rpcUrlsFor(chainId);
+  const endpoints = urls.map((url) => http(url, { batch: true, retryCount: 1, timeout: 10_000 }));
+  if (endpoints.length === 0) return http();
+  return endpoints.length === 1 ? endpoints[0]! : fallback(endpoints, { rank: false, retryCount: 1 });
+}
+
 export function createArcPublicClient(chainId: number, rpcUrl?: string): PublicClient {
-  return createPublicClient({ chain: chainById(chainId), transport: http(rpcUrl) });
+  return createPublicClient({ chain: chainById(chainId), transport: transportFor(chainId, rpcUrl) });
 }
 
 export function createArcWalletClient(chainId: number, privateKey: Hex, rpcUrl?: string): WalletClient {
   return createWalletClient({
     account: privateKeyToAccount(privateKey),
     chain: chainById(chainId),
-    transport: http(rpcUrl),
+    transport: transportFor(chainId, rpcUrl),
   });
 }

@@ -17,14 +17,20 @@ import { insertInvoiceDocumentIfAbsent, getInvoiceDocumentByRef } from "@/src/db
 import { createInvoiceShareLink, getInvoiceShareLink } from "@/src/attest/invoiceLinks";
 import { guardPublicRead } from "@/src/ratelimit/publicReadGuard";
 
+const NONCE_UNAVAILABLE = "Couldn't read this pair's invoice history from Arc just now. Try again in a minute.";
+
 export type NonceResult = { ok: true; nonce: string } | { ok: false; error: string };
 
 export async function nextNonceFor(debtor: string, creditor: string): Promise<NonceResult> {
   if (!isAddress(debtor) || !isAddress(creditor)) return { ok: false, error: "Invalid address." };
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
-  const nonce = await resolveNextNonce(debtor as Address, creditor as Address);
-  return { ok: true, nonce: nonce.toString() };
+  try {
+    const nonce = await resolveNextNonce(debtor as Address, creditor as Address);
+    return { ok: true, nonce: nonce.toString() };
+  } catch {
+    return { ok: false, error: NONCE_UNAVAILABLE };
+  }
 }
 
 export type FreshnessResult = { ok: true; fresh: boolean; expectedNonce: string } | { ok: false; error: string };
@@ -37,8 +43,12 @@ export async function checkLinkFreshness(debtor: string, creditor: string, claim
   if (!isAddress(debtor) || !isAddress(creditor)) return { ok: false, error: "Invalid address." };
   const guard = await guardPublicRead("invoice-freshness");
   if (!guard.allowed) return { ok: false, error: guard.error };
-  const expected = await resolveNextNonce(debtor as Address, creditor as Address);
-  return { ok: true, fresh: expected.toString() === claimedNonce, expectedNonce: expected.toString() };
+  try {
+    const expected = await resolveNextNonce(debtor as Address, creditor as Address);
+    return { ok: true, fresh: expected.toString() === claimedNonce, expectedNonce: expected.toString() };
+  } catch {
+    return { ok: false, error: NONCE_UNAVAILABLE };
+  }
 }
 
 interface SerializableInvoice {

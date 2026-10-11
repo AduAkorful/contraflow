@@ -3,12 +3,16 @@
 /// topic-filtered log search silently returns zero results even for real matches.
 /// Reconciliation therefore paginates full decoded contract logs and filters client-side.
 
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { APP_CHAIN_ID } from "../contracts/addresses";
 import { blockscoutBaseFor } from "./explorer";
 
 export { blockscoutBaseFor };
 
-const BLOCKSCOUT_BASE = blockscoutBaseFor(ARC_TESTNET_CHAIN_ID);
+/// Resolved per call, so a chain with no verified explorer API fails the call that needs it, not
+/// the import of every page that touches this module.
+function blockscoutBase(): string {
+  return blockscoutBaseFor(APP_CHAIN_ID);
+}
 
 /// Bounds a single reconciliation call's log-fetch cost — at 50 items/page this is up to 1000
 /// decoded logs, comfortably more than this project's actual Registry log volume today. Flagged,
@@ -64,7 +68,7 @@ export async function fetchContractLogsBounded(contractAddress: string): Promise
   let truncated = false;
 
   for (let page = 0; page < MAX_RECONCILE_PAGES; page++) {
-    const url = new URL(`${BLOCKSCOUT_BASE}/api/v2/addresses/${contractAddress}/logs`);
+    const url = new URL(`${blockscoutBase()}/api/v2/addresses/${contractAddress}/logs`);
     if (cursor) {
       for (const [key, value] of Object.entries(cursor)) url.searchParams.set(key, String(value));
     }
@@ -112,7 +116,7 @@ export interface TransactionFeeInfo {
 }
 
 export async function fetchTransactionFee(txHash: string): Promise<TransactionFeeInfo> {
-  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/transactions/${txHash}`);
+  const res = await fetch(`${blockscoutBase()}/api/v2/transactions/${txHash}`);
   if (!res.ok) throw new Error(`Blockscout transaction fetch failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { block_number: number; fee: { value: string } };
   return { blockNumber: data.block_number, gasPaidWei: data.fee.value };
@@ -121,7 +125,7 @@ export async function fetchTransactionFee(txHash: string): Promise<TransactionFe
 /// One transaction's own decoded logs — used by the receipt route's on-chain-reconstruction
 /// fallback so a single tx hash lookup never needs a full contract log scan.
 export async function fetchTransactionLogs(txHash: string): Promise<DecodedLog[]> {
-  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/transactions/${txHash}/logs`);
+  const res = await fetch(`${blockscoutBase()}/api/v2/transactions/${txHash}/logs`);
   if (res.status === 404) throw new BlockscoutNotFoundError(`Blockscout has no transaction ${txHash}`);
   if (!res.ok) throw new Error(`Blockscout transaction logs fetch failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { items: RawLogItem[] };
@@ -138,7 +142,7 @@ export async function fetchTransactionLogs(txHash: string): Promise<DecodedLog[]
 }
 
 export async function fetchTransactionTimestamp(txHash: string): Promise<string> {
-  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/transactions/${txHash}`);
+  const res = await fetch(`${blockscoutBase()}/api/v2/transactions/${txHash}`);
   if (!res.ok) throw new Error(`Blockscout transaction fetch failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { timestamp: string };
   return data.timestamp;
@@ -159,7 +163,7 @@ async function fetchBoundedPages<Raw, T>(path: string, map: (raw: Raw) => T): Pr
   let cursor: Record<string, string | number> | null = null;
 
   for (let page = 0; page < MAX_ACTIVITY_PAGES; page++) {
-    const url = new URL(`${BLOCKSCOUT_BASE}${path}`);
+    const url = new URL(`${blockscoutBase()}${path}`);
     if (cursor) {
       for (const [key, value] of Object.entries(cursor)) url.searchParams.set(key, String(value));
     }
@@ -215,7 +219,7 @@ export function fetchAddressTokenTransfers(address: string): Promise<BoundedList
 /// `/api/v2/addresses/{a}` answers 200 even for an address the explorer has never seen, with
 /// `is_contract` unset — which correctly reads as "not a contract".
 export async function fetchIsContract(address: string): Promise<boolean> {
-  const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/addresses/${address}`);
+  const res = await fetch(`${blockscoutBase()}/api/v2/addresses/${address}`);
   if (!res.ok) throw new Error(`Blockscout address fetch failed: ${res.status} ${res.statusText}`);
   const data = (await res.json()) as { is_contract?: boolean | null };
   return data.is_contract === true;

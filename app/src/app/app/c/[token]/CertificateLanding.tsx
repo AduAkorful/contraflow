@@ -15,7 +15,8 @@ import { displayDate, displayMinorAmount, shortAddr } from "@/components/netting
 import { groupChecks, type CheckGroup } from "@/components/netting/checks";
 import { checkAsParty, hasFailedCheck } from "@/components/netting/partyChecks";
 import { ActionButton, CheckList, LoopParties, OwnObligation } from "@/components/netting/CertificateParts";
-import { arcTestnet } from "@/src/chain/client";
+import { chainById } from "@/src/chain/client";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { contraflowNettingLedgerAbi } from "@/src/contracts/abi/index";
 import { certificateTypedData } from "@/src/netting/certificate";
 import { ledgerChainId } from "@/src/netting/domain";
@@ -50,7 +51,7 @@ const SYNC_RETRY_LIMIT = 3;
 const SYNC_RETRY_DELAY_MS = 3_000;
 const INVALID = "This certificate failed a check in your browser. Don't sign or apply it.";
 const UNCONFIRMED = "We couldn't finish checking this certificate in your browser. Reload to try again before you sign or apply it.";
-const EXPLORER = arcTestnet.blockExplorers?.default.url;
+const EXPLORER = chainById(APP_CHAIN_ID).blockExplorers?.default.url;
 
 export function CertificateLanding({ token }: { token: string }) {
   const { address, isConnected, connector } = useAccount();

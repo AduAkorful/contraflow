@@ -256,7 +256,8 @@ Nothing in Redis is permanent. Losing it would cancel sign-ins in progress and r
 | Sign-in nonces | Issued, unused SIWE nonces | 5 minutes; deleted on first use |
 | Rate-limit counters | Per-IP, per-party and per-tenant request counts | The limit's window |
 | Inspector cache | Onchain facts about an address or loop | 10 minutes |
-| Protocol stats | Running totals and the explorer cursor | Until rebuilt, at least daily |
+| Protocol stats | Running totals and the block cursor | Until rebuilt |
+| Chain index | The Registry's registered and netted events, the largest nonce per pair, and a block cursor (rebuilt from the deployment block if lost) | Until rebuilt |
 | Locks | Stats refresh, webhook pipeline | Seconds; released when done |
 
 ## Onchain

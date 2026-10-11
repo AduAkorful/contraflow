@@ -3,7 +3,7 @@
 /// live permission look the same to the caller: "Not found", as in the web app.
 
 import type { Address, Hex } from "viem";
-import { addressesForChain } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 import { chainIdForMode, hashApiKey, keyMode, type KeyMode } from "./keys";
 import { hasScope, type ScopeName } from "./permissions";
 
@@ -91,9 +91,16 @@ export async function authenticate(authorization: string | null, store: TenantSt
   const stored = await store.findKey(hashApiKey(key));
   if (!stored || stored.revoked || !stored.tenantActive || stored.mode !== mode) throw UNAUTHORIZED;
 
+  // The services under the API are bound to the chain this deployment serves, so a key for the
+  // other chain can never be honoured here, whatever else is configured.
   const chainId = chainIdForMode(mode);
+  if (chainId !== APP_CHAIN_ID) {
+    throw mode === "live"
+      ? new ApiError(403, "live_unavailable", "Live keys work on Contraflow's Arc mainnet deployment. This deployment serves the test network; use a test key.")
+      : new ApiError(403, "test_unavailable", "Test keys aren't available on Arc mainnet. Live keys are issued on request.");
+  }
   if (!chainDeployed(chainId)) {
-    throw new ApiError(403, "live_unavailable", "Live keys work once Contraflow is on Arc mainnet. Use a test key.");
+    throw new ApiError(403, "live_unavailable", "Live keys work once Contraflow is on Arc mainnet.");
   }
   return { tenantId: stored.tenantId, mode, chainId };
 }

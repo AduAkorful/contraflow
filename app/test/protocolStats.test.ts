@@ -5,7 +5,7 @@ import { contraflowNettingLedgerAbi, contraflowRegistryAbi, contraflowSettlerAbi
 import { emptyState, foldEvents, isCaughtUp, type StatsState } from "../src/stats/aggregate";
 import { parseStatsEvent, UnrecognisedStatsEvent, type RawLog } from "../src/stats/events";
 import { refreshStats, type IndexerContext, type StatsRpc } from "../src/stats/indexer";
-import { needsRefresh, runStatsRefresh, statsContext, type StatsStore, type StoredStats } from "../src/stats/load";
+import { needsRefresh, REFRESH_AFTER_MS, runStatsRefresh, statsContext, type StatsStore, type StoredStats } from "../src/stats/load";
 import { createStatsRpc } from "../src/stats/rpc";
 import { formatCount, formatUsdc } from "../src/stats/format";
 import { buildStatsView, VALUE_NETTED_NOTE } from "../src/stats/view";
@@ -195,12 +195,12 @@ describe("runStatsRefresh", () => {
   });
 
   it("asks for a refresh when nothing is stored, when behind, or when older than the threshold", () => {
-    const now = new Date("2026-09-25T10:05:00.000Z");
+    const now = new Date(Date.parse(T0) + 10_000);
     const s = { ...emptyState(CHAIN_ID, 1n, T0), cursorBlock: "9", headBlock: "9" };
     expect(needsRefresh({ state: null, lastError: null }, now)).toBe(true);
     expect(needsRefresh({ state: s, lastError: null }, now)).toBe(false);
     expect(needsRefresh({ state: { ...s, headBlock: "20" }, lastError: null }, now)).toBe(true);
-    expect(needsRefresh({ state: s, lastError: null }, new Date("2026-09-25T10:11:00.000Z"))).toBe(true);
+    expect(needsRefresh({ state: s, lastError: null }, new Date(Date.parse(T0) + REFRESH_AFTER_MS + 1_000))).toBe(true);
   });
 });
 

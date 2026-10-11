@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
 
-const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFee: vi.fn(), fetchTransactionLogs: vi.fn(), getInvoice: vi.fn(), BlockscoutNotFoundError: class BlockscoutNotFoundError extends Error {} }));
-const { getSettlement, getInvoicesForSettlement, fetchTransactionFee, fetchTransactionLogs, getInvoice } = mocks;
+const mocks = vi.hoisted(() => ({ getSettlement: vi.fn(), getInvoicesForSettlement: vi.fn(), fetchTransactionFromChain: vi.fn(), getInvoice: vi.fn() }));
+const { getSettlement, getInvoicesForSettlement, fetchTransactionFromChain, getInvoice } = mocks;
 vi.mock("../src/chain/operatorEnv", () => ({ arcPublicClient: () => ({}) }));
 vi.mock("../src/chain/readInvoices", () => ({ getInvoice: mocks.getInvoice }));
 vi.mock("../src/db/invoices", () => ({ getSettlement: mocks.getSettlement, getInvoicesForSettlement: mocks.getInvoicesForSettlement }));
+vi.mock("../src/chain/txReceipt", () => ({ fetchTransactionFromChain: mocks.fetchTransactionFromChain }));
 vi.mock("../src/blockscout/client", () => ({
-  BlockscoutNotFoundError: mocks.BlockscoutNotFoundError,
-  fetchTransactionFee: mocks.fetchTransactionFee,
-  fetchTransactionLogs: mocks.fetchTransactionLogs,
   paramValue: (parameters: Array<{ name: string; value: string | string[] }>, name: string) => parameters.find((p) => p.name === name)?.value,
 }));
 
@@ -40,29 +38,31 @@ describe("receipt data fallback", () => {
     vi.resetAllMocks();
     getSettlement.mockResolvedValue(null);
     getInvoicesForSettlement.mockResolvedValue([]);
-    fetchTransactionLogs.mockResolvedValue(validReceiptEvents());
-    fetchTransactionFee.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123" });
+    fetchTransactionFromChain.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123", status: "success", logs: validReceiptEvents() });
   });
 
-  it("answers no settlement when the explorer doesn't know the transaction", async () => {
-    fetchTransactionLogs.mockRejectedValue(new mocks.BlockscoutNotFoundError("no such transaction"));
+  it("answers no settlement when the chain has no receipt for the transaction", async () => {
+    fetchTransactionFromChain.mockResolvedValue(null);
     expect(await getReceiptData(txHash)).toBeNull();
-    expect(fetchTransactionFee).not.toHaveBeenCalled();
   });
 
-  it("still surfaces other explorer failures", async () => {
-    fetchTransactionLogs.mockRejectedValue(new Error("Blockscout transaction logs fetch failed: 500"));
+  it("answers no settlement for a reverted transaction", async () => {
+    fetchTransactionFromChain.mockResolvedValue({ blockNumber: 10, gasPaidWei: "123", status: "reverted", logs: [] });
+    expect(await getReceiptData(txHash)).toBeNull();
+  });
+
+  it("still surfaces an RPC failure", async () => {
+    fetchTransactionFromChain.mockRejectedValue(new Error("rpc down: 500"));
     await expect(getReceiptData(txHash)).rejects.toThrow("500");
   });
 
-  it.each(["bad", "0x1234", `0x${"zz".repeat(32)}`, `${txHash}00`, ""])("answers no settlement for %j without touching the database or explorer", async (input) => {
+  it.each(["bad", "0x1234", `0x${"zz".repeat(32)}`, `${txHash}00`, ""])("answers no settlement for %j without touching the database or the chain", async (input) => {
     expect(await getReceiptData(input)).toBeNull();
     expect(getSettlement).not.toHaveBeenCalled();
-    expect(fetchTransactionLogs).not.toHaveBeenCalled();
-    expect(fetchTransactionFee).not.toHaveBeenCalled();
+    expect(fetchTransactionFromChain).not.toHaveBeenCalled();
   });
 
-  it("adds the invoice parties from the Registry when it falls back to explorer events", async () => {
+  it("adds the invoice parties from the Registry when it falls back to chain events", async () => {
     getInvoice.mockResolvedValue({ debtor: "0x00000000000000000000000000000000000000d1", creditor: "0x00000000000000000000000000000000000000c1" });
     const result = await getReceiptData(txHash);
     expect(result?.invoices[0]).toMatchObject({
@@ -78,7 +78,7 @@ describe("receipt data fallback", () => {
     expect(result?.invoices[0]?.debtor).toBeUndefined();
   });
 
-  it("falls back to authenticated Registry and Settler events when the DB read throws", async () => {
+  it("falls back to the transaction's Registry and Settler events when the DB read throws", async () => {
     getSettlement.mockRejectedValueOnce(new Error("database unavailable"));
     const result = await getReceiptData(txHash);
     expect(result?.invoices).toHaveLength(1);
@@ -87,18 +87,18 @@ describe("receipt data fallback", () => {
 
   it("does not treat a foreign emitter's InvoiceNetted event as a receipt", async () => {
     const valid = validReceiptEvents();
-    fetchTransactionLogs.mockResolvedValueOnce([
+    fetchTransactionFromChain.mockResolvedValueOnce({ blockNumber: 10, gasPaidWei: "123", status: "success", logs: [
       event("0x00000000000000000000000000000000000000aa", "InvoiceNetted", valid[0]!.parameters),
       valid[1],
-    ]);
+    ] });
     expect(await getReceiptData(txHash)).toBeNull();
   });
 
   it("rejects partial event sets that disagree with the Settled aggregate", async () => {
     const valid = validReceiptEvents();
-    fetchTransactionLogs.mockResolvedValueOnce([valid[0], event(settler, "Settled", [
+    fetchTransactionFromChain.mockResolvedValueOnce({ blockNumber: 10, gasPaidWei: "123", status: "success", logs: [valid[0], event(settler, "Settled", [
       { name: "invoiceIds", value: [invoiceId, `0x${"ef".repeat(32)}`] }, { name: "wNet", value: "1000000" },
-    ])]);
+    ])] });
     expect(await getReceiptData(txHash)).toBeNull();
   });
 

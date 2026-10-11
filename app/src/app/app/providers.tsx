@@ -13,14 +13,16 @@ import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider, createConfig } from "@privy-io/wagmi";
 import { http } from "wagmi";
 import { SignInProvider } from "@/components/wallet/SignInProvider";
-import { arcTestnet } from "@/src/chain/client";
-import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { chainById } from "@/src/chain/client";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { gatewaySourceChains, unifiedBalanceEnabled, viemChainFor } from "@/src/kits/gatewayChains";
 import { queryClient } from "@/src/query/client";
 
+const appChain = chainById(APP_CHAIN_ID);
+
 const wagmiConfig = createConfig({
-  chains: [arcTestnet],
-  transports: { [arcTestnet.id]: http() },
+  chains: [appChain],
+  transports: { [appChain.id]: http() },
   ssr: true,
 });
 
@@ -28,8 +30,8 @@ const wagmiConfig = createConfig({
 /// chain" deposits from the user's wallet on a source chain. wagmi's own config stays Arc-only, so
 /// every other flow is unchanged.
 const privyChains = [
-  arcTestnet,
-  ...(unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID) ? gatewaySourceChains(ARC_TESTNET_CHAIN_ID).map(viemChainFor) : []),
+  appChain,
+  ...(unifiedBalanceEnabled(APP_CHAIN_ID) ? gatewaySourceChains(APP_CHAIN_ID).map(viemChainFor) : []),
 ];
 
 /// `PrivyProvider` throws synchronously (crashing this whole segment) unless `appId` is a
@@ -63,7 +65,7 @@ export function Providers({
           loginMessage: "Choose a wallet. Nothing is sent onchain.",
           walletList: ["detected_ethereum_wallets", "metamask", "coinbase_wallet", "rainbow", "wallet_connect"],
         },
-        defaultChain: arcTestnet,
+        defaultChain: appChain,
         supportedChains: privyChains,
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
       }}

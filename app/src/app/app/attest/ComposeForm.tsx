@@ -18,7 +18,7 @@ import { invoiceAttestationTypedData, type InvoiceAttestation } from "@/src/atte
 import { encodeAttestLink } from "@/src/attest/link";
 import { hashInvoiceDocument, type CanonicalInvoiceDocument } from "@/src/attest/document";
 import { formatUsdcAmount, parseUsdcAmount, UsdcAmountError } from "@/src/attest/amount";
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import { starterGrantToast } from "@/src/attest/grantCopy";
 import { nextNonceFor, saveInvoiceDocument, createInvoiceLink } from "./actions";
@@ -70,7 +70,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   async function ensureGrant() {
     const result = await requestGrant();
     if (result.ok && !result.alreadyGranted && result.amountUsdc) {
-      setGrantNote(starterGrantToast(result.amountUsdc, ARC_TESTNET_CHAIN_ID));
+      setGrantNote(starterGrantToast(result.amountUsdc, APP_CHAIN_ID));
     }
   }
 
@@ -135,7 +135,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       return;
     }
 
-    const { registry, usdc } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+    const { registry, usdc } = addressesForChain(APP_CHAIN_ID);
     const built: InvoiceAttestation = {
       invoiceRef,
       amount,
@@ -146,7 +146,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       creditor,
       nonce: BigInt(nonceResult.nonce),
       registry,
-      chainId: BigInt(ARC_TESTNET_CHAIN_ID),
+      chainId: BigInt(APP_CHAIN_ID),
     };
     setInvoice(built);
     setInvoiceDocument(doc);
@@ -158,7 +158,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
     setError(null);
     setPhase("signing");
     try {
-      await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
+      await prepareWalletContext(connector, signerAddress as Address, APP_CHAIN_ID, switchChainAsync);
       const typedData = invoiceAttestationTypedData(invoice);
       const signatureA = await signTypedData(typedData, {
         title: "Confirm this invoice",
@@ -170,7 +170,7 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           earlyNetConsent: invoice.earlyNetConsent,
         }),
       });
-      await prepareWalletContext(connector, signerAddress as Address, ARC_TESTNET_CHAIN_ID, switchChainAsync);
+      await prepareWalletContext(connector, signerAddress as Address, APP_CHAIN_ID, switchChainAsync);
       const encoded = encodeAttestLink({ invoice, role, signatureA });
       const stored = await createInvoiceLink(encoded);
       if (!stored.ok) {

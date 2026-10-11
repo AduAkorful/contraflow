@@ -2,7 +2,7 @@
 /// component, so the copy rules are tested: "netted" and "settled" only, never "extinguished",
 /// "paid" or "discharged", and no "+" or "over" rounding.
 
-import { blockscoutBaseFor } from "../blockscout/client";
+import { explorerAddressUrl } from "../blockscout/explorer";
 import { ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
 import { isCaughtUp, type StatsState } from "./aggregate";
 import { formatAsOf, formatCount, formatDate, formatUsdc, type Formatted } from "./format";
@@ -37,7 +37,6 @@ export function buildStatsView(
 ): StatsView {
   const { totals } = state;
   const loops = totals.invoiceLoopsSettled + totals.certificatesApplied;
-  const explorer = blockscoutBaseFor(state.chainId);
 
   const headline: StatTile[] = [
     { label: "Invoices registered", ...formatCount(totals.invoicesRegistered) },
@@ -83,9 +82,9 @@ export function buildStatsView(
     detail,
     staleness,
     contracts: [
-      { label: "Registry", url: `${explorer}/address/${contracts.registry}` },
-      { label: "Settler", url: `${explorer}/address/${contracts.settler}` },
-      { label: "Netting ledger", url: `${explorer}/address/${contracts.ledger}` },
+      { label: "Registry", url: explorerAddressUrl(state.chainId, contracts.registry) ?? "" },
+      { label: "Settler", url: explorerAddressUrl(state.chainId, contracts.settler) ?? "" },
+      { label: "Netting ledger", url: explorerAddressUrl(state.chainId, contracts.ledger) ?? "" },
     ],
   };
 }

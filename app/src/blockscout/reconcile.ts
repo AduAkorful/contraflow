@@ -3,8 +3,10 @@
 /// that succeeded on-chain but crashed before the database write landed, or a `register()` call
 /// made directly against the contract (permissionless) without ever going through this app.
 
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
-import { fetchContractLogs, fetchTransactionFee, paramValue, type DecodedLog } from "./client";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
+import { paramValue, type DecodedLog } from "./client";
+import { fetchTransactionFromChain } from "../chain/txReceipt";
+import { indexedRegistryLogs } from "../chainindex/source";
 import {
   getInvoicesForAddress,
   upsertRegisteredInvoice,
@@ -106,8 +108,8 @@ export async function reconcileAddress(address: string): Promise<ReconcileResult
   }
 
   try {
-    const { registry } = addressesForChain(ARC_TESTNET_CHAIN_ID);
-    const logs = await fetchContractLogs(registry);
+    const { registry } = addressesForChain(APP_CHAIN_ID);
+    const { logs } = await indexedRegistryLogs(APP_CHAIN_ID);
 
     const registered: RegisteredEvent[] = [];
     const netted: NettedEvent[] = [];
@@ -160,7 +162,8 @@ export async function reconcileAddress(address: string): Promise<ReconcileResult
     for (const settleTxHash of settleTxHashesTouched) {
       const cycle = nettedByTx.get(settleTxHash) ?? [];
       const wNetUsdc = formatUsdcDisplay(cycle[0]?.wNetBaseUnits ?? 0n);
-      const fee = await fetchTransactionFee(settleTxHash);
+      const fee = await fetchTransactionFromChain(APP_CHAIN_ID, settleTxHash);
+      if (!fee) continue;
       await upsertSettlement({
         settleTxHash,
         blockNumber: String(fee.blockNumber),

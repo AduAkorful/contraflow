@@ -4,7 +4,7 @@ const getSession = vi.fn();
 const checkRateLimit = vi.fn();
 const redisGet = vi.fn();
 const redisSet = vi.fn();
-const fetchContractLogsBounded = vi.fn();
+const indexedRegistryLogs = vi.fn();
 const fetchNettableInvoiceEdges = vi.fn();
 const filterFlaggedInvoices = vi.fn();
 const getReceiptData = vi.fn();
@@ -15,7 +15,8 @@ const upsertSettlement = vi.fn();
 vi.mock("../src/session/getSession", () => ({ getSession }));
 vi.mock("../src/ratelimit/limiter", () => ({ checkRateLimit }));
 vi.mock("../src/upstash/client", () => ({ redis: () => ({ get: redisGet, set: redisSet }) }));
-vi.mock("../src/blockscout/client", () => ({ fetchContractLogsBounded, fetchTransactionFee }));
+vi.mock("../src/chainindex/source", () => ({ indexedRegistryLogs }));
+vi.mock("../src/chain/txReceipt", () => ({ fetchTransactionFromChain: fetchTransactionFee }));
 vi.mock("../src/chain/readInvoices", () => ({ fetchNettableInvoiceEdges }));
 vi.mock("../src/compliance", () => ({
   defaultComplianceProvider: () => ({}),
@@ -32,7 +33,7 @@ const HASH = `0x${"ab".repeat(32)}`;
 
 describe("findSettleableLoop", () => {
   beforeEach(() => {
-    for (const fn of [getSession, checkRateLimit, redisGet, redisSet, fetchContractLogsBounded, fetchNettableInvoiceEdges, filterFlaggedInvoices]) {
+    for (const fn of [getSession, checkRateLimit, redisGet, redisSet, indexedRegistryLogs, fetchNettableInvoiceEdges, filterFlaggedInvoices]) {
       fn.mockReset();
     }
     checkRateLimit.mockResolvedValue({ allowed: true });
@@ -44,7 +45,7 @@ describe("findSettleableLoop", () => {
 
   it("uses the session address, never a client value", async () => {
     getSession.mockResolvedValueOnce({ address: ME });
-    fetchContractLogsBounded.mockResolvedValueOnce({ logs: [], truncated: false });
+    indexedRegistryLogs.mockResolvedValueOnce({ logs: [], truncated: false });
     await findSettleableLoop();
     expect(checkRateLimit).toHaveBeenCalledWith(`settle:loop:${ME}`, 10, 60);
   });
@@ -52,7 +53,7 @@ describe("findSettleableLoop", () => {
   it("fails closed when the caller is signed out", async () => {
     getSession.mockResolvedValueOnce(null);
     await expect(findSettleableLoop()).resolves.toEqual({ kind: "error", error: "Sign in first." });
-    expect(fetchContractLogsBounded).not.toHaveBeenCalled();
+    expect(indexedRegistryLogs).not.toHaveBeenCalled();
   });
 
   it("fails closed when the rate limiter is down", async () => {
@@ -79,7 +80,7 @@ describe("findSettleableLoop", () => {
         { name: "nonce", value: "1" },
       ],
     });
-    fetchContractLogsBounded.mockResolvedValueOnce({ logs: [registered(1, ME, B), registered(2, B, C), registered(3, C, ME)], truncated: false });
+    indexedRegistryLogs.mockResolvedValueOnce({ logs: [registered(1, ME, B), registered(2, B, C), registered(3, C, ME)], truncated: false });
     fetchNettableInvoiceEdges.mockRejectedValueOnce(new Error("rpc down"));
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
     await expect(findSettleableLoop()).resolves.toEqual({ kind: "error", error: "Couldn't check for loops right now." });
@@ -87,7 +88,7 @@ describe("findSettleableLoop", () => {
 
   it("reports truncated history as incomplete when the log scan fails", async () => {
     getSession.mockResolvedValueOnce({ address: ME });
-    fetchContractLogsBounded.mockRejectedValueOnce(new Error("explorer down"));
+    indexedRegistryLogs.mockRejectedValueOnce(new Error("chain index behind"));
     await expect(findSettleableLoop()).resolves.toEqual({ kind: "incomplete" });
   });
 });

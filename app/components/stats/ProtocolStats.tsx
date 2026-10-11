@@ -1,8 +1,10 @@
 "use client";
 
-/// Protocol-wide totals counted from contract events. Shown on Overview, collapsed.
+/// Protocol-wide totals counted from contract events. Shown on the home page.
 /// If the stats can't be loaded it shows no figures at all: a zero here would be a false statement,
-/// not a placeholder.
+/// not a placeholder. While the tab is visible it asks again every 30 seconds, so a change onchain
+/// shows within about half a minute; a failed re-ask keeps the figures already shown (their own
+/// "as of" and out-of-date note stay true), and numbers change in place without animation.
 
 import { useEffect, useId, useState } from "react";
 import { loadProtocolStats, type ProtocolStatsResult } from "../../src/app/app/stats/actions";
@@ -68,9 +70,13 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
           {view.contracts.map((c) => (
             <span key={c.label}>
               {" · "}
-              <a href={c.url} target="_blank" rel="noopener noreferrer" className="tap-inline text-gold underline">
-                {c.label}
-              </a>
+              {c.url ? (
+                <a href={c.url} target="_blank" rel="noopener noreferrer" className="tap-inline text-gold underline">
+                  {c.label}
+                </a>
+              ) : (
+                c.label
+              )}
             </span>
           ))}
           {" · "}
@@ -100,7 +106,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
               amounts never go onchain, so they aren&apos;t in value netted.
             </li>
             <li>
-              Every event counts, including the live demo and our own test runs, so anyone can recount these
+              Every event counts, including our own test runs, so anyone can recount these
               figures from the chain{view.since ? ` (counting since ${view.since})` : ""}.
             </li>
           </ul>
@@ -129,16 +135,41 @@ function Skeleton({ variant }: { variant: "headline" | "full" }) {
   );
 }
 
+/// How often an open, visible page asks for fresh figures.
+export const STATS_POLL_MS = 30_000;
+
 export function ProtocolStats({ variant }: { variant: "headline" | "full" }) {
   const [result, setResult] = useState<ProtocolStatsResult | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadProtocolStats()
-      .then((r) => !cancelled && setResult(r))
-      .catch(() => !cancelled && setResult({ ok: false, error: "Stats are unavailable right now." }));
+    let lastAt = 0;
+
+    async function load() {
+      lastAt = Date.now();
+      try {
+        const next = await loadProtocolStats();
+        if (cancelled) return;
+        // A failed re-ask must not replace figures that were already shown.
+        setResult((prev) => (next.ok || !prev || !prev.ok ? next : prev));
+      } catch {
+        if (cancelled) return;
+        setResult((prev) => prev ?? { ok: false, error: "Stats are unavailable right now." });
+      }
+    }
+
+    void load();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, STATS_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastAt >= STATS_POLL_MS) void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

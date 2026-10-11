@@ -6,7 +6,7 @@
 import type { Address, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createArcPublicClient, createArcWalletClient } from "./client";
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { APP_CHAIN_ID } from "../contracts/addresses";
 import type { OperatorSigner } from "../operator/signer";
 
 export function requireEnv(name: string): string {
@@ -17,13 +17,12 @@ export function requireEnv(name: string): string {
 
 export function operatorSigner(): OperatorSigner {
   const operatorPk = requireEnv("CONTRAFLOW_OPERATOR_PK") as Hex;
-  const rpcUrl = process.env.ARC_TESTNET_RPC;
-  const walletClient = createArcWalletClient(ARC_TESTNET_CHAIN_ID, operatorPk, rpcUrl);
+  const walletClient = createArcWalletClient(APP_CHAIN_ID, operatorPk);
   return { kind: "raw-key", walletClient };
 }
 
 export function arcPublicClient() {
-  return createArcPublicClient(ARC_TESTNET_CHAIN_ID, process.env.ARC_TESTNET_RPC);
+  return createArcPublicClient(APP_CHAIN_ID);
 }
 
 /// The operator key's address, or null when the key is unset or malformed. Signing flows report a

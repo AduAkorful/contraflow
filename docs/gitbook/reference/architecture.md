@@ -76,6 +76,7 @@ Everything server-side lives in `app/src/` (domain modules: `attest`, `api`, `se
 | `siwe`, `session` | Sign-in with Ethereum and the signed session cookie | `message.ts`, `verifySignIn.ts`, `nonce.ts`, `cookie.ts` |
 | `db` | Data access for Postgres, with retries when the database can't be reached | `client.ts`, `invoices.ts`, `obligations.ts`, `certificates.ts`, `tenants.ts`, `webhooks.ts` |
 | `blockscout` | Explorer client and invoice reconciliation | `client.ts`, `reconcile.ts` |
+| `chainindex` | The Registry's invoice events read from the chain (no explorer): next nonce, loop search and reconciliation | `indexer.ts`, `source.ts`, `store.ts`, `events.ts` |
 | `stats` | Protocol stats counted from contract events | `indexer.ts`, `aggregate.ts`, `load.ts` |
 | `inspector` | Onchain facts about the parties to an invoice or loop | `signals.ts`, `load.ts` |
 | `compliance` | Address screening against a maintained list | `screen.ts`, `providers.ts` |
@@ -132,7 +133,7 @@ sequenceDiagram
   participant C as Counterparty
   participant R as Registry
   D->>D: write document, invoiceRef = hash(canonical document)
-  D->>S: next nonce for the pair (from explorer history)
+  D->>S: next nonce for the pair (from the Registry's own events, read from Arc)
   D->>D: sign InvoiceAttestation
   D-->>C: v2 share link (attestation fields, signature; no description)
   C->>S: sign in and load document as a named party
@@ -176,7 +177,7 @@ for every party named in the event. Revoked, expired or suspended access suppres
 | Arc | Invoices, settlements, obligation commitments, applied certificates | The source of truth for everything onchain |
 | Supabase Postgres | A cache of onchain invoices, invoice descriptions, obligations, certificates, API tenants and webhooks | Reconciled against the chain; see [Data model](data-model.md) |
 | Upstash Redis | Sign-in nonces, rate-limit counters, short-lived caches (stats, inspector), locks | Nothing permanent |
-| Blockscout | Read-only: contract logs, transactions, token transfers | Used for reconciliation, stats and the inspector |
+| Blockscout | Read-only: an address's transactions and token transfers | Used by the inspector only; invoice flows, stats and receipts read Arc directly |
 
 ## Settlement pipeline
 

@@ -1,14 +1,14 @@
 "use client";
 
 import { useAccount } from "wagmi";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { chainById } from "../../src/chain/client";
 
 /// Loaded only after the wallet tree is up, so signed-out chrome does not pull wagmi.
 export function LiveNetworkChip() {
   const { chainId, isConnected } = useAccount();
-  const name = chainById(ARC_TESTNET_CHAIN_ID).name;
-  const elsewhere = isConnected && chainId !== undefined && chainId !== ARC_TESTNET_CHAIN_ID;
+  const name = chainById(APP_CHAIN_ID).name;
+  const elsewhere = isConnected && chainId !== undefined && chainId !== APP_CHAIN_ID;
 
   return (
     <span

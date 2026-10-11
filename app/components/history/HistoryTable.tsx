@@ -3,7 +3,7 @@
 import { Address } from "../ui/Address";
 import { Money } from "../ui/Money";
 import { EurcQuote } from "../quote/EurcQuote";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { usdcBaseUnits } from "../../src/format/money";
 import { NETTING_STATUS_LABEL, nettingStatus } from "../../src/format/netting";
 import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
@@ -41,7 +41,7 @@ function PartyActions({ inv }: { inv: HistoryInvoiceView }) {
     viewingOwn: true,
     stillOwed: stillOwed(inv),
     isDebtor: inv.role === "debtor",
-    unifiedBalance: unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID),
+    unifiedBalance: unifiedBalanceEnabled(APP_CHAIN_ID),
   });
   if (!flags.quote && !flags.bringUsdc) return null;
   return (

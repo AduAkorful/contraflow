@@ -5,7 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useDisconnect } from "wagmi";
 import { queryClient } from "../../src/query/client";
 import { signOut } from "../../src/app/app/siwe/actions";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { explorerAddressUrl } from "../../src/blockscout/explorer";
 import { checksumAddress, formatAddress } from "../../src/format/address";
 import { signOutEverywhere } from "../session/signOutEverywhere";
@@ -21,7 +21,7 @@ export function AddressMenu({ address }: { address: string }) {
   const [switching, setSwitching] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const full = checksumAddress(address);
-  const explorer = explorerAddressUrl(ARC_TESTNET_CHAIN_ID, full);
+  const explorer = explorerAddressUrl(APP_CHAIN_ID, full);
   const email = user?.email?.address ?? null;
 
   useEffect(() => {

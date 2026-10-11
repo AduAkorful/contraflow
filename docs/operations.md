@@ -45,6 +45,11 @@ App variables, from `app/.env.example`. `NEXT_PUBLIC_*` values reach the browser
 | `ARC_TESTNET_RPC` | Chain reads and writes | Defaults to the public RPC if unset |
 | `CONTRAFLOW_OPERATOR_PK` | `/app/demo`, starter gas grants, identifying operator activity in stats | A funded testnet key. Never a mainnet key. Without it, stats report unavailable rather than count the demo as usage. |
 | `STARTER_GAS_GRANT_AMOUNT_USDC` | Starter grant size | Defaults to `0.05` |
+| `STARTER_GAS_GRANT_DAILY_CAP_USDC` | Most paid out in grants per UTC day | Defaults to `1` |
+| `NEXT_PUBLIC_ARC_NETWORK` | Chain this deployment serves | `mainnet` selects 5042; anything else is testnet. Build-time |
+| `ARC_RPC` | RPC for reads and sending | Keyed provider first, Arc's public endpoints after it |
+| `ARC_LOGS_RPC` | RPC for log scans | Must allow 9,999-block ranges |
+| `DEMO_OPERATOR_PK` | Funded testnet key for `/app/demo` | Required on a mainnet deployment |
 | `CRON_SECRET` | `/api/cron/webhooks` | Vercel Cron sends it as a bearer token |
 
 Contract deploys use `contracts/.env`: `ARC_TESTNET_RPC`, `DEPLOYER_PK`, `OWNER_ADDRESS`.
@@ -122,8 +127,24 @@ after any contract change.
 
 ## Contract deploy
 
-1. **Dry run.** `forge script script/Deploy.s.sol --rpc-url $RPC`, and `script/DeployNettingLedger.s.sol` for
-   the ledger. Check the logged addresses, owner and gas.
+The deploy and smoke scripts run on exactly two chains, Arc testnet (`5042002`) and Arc mainnet (`5042`), and
+refuse any other. Environment: `DEPLOYER_PK`, `OWNER_ADDRESS` (the upgrade admin; never the zero address), and the
+`--rpc-url`. Broadcasting on mainnet also needs `CONFIRM_MAINNET=true`, so a mainnet transaction is never one
+mistyped flag away. Never put a key in a file that is committed.
+
+| Variable | Effect |
+|---|---|
+| `DEPLOY_OUT_DIR` | Where the record goes. Default `deployments`; `rehearsal` is git-ignored. A rehearsal sets `DEPLOY_OUT_DIR=rehearsal` so it can never replace a recorded deployment |
+| `DEPLOY_OVERWRITE=true` | Allows replacing an existing record. Without it an existing record makes the script revert |
+| `CONFIRM_MAINNET=true` | Required to broadcast on chain `5042` (a simulation needs none) |
+
+A record (`<dir>/testnet.json`, `<dir>/mainnet.json`, and `<network>-netting-ledger.json`) is written only
+while broadcasting. A dry run leaves nothing on disk.
+
+1. **Dry run.** `forge script script/Deploy.s.sol:Deploy --rpc-url $RPC`, and
+   `script/DeployNettingLedger.s.sol:DeployNettingLedger` for the ledger. Check the logged addresses, owner and
+   estimated gas. On 2026-10-11 both simulated cleanly against Arc mainnet (about 4.17M gas for Registry plus
+   Settler and 2.53M for the ledger, at the 40 gwei the node suggested; Arc's minimum fee is 20 gwei).
 2. **Broadcast.** Re-run with `--broadcast`. Each proxy is deployed and initialised in one transaction
    (`ERC1967Proxy(impl, initCalldata)`), so there's no window where an uninitialised proxy could be claimed.
 3. **Verify** on Sourcify (`forge verify-contract <address> <Contract> --verifier sourcify --chain <id>`) and on
@@ -131,13 +152,45 @@ after any contract change.
    built with a newer solc fails with "Unable to verify", which looks transient but isn't. The testnet contracts
    deployed on 2026-09-22 were built with 0.8.37, so only Sourcify verifies them.
 4. **Record.**
-   - Write the addresses into `contracts/deployments/` and `app/src/contracts/addresses.ts`, copied from the
-     broadcast output, never typed by hand.
-   - Add the explorer URL for the chain to `blockscoutBaseFor` (`app/src/blockscout/client.ts`), once checked live.
+   - Print the `addresses.ts` entry from Foundry's own broadcast output, never by hand:
+     `node app/scripts/addresses-from-broadcast.mjs --chain <id>` (it checks the creation order and the receipts and
+     prints the deployment block). Paste it into `app/src/contracts/addresses.ts` and register it in
+     `ADDRESSES_BY_CHAIN_ID`.
+   - Add the explorer API URL for the chain to `app/src/blockscout/explorer.ts`, once it answers an automated request
+     live (the invoice flows, stats and receipts don't need it; only the cycle inspector does).
 5. **Confirm onchain.** Run `cast code`, `cast call <proxy> "owner()(address)"`, and the ERC-1967
-   implementation slot for each proxy.
+   implementation slot for each proxy. The helper prints the commands.
 
-Rehearse on testnet (`5042002`) before mainnet (`5042`).
+Rehearse on testnet (`5042002`) before mainnet (`5042`), with `DEPLOY_OUT_DIR=rehearsal` and without recording
+the rehearsal's addresses anywhere in the repository.
+
+## Data cutover (wipe before mainnet)
+
+`app/scripts/reset-data.mjs` empties every row of every table in `public` (schema, row-level security and the
+lockdown stay) and the cache keys that belong to the chain being left. It is irreversible. Take a Supabase backup
+first if there is any doubt; restoring it is the only undo. Freeze testnet use before running it.
+
+```bash
+# dry run (the default): prints the target, rows per table, the lockdown state and Redis keys; changes nothing
+node --env-file=app/.env.local app/scripts/reset-data.mjs
+# execute: --confirm must equal the project ref the dry run printed
+node --env-file=app/.env.local app/scripts/reset-data.mjs --execute --confirm=<project-ref>
+```
+
+- It refuses unless `DATABASE_URL` names a known Supabase project (or a local database) and `--confirm` matches it,
+  refuses if the lockdown doesn't hold (RLS on every table, no `anon` or `authenticated` privileges), and checks
+  Redis is reachable before deleting anything.
+- Tables are discovered from the database. One transaction runs `TRUNCATE ... RESTART IDENTITY CASCADE`; a failure
+  rolls everything back. It then reads every table back and re-checks the lockdown.
+- Redis is swept by prefix with `SCAN` and `DEL`, never `FLUSHALL` (demo runs and budget, sign-in nonces, rate-limit
+  counters, API and webhook locks, stats, inspector and quote caches, loop-search caches, the chain index). The
+  signed-out session deny-list (`session:revoked:*`) is kept, because deleting it would let a copied, signed-out
+  cookie work again until it expires. Pass `--include-revocations` only together with a new `SESSION_SECRET`.
+- It does not turn off the Supabase Data API; do that separately in the dashboard.
+
+Consequences to announce first: every test API key and webhook endpoint stops working, every starter-grant record
+goes (so mainnet addresses are eligible again), signed-in users sign in again, and Mode B obligations and
+certificates are gone (they cannot be rebuilt from the chain).
 
 ## Vercel
 
@@ -190,9 +243,20 @@ Stored totals are served with their real "as of" time while a refresh is failing
 
 ### Explorer (Blockscout) lag or errors
 
-Reconciliation, stats and the inspector read the explorer. They retry on the next request and never overwrite
-good data with a failed read. Topic-filtered log search is broken on this explorer, so code pages through full
-contract logs and filters locally. Don't switch it back.
+Only the cycle inspector reads the explorer now. It says "unavailable" and never gates a transaction. Invoice
+registration (next nonce), invoice-loop search, history reconciliation, receipts and stats read Arc directly.
+
+### Chain index behind ("couldn't read this pair's invoice history")
+
+The two-party invoice flow reads the Registry's events through a chain index in Redis (`chainidx:v1:<chain>:<registry>:*`,
+rebuildable from the deployment block). It fails closed: while it is behind the head, nonce lookups say to try again
+and loop search says "incomplete", never "no loop". It advances whenever someone has the home page open, and on
+demand. A cold index on a long-lived chain is about 330 ranges (about 6 minutes at one call a second); warm it by
+calling the protected route until it reports `index.caughtUp: true`:
+
+```bash
+until curl -s -H "Authorization: Bearer $CRON_SECRET" https://<deployment>/api/cron/stats | grep -Eq '"index":(null|\{[^}]*"caughtUp":true)'; do sleep 1; done
+```
 
 ### Gateway residual funding failed after the deposit
 

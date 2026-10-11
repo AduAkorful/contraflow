@@ -3,7 +3,7 @@
 
 import { randomUUID } from "node:crypto";
 import { createArcPublicClient } from "../chain/client";
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { APP_CHAIN_ID } from "../contracts/addresses";
 import { claimIdempotency, completeIdempotency, completeIdempotencyFromEffect, postgresTenantStore, tagProposalTenant } from "../db/tenants";
 import { postgresTenantWebhookStore } from "../db/tenantWebhook";
 import { getTenantUsage, recordUsage } from "../db/usage";
@@ -18,7 +18,7 @@ let cached: ApiDeps | undefined;
 export function apiDeps(): ApiDeps {
   cached ??= {
     store: postgresTenantStore,
-    client: createArcPublicClient(ARC_TESTNET_CHAIN_ID),
+    client: createArcPublicClient(APP_CHAIN_ID),
     domain: appLedgerDomain(),
     nowSeconds: () => BigInt(Math.floor(Date.now() / 1000)),
     newId: () => randomUUID(),
@@ -27,7 +27,7 @@ export function apiDeps(): ApiDeps {
     tagProposal: tagProposalTenant,
     enqueueWebhookTest,
     estimateApply: async ({ to, data, from }) => {
-      const client = createArcPublicClient(ARC_TESTNET_CHAIN_ID);
+      const client = createArcPublicClient(APP_CHAIN_ID);
       const [gas, gasPrice] = await Promise.all([client.estimateGas({ account: from, to, data }), client.getGasPrice()]);
       return { gas, gasPrice };
     },

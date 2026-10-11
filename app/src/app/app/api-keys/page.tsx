@@ -1,3 +1,4 @@
+import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
 import { SignInGate } from "@/components/wallet/SignInGate";
 import type { OwnTenantView } from "@/src/api/ownKeys";
 import { UsagePanel } from "@/components/api/UsagePanel";
@@ -14,11 +15,12 @@ import { WebhookPanel } from "./WebhookPanel";
 export const metadata = pageMeta(
   "/app/api-keys",
   "API keys",
-  "Create a test API key for your signed-in address. The key is shown once.",
+  "Your API keys, webhook and usage for your signed-in address. Keys are shown once.",
 );
 
 export default async function ApiKeysPage() {
   const session = await getSession();
+  const selfServe = APP_CHAIN_ID === ARC_TESTNET_CHAIN_ID;
   let tenant: OwnTenantView | null = null;
   let unavailable = false;
   let usage: TenantUsage | null = null;
@@ -60,16 +62,17 @@ export default async function ApiKeysPage() {
     <section className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="heading-1">API keys</h1>
       <p className="mt-4 text-sm text-muted">
-        A test key lets your product call the API for parties who grant it permission. Contraflow never signs for
-        you. The key is shown once, and you can hold two active keys.
+        {selfServe
+          ? "A test key lets your product call the API for parties who grant it permission. Contraflow never signs for you. The key is shown once, and you can hold two active keys."
+          : "An API key lets your product call the API for parties who grant it permission. Contraflow never signs for you. Keys are issued on request and shown once."}
       </p>
       {!session ? (
-        <SignInGate title="Sign in to create a key" reason="Sign in with your email or wallet. The key belongs to that address." />
+        <SignInGate title={selfServe ? "Sign in to create a key" : "Sign in to manage your keys"} reason="Sign in with your email or wallet. The key belongs to that address." />
       ) : unavailable ? (
         <p className="mt-8 text-sm text-muted">API keys aren&apos;t available right now.</p>
       ) : (
         <>
-          <ApiKeysPanel tenant={tenant} />
+          <ApiKeysPanel tenant={tenant} selfServe={selfServe} />
           {tenant && <WebhookPanel webhook={webhook} deliveries={deliveries} unavailable={webhookUnavailable} suspended={tenant.status === "suspended"} />}
           {tenant && <UsagePanel usage={usage} />}
         </>

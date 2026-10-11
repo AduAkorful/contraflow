@@ -8,7 +8,7 @@ import { invoiceAttestationTypedData, type InvoiceAttestation } from "./signAtte
 import { resolveNextNonce } from "./nextNonce";
 import { defaultComplianceProvider, screenAddresses } from "../compliance";
 import { checkRateLimit } from "../ratelimit/limiter";
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 
 const PRECHECK_RATE_LIMIT_MAX = 10;
 const PRECHECK_RATE_LIMIT_WINDOW_SECONDS = 60;
@@ -50,11 +50,11 @@ function invalidAttestationReason(invoice: InvoiceAttestation): string | null {
     return "Invoice nonce must be a positive uint256.";
   }
   if (typeof invoice.earlyNetConsent !== "boolean") return "Invoice consent value is invalid.";
-  if (typeof invoice.chainId !== "bigint" || invoice.chainId !== BigInt(ARC_TESTNET_CHAIN_ID)) {
+  if (typeof invoice.chainId !== "bigint" || invoice.chainId !== BigInt(APP_CHAIN_ID)) {
     return "Invoice is for a different chain.";
   }
 
-  const configured = addressesForChain(ARC_TESTNET_CHAIN_ID);
+  const configured = addressesForChain(APP_CHAIN_ID);
   if (invoice.registry.toLowerCase() !== configured.registry.toLowerCase()) {
     return "Invoice is for a different Registry.";
   }

@@ -11,6 +11,7 @@ secrets/
 wallets/
 *.entity-secret*
 contracts/recovery/
+contracts/rehearsal/
 broadcast/
 cache/
 out/

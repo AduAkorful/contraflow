@@ -24,6 +24,8 @@ deny = "warnings"
 fs_permissions = [
     { access = "read", path = "./" },
     { access = "read-write", path = "./deployments" },
+    # Git-ignored: where a rehearsal writes its deployment records (DEPLOY_OUT_DIR=rehearsal).
+    { access = "read-write", path = "./rehearsal" },
 ]
 
 remappings = [

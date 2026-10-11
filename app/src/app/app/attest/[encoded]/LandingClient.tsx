@@ -24,15 +24,15 @@ import { invoiceAttestationTypedData } from "@/src/attest/signAttestation";
 import { invoiceViewerRole, isInvoiceCounterparty } from "@/src/attest/viewer";
 import { prepareWalletContext } from "@/src/attest/walletContext";
 import { starterGrantToast } from "@/src/attest/grantCopy";
-import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { contraflowRegistryAbi } from "@/src/contracts/abi/index";
-import { arcTestnet } from "@/src/chain/client";
+import { chainById } from "@/src/chain/client";
 import { checkLinkFreshness, getInvoiceDocument, getInvoiceLink, preCheck, record } from "../actions";
 import { requestGrant } from "../../grant/actions";
 import { isUserRejection } from "@/src/wallet/rejection";
 
 type Phase = "verifying" | "sign-in-required" | "invalid" | "stale" | "ready" | "signing" | "submitting" | "recording" | "pending" | "reverted" | "done" | "error";
-const ARC_EXPLORER = arcTestnet.blockExplorers?.default.url;
+const ARC_EXPLORER = chainById(APP_CHAIN_ID).blockExplorers?.default.url;
 
 function serializeInvoice(invoice: AttestLinkPayload["invoice"]) {
   return {
@@ -194,11 +194,11 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
       setPhase("signing");
       const grant = await requestGrant();
       if (grant.ok && !grant.alreadyGranted && grant.amountUsdc) {
-        setGrantNote(starterGrantToast(grant.amountUsdc, ARC_TESTNET_CHAIN_ID));
+        setGrantNote(starterGrantToast(grant.amountUsdc, APP_CHAIN_ID));
       }
 
       const expectedSigner = (payload.role === "debtor" ? payload.invoice.creditor : payload.invoice.debtor) as Address;
-      await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
+      await prepareWalletContext(connector, expectedSigner, APP_CHAIN_ID, switchChainAsync);
 
       const typedData = invoiceAttestationTypedData(payload.invoice);
       const signatureB = await signTypedData(typedData, {
@@ -211,7 +211,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
           earlyNetConsent: payload.invoice.earlyNetConsent,
         }),
       });
-      await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
+      await prepareWalletContext(connector, expectedSigner, APP_CHAIN_ID, switchChainAsync);
       const debtorSignature = payload.role === "debtor" ? payload.signatureA : signatureB;
       const creditorSignature = payload.role === "creditor" ? payload.signatureA : signatureB;
 
@@ -223,7 +223,7 @@ export function LandingClient({ encoded, token }: { encoded?: string; token?: st
       }
 
       setPhase("submitting");
-      await prepareWalletContext(connector, expectedSigner, ARC_TESTNET_CHAIN_ID, switchChainAsync);
+      await prepareWalletContext(connector, expectedSigner, APP_CHAIN_ID, switchChainAsync);
       writeAttempted = true;
       const txHash = await writeContractAsync({
         address: payload.invoice.registry,

@@ -1,7 +1,6 @@
 /// Server-only: the `StatsRpc` used in production, over the app's Arc RPC.
 
 import { numberToHex, type Hex } from "viem";
-import { chainById } from "../chain/client";
 import type { RawLog } from "./events";
 import type { StatsRpc } from "./indexer";
 
@@ -22,11 +21,11 @@ interface RpcLog {
   removed?: boolean;
 }
 
-export function rpcUrlFor(chainId: number): string {
-  return process.env.ARC_TESTNET_RPC || chainById(chainId).rpcUrls.default.http[0]!;
-}
-
-export function createStatsRpc(url: string, fetchImpl: typeof fetch = fetch, minIntervalMs = MIN_INTERVAL_MS): StatsRpc {
+/// `urls` are tried in order: a failed attempt moves to the next endpoint, so one provider's rate
+/// limit or outage doesn't stall the indexer.
+export function createStatsRpc(urls: string | string[], fetchImpl: typeof fetch = fetch, minIntervalMs = MIN_INTERVAL_MS): StatsRpc {
+  const endpoints = Array.isArray(urls) ? urls : [urls];
+  if (endpoints.length === 0) throw new Error("No RPC endpoint configured for stats");
   let id = 0;
   let nextAt = 0;
   async function pace(): Promise<void> {
@@ -39,7 +38,7 @@ export function createStatsRpc(url: string, fetchImpl: typeof fetch = fetch, min
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       await pace();
       try {
-        const res = await fetchImpl(url, {
+        const res = await fetchImpl(endpoints[attempt % endpoints.length]!, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),

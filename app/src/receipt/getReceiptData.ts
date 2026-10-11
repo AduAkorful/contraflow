@@ -1,14 +1,15 @@
-/// DB-first, Blockscout-fallback receipt lookup for `/app/receipt/[txHash]`. The fallback works
+/// DB-first, chain-fallback receipt lookup for `/app/receipt/[txHash]`. The fallback works
 /// even for an empty or wrong database: `InvoiceNetted`/`Settled`'s own decoded event data
 /// carries everything needed
 /// (`before = remainingAfter + wNet`), same formula `app/src/app/app/demo/actions.ts` already uses.
 
 import { getSettlement, getInvoicesForSettlement } from "../db/invoices";
-import { BlockscoutNotFoundError, fetchTransactionFee, fetchTransactionLogs, paramValue } from "../blockscout/client";
+import { paramValue } from "../blockscout/client";
+import { fetchTransactionFromChain } from "../chain/txReceipt";
 import type { ReceiptData, ReceiptInvoiceRow } from "../../components/receipt/Receipt";
 import { formatUnits, parseUnits } from "viem";
 import { formatUsdcDisplay } from "../attest/amount";
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 import { arcPublicClient } from "../chain/operatorEnv";
 import { getInvoice } from "../chain/readInvoices";
 
@@ -65,15 +66,12 @@ async function fromDatabase(txHash: string): Promise<ReceiptData | null> {
   };
 }
 
-async function fromBlockscout(txHash: string): Promise<ReceiptData | null> {
-  let logs: Awaited<ReturnType<typeof fetchTransactionLogs>>;
-  try {
-    logs = await fetchTransactionLogs(txHash);
-  } catch (e) {
-    if (e instanceof BlockscoutNotFoundError) return null;
-    throw e;
-  }
-  const { registry, settler } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+/// Rebuilds a receipt from the transaction's own receipt on Arc, with no explorer involved.
+async function fromChain(txHash: string): Promise<ReceiptData | null> {
+  const tx = await fetchTransactionFromChain(APP_CHAIN_ID, txHash);
+  if (!tx || tx.status !== "success") return null;
+  const logs = tx.logs;
+  const { registry, settler } = addressesForChain(APP_CHAIN_ID);
   const nettedLogs = logs.filter((l) =>
     (l.address ?? "").toLowerCase() === registry.toLowerCase() && l.methodCall?.startsWith("InvoiceNetted") === true,
   );
@@ -92,7 +90,7 @@ async function fromBlockscout(txHash: string): Promise<ReceiptData | null> {
   const eventAmounts = nettedLogs.map((log) => log.parameters.find((p) => p.name === "wNet")?.value);
   if (eventAmounts.some((amount) => amount !== aggregateWNet)) return null;
 
-  const fee = await fetchTransactionFee(txHash);
+  const fee = { blockNumber: tx.blockNumber, gasPaidWei: tx.gasPaidWei };
 
   // The netting event carries no parties; read them from the Registry, and leave them out rather than
   // fail the receipt if the read doesn't work.
@@ -154,5 +152,5 @@ export async function getReceiptData(txHash: string): Promise<ReceiptData | null
     // The database is a cache; an outage must not prevent trying authenticated explorer evidence.
   }
   if (fromDb) return fromDb;
-  return fromBlockscout(txHash);
+  return fromChain(txHash);
 }

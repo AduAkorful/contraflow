@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.36;
 
-import {Script, console2} from "forge-std/Script.sol";
+import {console2} from "forge-std/Script.sol";
 
 import {ContraflowNettingLedger} from "../src/ContraflowNettingLedger.sol";
 import {CertificateEntry, NettingCertificate} from "../src/interfaces/IContraflowNettingLedger.sol";
+import {DeployBase} from "./DeployBase.sol";
 
 /// @title SmokeTestNettingLedger
-/// @notice Applies one real two-party certificate to the deployed testnet ledger. The two parties
+/// @notice Applies one real two-party certificate to a deployed ledger (testnet, or mainnet with
+/// `CONFIRM_MAINNET=true`: it spends real gas and adds a counted certificate). The two parties
 /// are throwaway keys passed in for this run only (`PARTY_A_PK`, `PARTY_B_PK`); they only sign,
 /// and the deployer submits, since `applyCertificate` is permissionless.
-contract SmokeTestNettingLedger is Script {
-    uint256 internal constant ARC_TESTNET_CHAIN_ID = 5042002;
-
-    error WrongChain(uint256 actual, uint256 expected);
+contract SmokeTestNettingLedger is DeployBase {
     error StateNotAdvanced(bytes32 key);
 
     function run() external {
-        if (block.chainid != ARC_TESTNET_CHAIN_ID) revert WrongChain(block.chainid, ARC_TESTNET_CHAIN_ID);
+        _network();
+        _requireMainnetConfirmation();
 
         ContraflowNettingLedger ledger = ContraflowNettingLedger(vm.envAddress("NETTING_LEDGER"));
         uint256 aPk = vm.envUint("PARTY_A_PK");

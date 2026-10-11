@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ARC_TESTNET_CHAIN_ID } from "../../src/contracts/addresses";
+import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { explorerAddressUrl } from "../../src/blockscout/explorer";
 import { checksumAddress, formatAddress } from "../../src/format/address";
 
@@ -9,7 +9,7 @@ import { checksumAddress, formatAddress } from "../../src/format/address";
 /// the title, a copy button and (where the chain has an explorer) a link to it.
 export function Address({
   address,
-  chainId = ARC_TESTNET_CHAIN_ID,
+  chainId = APP_CHAIN_ID,
   link = true,
   copy = true,
   className,

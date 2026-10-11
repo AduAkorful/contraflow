@@ -1,11 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const fetchContractLogs = vi.fn();
+const indexedRegistryLogs = vi.fn();
 const fetchTransactionFee = vi.fn();
-vi.mock("../src/blockscout/client", async () => {
-  const actual = await vi.importActual<typeof import("../src/blockscout/client")>("../src/blockscout/client");
-  return { ...actual, fetchContractLogs, fetchTransactionFee };
-});
+vi.mock("../src/chainindex/source", () => ({ indexedRegistryLogs }));
+vi.mock("../src/chain/txReceipt", () => ({ fetchTransactionFromChain: fetchTransactionFee }));
+
+/// The registry's logs as the chain index returns them (newest first, complete).
+const fetchContractLogs = {
+  mockReset: () => indexedRegistryLogs.mockReset(),
+  mockResolvedValueOnce: (logs: unknown[]) => indexedRegistryLogs.mockResolvedValueOnce({ logs, truncated: false }),
+  mockRejectedValueOnce: (error: Error) => indexedRegistryLogs.mockRejectedValueOnce(error),
+};
 
 const getInvoicesForAddress = vi.fn();
 const upsertRegisteredInvoice = vi.fn();

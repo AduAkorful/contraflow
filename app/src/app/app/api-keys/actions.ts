@@ -16,7 +16,7 @@ import {
 import { postgresOwnWebhookStore } from "@/src/db/ownWebhook";
 import { enqueueWebhookTest } from "@/src/db/webhooks";
 import { runWebhookPipelineQuietly } from "@/src/api/webhookRunner";
-import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { APP_CHAIN_ID, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
 import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { getSession } from "@/src/session/getSession";
 
@@ -30,6 +30,8 @@ async function limitWrites(address: string): Promise<string | null> {
 }
 
 export async function createOwnTestKey(): Promise<OwnKeyResult> {
+  // Test keys act on testnet. A deployment serving mainnet issues live keys on request only.
+  if (APP_CHAIN_ID !== ARC_TESTNET_CHAIN_ID) return { ok: false, error: "Live API keys are issued on request." };
   const session = await getSession();
   if (!session) return { ok: false, error: "Sign in first." };
   const owner = getAddress(session.address);
@@ -97,7 +99,7 @@ export async function sendOwnWebhookTest(): Promise<OwnWebhookResult> {
     const result = await testOwnWebhook(owner, {
       store: postgresOwnWebhookStore,
       enqueue: enqueueWebhookTest,
-      chainId: ARC_TESTNET_CHAIN_ID,
+      chainId: APP_CHAIN_ID,
     });
     if (result.ok) after(runWebhookPipelineQuietly);
     return result;

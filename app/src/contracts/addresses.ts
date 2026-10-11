@@ -19,8 +19,11 @@ export interface ChainAddresses {
 
 export const ARC_TESTNET_CHAIN_ID = 5042002;
 export const ARC_MAINNET_CHAIN_ID = 5042;
-/// The chain this app instance talks to. Testnet until a mainnet deploy is recorded and selected.
-export const APP_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
+/// The chain this deployment serves, fixed at build time from `NEXT_PUBLIC_ARC_NETWORK` (the
+/// variable is public because client components read this constant). Anything other than the exact
+/// value `mainnet` is testnet, so a typo can never select mainnet. Selecting mainnet before its
+/// addresses are recorded below fails closed: `addressesForChain` throws.
+export const APP_CHAIN_ID = process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
 
 /// `registryDeployBlock` is read directly from the deploy broadcast's transaction receipts, not
 /// hand-typed. This is a fresh deployment, not an upgrade of any prior one — a previous testnet

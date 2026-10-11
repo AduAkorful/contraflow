@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { requestIp } from "@/src/ratelimit/requestIp";
 import { getProtocolStats, needsRefresh, PAGE_VIEW_BUDGET_MS, productionRefresh, STALE_AFTER_MS, STATS_CHAIN_ID } from "@/src/stats/load";
 import { buildStatsView, type StatsView } from "@/src/stats/view";
+import { advanceChainIndexQuietly } from "@/src/chainindex/source";
 
 export type ProtocolStatsResult = { ok: true; view: StatsView } | { ok: false; error: string };
 
@@ -14,7 +15,19 @@ const UNAVAILABLE = "Stats are unavailable right now.";
 const MAX_REQUESTS = 30;
 const WINDOW_SECONDS = 60;
 
+/// The built view is kept in the server instance for a few seconds, so many open pages asking
+/// every 30 seconds cost one cache read per instance per window rather than one per page.
+const MEMO_MS = 10_000;
+let memo: { at: number; result: ProtocolStatsResult } | null = null;
+
 export async function loadProtocolStats(): Promise<ProtocolStatsResult> {
+  if (memo && Date.now() - memo.at < MEMO_MS) return memo.result;
+  const result = await loadFresh();
+  if (result.ok) memo = { at: Date.now(), result };
+  return result;
+}
+
+async function loadFresh(): Promise<ProtocolStatsResult> {
   try {
     const { allowed } = await checkRateLimit(`stats:${await requestIp()}`, MAX_REQUESTS, WINDOW_SECONDS);
     if (!allowed) return { ok: false, error: UNAVAILABLE };
@@ -26,8 +39,11 @@ export async function loadProtocolStats(): Promise<ProtocolStatsResult> {
   try {
     const stored = await getProtocolStats();
     const now = new Date();
-    // Backup only: the scheduled refresh does the regular work. This runs after the response is
-    // sent, is capped by a short budget and takes the same lock, so it never slows the page.
+    // Keeps the two-party flow's chain index warm while anyone has the page open; it leaves a
+    // recently checked index alone and never throws.
+    after(() => advanceChainIndexQuietly(STATS_CHAIN_ID));
+    // Runs after the response is sent, is capped by a short budget and takes the same lock, so it
+    // never slows the page.
     if (needsRefresh(stored, now)) {
       after(async () => {
         try {

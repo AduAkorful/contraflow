@@ -106,6 +106,11 @@ if grep -q "status *0 (failed)" /tmp/race05_settle.out; then
   # Follow-up: now that H->I is confirmed, the identical settle() should succeed.
   OUT=$(do_settle "$DEPLOYER_PK" "$ID_HI" "$ID_IJ" "$ID_JH" -- 500000); CODE=$?
   assert_success RACE-05 "resubmitted settle() after register(H->I) confirmed -- succeeds once the dependency is real" "$OUT" "$CODE"
+elif grep -q "InvoiceNotFound" /tmp/race05_settle.out; then
+  # The node's gas estimation already sees the missing invoice, so the call is refused before it is mined.
+  echo "PASS  RACE-05b  settle() referencing the not-yet-registered invoice reverted (InvoiceNotFound at estimation)" | tee -a "$RESULTS_LOG"
+  OUT=$(do_settle "$DEPLOYER_PK" "$ID_HI" "$ID_IJ" "$ID_JH" -- 500000); CODE=$?
+  assert_success RACE-05 "resubmitted settle() after register(H->I) confirmed -- succeeds once the dependency is real" "$OUT" "$CODE"
 elif grep -q "status *1 (success)" /tmp/race05_settle.out; then
   echo "NOTE  RACE-05b  settle() succeeded -- network happened to confirm register(H->I) first despite concurrent submission; not a failure, just non-adversarial ordering this run" | tee -a "$RESULTS_LOG"
   echo "PASS  RACE-05  (settle succeeded directly; register had already landed first)" | tee -a "$RESULTS_LOG"

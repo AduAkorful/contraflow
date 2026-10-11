@@ -6,7 +6,7 @@
 
 import { decodeEventLog, type Address, type Hex } from "viem";
 import { contraflowRegistryAbi } from "../contracts/abi/index";
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "../contracts/addresses";
 import { arcPublicClient } from "../chain/operatorEnv";
 import { upsertRegisteredInvoice } from "../db/invoices";
 
@@ -15,7 +15,7 @@ import { formatUsdcDisplay } from "./amount";
 export type RecordResult = { ok: true; invoiceRef: Hex } | { ok: false; reason: string };
 
 export async function recordRegistration(txHash: Hex): Promise<RecordResult> {
-  const { registry } = addressesForChain(ARC_TESTNET_CHAIN_ID);
+  const { registry } = addressesForChain(APP_CHAIN_ID);
   const client = arcPublicClient();
 
   const receipt = await client.getTransactionReceipt({ hash: txHash }).catch(() => null);

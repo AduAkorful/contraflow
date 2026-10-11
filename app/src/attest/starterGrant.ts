@@ -21,10 +21,17 @@ import { checkRateLimit, incrementWindowCounter } from "../ratelimit/limiter";
 
 const GRANT_RATE_LIMIT_MAX = 3;
 const GRANT_RATE_LIMIT_WINDOW_SECONDS = 60;
-const DAILY_SPEND_CAP_USDC = 1;
+/// Most the operator pays out in grants in one UTC day, native USDC. An unset, malformed or
+/// non-positive value falls back to this rather than to "no cap".
+const DEFAULT_DAILY_SPEND_CAP_USDC = 1;
 /// Alert-only threshold, native USDC (18 decimals) — log/alert, not a hard block; an
 /// actually-insufficient balance still fails naturally at the transfer step below.
 const OPERATOR_BALANCE_FLOOR_USDC = "1";
+
+function dailySpendCapUsdc(): number {
+  const raw = Number(process.env.STARTER_GAS_GRANT_DAILY_CAP_USDC);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_DAILY_SPEND_CAP_USDC;
+}
 
 function grantAmountUsdc(): string {
   return process.env.STARTER_GAS_GRANT_AMOUNT_USDC ?? "0.05";
@@ -77,7 +84,7 @@ export async function requestStarterGrant(address: Address): Promise<StarterGran
   const today = new Date().toISOString().slice(0, 10);
   const grantsToday = await incrementWindowCounter(`starter-grant-count:${today}`, 24 * 60 * 60);
   const amount = Number(grantAmountUsdc());
-  if (grantsToday * amount > DAILY_SPEND_CAP_USDC) {
+  if (grantsToday * amount > dailySpendCapUsdc()) {
     return { ok: false, reason: "Daily starter-grant budget reached — try again tomorrow." };
   }
 

@@ -56,7 +56,7 @@ vi.mock("../src/fixtures/demoIdentities", () => ({
   MIN_DEMO_PARTIES: 3,
   MAX_DEMO_PARTIES: 5,
 }));
-vi.mock("../src/chain/operatorEnv", () => ({ arcPublicClient: publicClient, operatorSigner }));
+vi.mock("../src/chain/demoEnv", () => ({ demoPublicClient: publicClient, demoSigner: operatorSigner }));
 vi.mock("../src/db/invoices", () => ({ upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement }));
 vi.mock("../src/ratelimit/requestIp", () => ({ requestIp }));
 vi.mock("../src/demo/spendBudget", async () => {
@@ -141,6 +141,9 @@ describe("public demo spend controls", () => {
     }));
     expect(completeDemoSpend).toHaveBeenCalledWith("operation-key", result);
     expect(rememberDemoRunInvoiceId).toHaveBeenCalledWith("run-1", HASH);
+    // The demo runs on testnet inside whatever deployment serves it, so it never writes to the
+    // shared invoice tables.
+    expect(upsertRegisteredInvoice).not.toHaveBeenCalled();
   });
 
   it("replays a prior result without spending again", async () => {
@@ -209,6 +212,8 @@ describe("public demo spend controls", () => {
       transactionLimits: expect.objectContaining({ gas: 500_000n }),
     }));
     expect(completeDemoSpend).toHaveBeenCalledWith("operation-key", result);
+    expect(upsertSettledInvoice).not.toHaveBeenCalled();
+    expect(upsertSettlement).not.toHaveBeenCalled();
   });
 
   it("rejects settlement ids that are not the recorded demo run", async () => {

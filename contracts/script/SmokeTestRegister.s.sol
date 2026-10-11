@@ -2,17 +2,18 @@
 pragma solidity 0.8.36;
 
 // Libraries
-import {Script, console2} from "forge-std/Script.sol";
+import {console2} from "forge-std/Script.sol";
 
 // Contracts
 import {ContraflowRegistry} from "../src/ContraflowRegistry.sol";
+import {DeployBase} from "./DeployBase.sol";
 
 // Interfaces
 import {InvoiceAttestation, Invoice} from "../src/interfaces/IContraflowRegistry.sol";
 
 /// @title SmokeTestRegister
 /// @notice One-off functional smoke test for a freshly-deployed `ContraflowRegistry` on Arc
-/// testnet. Registers one throwaway 2-party invoice signed by two disposable keys (never
+/// testnet (or mainnet with `CONFIRM_MAINNET=true`, where it registers a counted invoice). Registers one throwaway 2-party invoice signed by two disposable keys (never
 /// funded, used for nothing else) and reads it back,
 /// proving EIP-712 domain binding and nonce handling work against real Arc testnet state, not
 /// just Foundry's local EVM. Not part of the fixture/app flow — this is deploy-verification
@@ -21,7 +22,7 @@ import {InvoiceAttestation, Invoice} from "../src/interfaces/IContraflowRegistry
 /// `ContraflowRegistry._hashInvoice`/`_hashTypedDataV4`, same rationale as
 /// `contracts/test/helpers/InvoiceSigningHelpers.sol`: a bug in the contract's own hashing must
 /// not be masked by reusing the same logic to build the signature under test.
-contract SmokeTestRegister is Script {
+contract SmokeTestRegister is DeployBase {
     bytes32 internal constant INVOICE_TYPEHASH = keccak256(
         "InvoiceAttestation(bytes32 invoiceRef,uint256 amount,address currency,uint64 maturity,bool earlyNetConsent,address debtor,address creditor,uint256 nonce,address registry,uint256 chainId)"
     );
@@ -29,6 +30,8 @@ contract SmokeTestRegister is Script {
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function run() external {
+        _network();
+        _requireMainnetConfirmation();
         address registryAddr = vm.envAddress("REGISTRY_PROXY");
         uint256 deployerPk = vm.envUint("DEPLOYER_PK");
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const hasReceivedStarterGrant = vi.fn();
 const recordStarterGrant = vi.fn();
@@ -82,6 +82,33 @@ describe("requestStarterGrant", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/daily/i);
     expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
+  describe("daily cap setting", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("honours a configured cap", async () => {
+      vi.stubEnv("STARTER_GAS_GRANT_DAILY_CAP_USDC", "2");
+      hasReceivedStarterGrant.mockResolvedValueOnce(false);
+      incrementWindowCounter.mockResolvedValueOnce(21);
+      sendTransaction.mockResolvedValueOnce("0xgranttx");
+      waitForTransactionReceipt.mockResolvedValueOnce({ status: "success" });
+      markStarterGrantSubmitted.mockResolvedValue(undefined);
+      completeStarterGrant.mockResolvedValue(undefined);
+      const result = await requestStarterGrant(RECIPIENT);
+      expect(result).toMatchObject({ ok: true, alreadyGranted: false });
+    });
+
+    it("falls back to the default for a malformed or non-positive cap, never to no cap", async () => {
+      for (const bad of ["abc", "0", "-5", "Infinity"]) {
+        vi.stubEnv("STARTER_GAS_GRANT_DAILY_CAP_USDC", bad);
+        hasReceivedStarterGrant.mockResolvedValueOnce(false);
+        incrementWindowCounter.mockResolvedValueOnce(21);
+        const result = await requestStarterGrant(RECIPIENT);
+        expect(result.ok).toBe(false);
+      }
+      expect(sendTransaction).not.toHaveBeenCalled();
+    });
   });
 
   it("sends a real transfer and records it on success", async () => {

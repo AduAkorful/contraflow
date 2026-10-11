@@ -6,7 +6,7 @@
 import { isAddressEqual, isHex, type Address, type Hex } from "viem";
 import { createArcPublicClient } from "../chain/client";
 import { defaultComplianceProvider } from "../compliance";
-import { ARC_TESTNET_CHAIN_ID } from "../contracts/addresses";
+import { APP_CHAIN_ID } from "../contracts/addresses";
 import {
   acceptProposalWithObligation,
   DuplicateObligationError,
@@ -49,7 +49,7 @@ const API_WRITE_LIMIT = { max: 120, windowSeconds: 600 };
 const READ_LIMIT = { max: 120, windowSeconds: 600 };
 
 function submissionDeps(): SubmissionDeps {
-  return { client: createArcPublicClient(ARC_TESTNET_CHAIN_ID), complianceProvider: defaultComplianceProvider() };
+  return { client: createArcPublicClient(APP_CHAIN_ID), complianceProvider: defaultComplianceProvider() };
 }
 
 async function rateLimited(kind: string, address: Address, base: { max: number; windowSeconds: number }) {

@@ -3,7 +3,7 @@
 /// Public, unauthenticated: the receipt and history pages work without sign-in, so the quote does
 /// too. The only input is an invoice id; the amount is read from the Registry.
 
-import { addressesForChain, ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { addressesForChain, APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { chainById, createArcPublicClient } from "@/src/chain/client";
 import { getInvoice } from "@/src/chain/readInvoices";
 import {
@@ -19,7 +19,7 @@ import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { requestIp } from "@/src/ratelimit/requestIp";
 import { redis } from "@/src/upstash/client";
 
-const CHAIN_ID = ARC_TESTNET_CHAIN_ID;
+const CHAIN_ID = APP_CHAIN_ID;
 
 export async function quoteInvoiceRemainingInEurc(invoiceId: string): Promise<EurcQuoteResult> {
   if (!eurcQuoteEnabled() || !swapQuoteSupported(CHAIN_ID)) return { ok: false, reason: "unavailable" };

@@ -5,13 +5,13 @@ import { getSession } from "@/src/session/getSession";
 import { checkRateLimit } from "@/src/ratelimit/limiter";
 import { redis } from "@/src/upstash/client";
 import { addressesForChain, APP_CHAIN_ID } from "@/src/contracts/addresses";
-import { fetchContractLogsBounded } from "@/src/blockscout/client";
+import { indexedRegistryLogs } from "@/src/chainindex/source";
 import { fetchNettableInvoiceEdges } from "@/src/chain/readInvoices";
 import { defaultComplianceProvider, filterFlaggedInvoices } from "@/src/compliance";
 import { arcPublicClient } from "@/src/chain/operatorEnv";
 import { findInvoiceLoopFor, type InvoiceLoopResult } from "@/src/settle/invoiceLoops";
 import { getReceiptData } from "@/src/receipt/getReceiptData";
-import { fetchTransactionFee } from "@/src/blockscout/client";
+import { fetchTransactionFromChain } from "@/src/chain/txReceipt";
 import { upsertSettledInvoice, upsertSettlement } from "@/src/db/invoices";
 
 const RATE_MAX = 10;
@@ -67,7 +67,7 @@ export async function findSettleableLoop(): Promise<FindSettleableLoopResult> {
 
   let scan;
   try {
-    scan = await fetchContractLogsBounded(registry);
+    scan = await indexedRegistryLogs(chainId);
   } catch {
     return { kind: "incomplete" };
   }
@@ -140,8 +140,8 @@ export async function recordSettlement(txHash: string): Promise<RecordSettlement
 async function upsertSettledInvoiceRows(txHash: string, receipt: NonNullable<Awaited<ReturnType<typeof getReceiptData>>>) {
   let gasPaidWei: string | null = null;
   try {
-    const fee = await fetchTransactionFee(txHash);
-    gasPaidWei = fee.gasPaidWei;
+    const fee = await fetchTransactionFromChain(APP_CHAIN_ID, txHash);
+    gasPaidWei = fee?.gasPaidWei ?? null;
   } catch {
     gasPaidWei = null;
   }

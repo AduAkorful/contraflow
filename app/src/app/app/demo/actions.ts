@@ -19,8 +19,7 @@ import {
   loadDemoRunInvoiceIds,
   rememberDemoRunInvoiceId,
 } from "@/src/demo/runIds";
-import { operatorSigner, arcPublicClient as publicClient } from "@/src/chain/operatorEnv";
-import { upsertRegisteredInvoice, upsertSettledInvoice, upsertSettlement } from "@/src/db/invoices";
+import { demoSigner as operatorSigner, demoPublicClient as publicClient } from "@/src/chain/demoEnv";
 import { requestIp } from "@/src/ratelimit/requestIp";
 import {
   claimDemoSpend,
@@ -138,28 +137,6 @@ export async function registerCycleInvoiceStep(
       creditorSignature,
       transactionLimits: DEMO_REGISTER_TRANSACTION_LIMITS,
     });
-
-    // Write-through to the database — deliberately isolated from this action's own
-    // success/failure: a DB write failing here must never turn a real, already-broadcast,
-    // already-paid-for chain write into a reported failure. This matters concretely: a database
-    // connection can drop at any time, so putting the DB write inside the same try/catch as the chain
-    // call would let a transient DB hiccup after a *successful* register() report the whole step as
-    // failed. Reconciliation
-    // (src/blockscout/reconcile.ts) exists precisely to backfill a write this call misses, so
-    // swallowing the failure here (logged, not silent) is the correct tradeoff, not a shortcut.
-    try {
-      await upsertRegisteredInvoice({
-        invoiceRef: invoiceId,
-        debtor: invoice.attestation.debtor,
-        creditor: invoice.attestation.creditor,
-        amountUsdc: invoice.amountUsdc,
-        maturity: invoice.attestation.maturity.toString(),
-        earlyNetConsent: invoice.attestation.earlyNetConsent,
-        registerTxHash: txHash,
-      });
-    } catch (dbErr) {
-      console.error("upsertRegisteredInvoice failed (reconciliation will backfill):", dbErr);
-    }
 
     const result: RegisterStepResult = {
       ok: true,
@@ -323,32 +300,6 @@ export async function settleProposedCycle(runSalt: string, invoiceIds: string[],
         };
       }),
     );
-
-    // Write-through, deliberately isolated from this action's success/failure — same rationale
-    // and same live-verified reason as registerCycleInvoiceStep above: a settle() that already
-    // succeeded and already cost real gas must never be reported as failed because of an
-    // unrelated, transient DB hiccup. Confirmed live this session: a settle tx landed
-    // successfully on-chain while this exact write-through's first version (inside the try block,
-    // no isolation) reported the whole action as failed to the UI.
-    try {
-      for (const row of perInvoice) {
-        await upsertSettledInvoice({
-          invoiceRef: row.invoiceId,
-          settleTxHash: result.txHash,
-          wNetUsdc: formatUsdc(result.wNet),
-          remainingUsdc: row.afterUsdc,
-        });
-      }
-      await upsertSettlement({
-        settleTxHash: result.txHash,
-        blockNumber: result.blockNumber.toString(),
-        wNetUsdc: formatUsdc(result.wNet),
-        cycleLength: result.invoiceIds.length,
-        gasPaidWei: tiles.gasPaidWei?.toString() ?? null,
-      });
-    } catch (dbErr) {
-      console.error("settle write-through failed (reconciliation will backfill):", dbErr);
-    }
 
     const actionResult: SettleActionResult = {
       ok: true,

@@ -3,6 +3,7 @@
 /// webhook event types come from the same constants the API serves, so they can't drift.
 
 import { ERROR_CODES, OPENAPI } from "../api/openapi";
+import { APP_CHAIN_ID, ARC_MAINNET_CHAIN_ID } from "../contracts/addresses";
 import { WEBHOOK_EVENT_TYPES } from "../api/webhooks";
 
 export const DOCS_URL = "https://aduakorful.gitbook.io/contraflow-docs";
@@ -11,6 +12,12 @@ type OperationSpec = { operationId?: string; summary?: string };
 
 export function apiBaseUrl(): string {
   return OPENAPI.servers[0]?.url ?? "/api/v1";
+}
+
+function keyLine(): string {
+  return APP_CHAIN_ID === ARC_MAINNET_CHAIN_ID
+    ? "This deployment runs on Arc mainnet (chain 5042). Live keys (`cfk_live_`) are issued on request. Test keys (`cfk_test_`) answer `403 test_unavailable` here. The chain always comes from the key, never from a request."
+    : "This deployment runs on Arc testnet (chain 5042002). Test keys (`cfk_test_`) work here and are self-serve. Live keys (`cfk_live_`) act on Arc mainnet, are issued on request, and answer `403 live_unavailable` on this deployment. The chain always comes from the key, never from a request.";
 }
 
 function origin(): string {
@@ -39,7 +46,7 @@ Contraflow finds loops of debt between counterparties and nets them out, so mone
 - Full docs: ${DOCS_URL} (agent index: ${DOCS_URL}/llms.txt)
 - A runnable end-to-end example (three companies, one loop, applied on testnet): ${origin()}/contraflow-quickstart.mjs
 - Scope: offchain obligations only. There is no invoice or settlement API.
-- Test keys (\`cfk_test_\`) run on Arc testnet (chain 5042002). Live keys (\`cfk_live_\`) answer \`403 live_unavailable\` until Arc mainnet is live. The chain always comes from the key, never from a request.
+- ${keyLine()}
 
 ## Rules that must not be broken
 

@@ -7,6 +7,7 @@ import { WEBHOOK_EVENT_TYPES } from "./webhooks";
 export const ERROR_CODES = [
   "unauthorized",
   "live_unavailable",
+  "test_unavailable",
   "not_found",
   "rate_limited",
   "unavailable",

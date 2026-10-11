@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/app-shell/AppShell";
 import { SessionProvider } from "@/components/session/SessionProvider";
 import { WalletHost } from "@/components/wallet/WalletHost";
-import { ARC_TESTNET_CHAIN_ID } from "@/src/contracts/addresses";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import { unifiedBalanceEnabled } from "@/src/kits/gatewayChains";
 import { getSession } from "@/src/session/getSession";
 import { docsNavLink } from "@/src/site/docsUrl";
@@ -18,7 +18,7 @@ export default async function AppSectionLayout({ children }: { children: React.R
   return (
     <SessionProvider initialAddress={address}>
       <WalletHost hasSession={address !== null} sessionAddress={address}>
-        <AppShell address={address} balanceEnabled={unifiedBalanceEnabled(ARC_TESTNET_CHAIN_ID)} docs={docsNavLink()}>
+        <AppShell address={address} balanceEnabled={unifiedBalanceEnabled(APP_CHAIN_ID)} docs={docsNavLink()}>
           {children}
         </AppShell>
       </WalletHost>

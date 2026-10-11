@@ -163,7 +163,7 @@ NEVER_ID=$(cast keccak "SET-15-never-registered")
 OUT=$(do_settle "$DEPLOYER_PK" "$ID4" "$ID5" "$NEVER_ID" -- 100); CODE=$?
 assert_revert SET-15 "cycle references an unregistered invoice id" "$OUT" "$CODE" "InvoiceNotFound"
 
-# ---- SET-16: non-distinct-party cycle (audit's open product question) ----
+# ---- SET-16: non-distinct-party cycle (rejected since the audit's DuplicateParty fix) ----
 A_PK=$(pk_of SET16-A); B_PK=$(pk_of SET16-B)
 A=$(addr_of "$A_PK"); B=$(addr_of "$B_PK")
 do_register "$DEPLOYER_PK" "SET16-1" 1000000 "$MAT" 1 "$A_PK" "$B_PK" 1 >/dev/null  # A->B
@@ -175,7 +175,7 @@ ID2=$(invoice_id "SET16-2" 1000000 "$MAT" 1 "$B" "$A" 1)
 ID3=$(invoice_id "SET16-3" 1000000 "$MAT" 1 "$A" "$B" 2)
 ID4=$(invoice_id "SET16-4" 1000000 "$MAT" 1 "$B" "$A" 2)
 OUT=$(do_settle "$DEPLOYER_PK" "$ID1" "$ID2" "$ID3" "$ID4" -- 100000); CODE=$?
-assert_success SET-16 "non-distinct-party cycle (A->B->A->B->A across 4 invoices) -- documents current behavior, not a fix demand" "$OUT" "$CODE"
+assert_revert SET-16 "non-distinct-party cycle (A->B->A->B->A across 4 invoices) is rejected: a party may appear once" "$OUT" "$CODE" "DuplicateParty"
 
 # ---- SET-17/18: full extinguish within a partial cycle, then reuse the extinguished invoice ----
 A_PK=$(pk_of SET17-A); B_PK=$(pk_of SET17-B); C_PK=$(pk_of SET17-C)
@@ -191,13 +191,15 @@ assert_success SET-17 "wNet exactly equals smallest remaining -- full extinguish
 STATUS_AB=$(cast call "$REGISTRY" "getInvoice(bytes32)((address,uint64,bool,uint8,address,uint256,uint256))" "$ID_AB17" --rpc-url "$ARC_TESTNET_RPC")
 echo "  SET-17 post-check AB invoice (expect status=1 ExtinguishedOnchain, remaining=0): $STATUS_AB" | tee -a "$RESULTS_LOG"
 
-D_PK=$(pk_of SET18-D); E_PK=$(pk_of SET18-E)
-D=$(addr_of "$D_PK"); E=$(addr_of "$E_PK")
-do_register "$DEPLOYER_PK" "SET18-DE" 1000000 "$MAT" 1 "$D_PK" "$E_PK" 1 >/dev/null
-do_register "$DEPLOYER_PK" "SET18-ED" 1000000 "$MAT" 1 "$E_PK" "$D_PK" 1 >/dev/null
-ID_DE=$(invoice_id "SET18-DE" 1000000 "$MAT" 1 "$D" "$E" 1)
-ID_ED=$(invoice_id "SET18-ED" 1000000 "$MAT" 1 "$E" "$D" 1)
-OUT=$(do_settle "$DEPLOYER_PK" "$ID_AB17" "$ID_DE" "$ID_ED" -- 100); CODE=$?
+# A closed 3-cycle that reuses the extinguished A->B invoice: B->D and D->A are new and live, so the
+# only thing wrong with the cycle is the extinguished leg (a broken path would revert for another reason).
+D_PK=$(pk_of SET18-D)
+D=$(addr_of "$D_PK")
+do_register "$DEPLOYER_PK" "SET18-BD" 1000000 "$MAT" 1 "$B_PK" "$D_PK" 1 >/dev/null
+do_register "$DEPLOYER_PK" "SET18-DA" 1000000 "$MAT" 1 "$D_PK" "$A_PK" 1 >/dev/null
+ID_BD=$(invoice_id "SET18-BD" 1000000 "$MAT" 1 "$B" "$D" 1)
+ID_DA=$(invoice_id "SET18-DA" 1000000 "$MAT" 1 "$D" "$A" 1)
+OUT=$(do_settle "$DEPLOYER_PK" "$ID_AB17" "$ID_BD" "$ID_DA" -- 100); CODE=$?
 assert_revert SET-18 "reuse an already-extinguished invoice in a new cycle" "$OUT" "$CODE" "InvoiceNotActive"
 
 # ---- SET-19: sequential partial nets accumulate correctly ----
