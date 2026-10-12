@@ -28,7 +28,7 @@ function plural(n: number, one: string, many: string): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 }
 
-export const VALUE_NETTED_NOTE = "USDC invoices only. Certificates are off-chain.";
+export const VALUE_NETTED_NOTE = "USDC invoices only. Certificates are offchain.";
 
 export function buildStatsView(
   state: StatsState,

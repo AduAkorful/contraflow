@@ -6,7 +6,9 @@
 import { reconcileAddress } from "@/src/blockscout/reconcile";
 import { isAddress } from "viem";
 import { getAddressSignals } from "@/src/inspector/load";
-import { guardInspectorRequest, SIGNALS_UNAVAILABLE } from "@/src/inspector/requestGuard";
+import { guardInspectorRequest, SIGNALS_NOT_SUPPORTED, SIGNALS_UNAVAILABLE } from "@/src/inspector/requestGuard";
+import { hasBlockscoutApi } from "@/src/blockscout/explorer";
+import { APP_CHAIN_ID } from "@/src/contracts/addresses";
 import type { AddressSignals } from "@/src/inspector/signals";
 import { guardPublicRead } from "@/src/ratelimit/publicReadGuard";
 
@@ -64,6 +66,7 @@ export type AddressSignalsResult = { ok: true; signals: AddressSignals } | { ok:
 /// or breaks the history itself.
 export async function lookupAddressSignals(address: string): Promise<AddressSignalsResult> {
   if (!isAddress(address)) return { ok: false, error: "Not a valid address." };
+  if (!hasBlockscoutApi(APP_CHAIN_ID)) return { ok: false, error: SIGNALS_NOT_SUPPORTED };
 
   const guard = await guardInspectorRequest("address");
   if (!guard.allowed) return { ok: false, error: guard.error };

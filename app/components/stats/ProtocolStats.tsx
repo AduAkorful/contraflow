@@ -31,7 +31,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
   const howId = useId();
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-3 [&>div:last-child:nth-child(odd)]:col-span-2 lg:[&>div:last-child:nth-child(odd)]:col-span-1">
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle min-[460px]:grid-cols-2 lg:grid-cols-3 min-[460px]:[&>div:last-child:nth-child(odd)]:col-span-2 lg:[&>div:last-child:nth-child(odd)]:col-span-1">
         {view.headline.map((tile) => (
           <div key={tile.label} className="bg-surface-1 p-5">
             <dt className="text-xs text-muted">{tile.label}</dt>
@@ -119,7 +119,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
 function Skeleton({ variant }: { variant: "headline" | "full" }) {
   return (
     <div aria-busy="true" aria-label="Protocol stats, loading">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3" aria-hidden="true">
+      <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 sm:gap-4 lg:grid-cols-3" aria-hidden="true">
         {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="animate-skeleton h-[104px] rounded-card" />
         ))}

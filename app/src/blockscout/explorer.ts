@@ -12,6 +12,12 @@ export function blockscoutBaseFor(chainId: number): string {
   return base;
 }
 
+/// Whether server code can read this chain's explorer API. It can't on Arc mainnet while the
+/// explorer answers automated requests with a Cloudflare challenge.
+export function hasBlockscoutApi(chainId: number): boolean {
+  return BLOCKSCOUT_BASE_BY_CHAIN_ID[chainId] !== undefined;
+}
+
 /// Where a person's browser can open an explorer page: the verified API base if there is one,
 /// otherwise the chain's published explorer. A challenge that blocks our server's requests doesn't
 /// apply to a person clicking a link.
