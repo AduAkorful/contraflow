@@ -7,7 +7,8 @@ import { requestIp } from "../ratelimit/requestIp";
 
 export const SIGNALS_UNAVAILABLE = "Couldn't load onchain signals right now.";
 /// Not a failure to retry: this deployment's explorer can't be read by the app at all.
-export const SIGNALS_NOT_SUPPORTED = "Onchain signals about these parties aren't available on Arc mainnet yet.";
+export const SIGNALS_NOT_SUPPORTED_PARTIES = "Onchain signals about these parties aren't available on Arc mainnet yet.";
+export const SIGNALS_NOT_SUPPORTED_ADDRESS = "Onchain signals about this address aren't available on Arc mainnet yet.";
 
 const MAX_REQUESTS = 20;
 const WINDOW_SECONDS = 60;

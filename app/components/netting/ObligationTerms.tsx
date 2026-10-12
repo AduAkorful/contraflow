@@ -4,6 +4,7 @@
 /// the counterparty's landing page. The raw signed struct is available expanded, never the
 /// default view.
 
+import { earlyNettingReview } from "../../src/format/signing";
 import { useState } from "react";
 import type { CanonicalObligationDocument } from "../../src/netting/document";
 import { serializeObligation } from "../../src/netting/serialize";
@@ -45,7 +46,7 @@ export function ObligationTerms({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Early netting</dt>
-          <dd className="mt-1">{document.earlyNetConsent ? "Can be netted: anytime before its due date" : `Can be netted: only after ${displayDate(document.maturity)} (early netting off)`}</dd>
+          <dd className="mt-1">{earlyNettingReview(document.maturity, document.earlyNetConsent)}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Currency</dt>

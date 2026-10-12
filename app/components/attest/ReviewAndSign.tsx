@@ -9,6 +9,7 @@ import { useState } from "react";
 import type { InvoiceAttestation } from "../../src/attest/signAttestation";
 import { Address } from "../ui/Address";
 import { arcNetworkName } from "../../src/chain/client";
+import { earlyNettingReview } from "../../src/format/signing";
 import { Money } from "../ui/Money";
 import { formatUsdcAmount } from "../../src/attest/amount";
 
@@ -57,7 +58,7 @@ export function ReviewAndSign({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Early netting</dt>
-          <dd className="mt-1">{invoice.earlyNetConsent ? "Can be netted: anytime before its due date" : `Can be netted: only after ${formatMaturity(invoice.maturity)} (early netting off)`}</dd>
+          <dd className="mt-1">{earlyNettingReview(String(invoice.maturity), invoice.earlyNetConsent)}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Network</dt>

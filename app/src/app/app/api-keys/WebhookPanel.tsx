@@ -1,5 +1,6 @@
 "use client";
 
+import { displayDateTimeUtc } from "@/src/format/dateTime";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OwnDeliveryView, OwnWebhookView } from "@/src/api/ownWebhook";
@@ -145,7 +146,7 @@ export function WebhookPanel({
                 Refresh
               </button>
               {webhook.rollingUntil && (
-                <span className="text-muted">Old secret also signs until {new Date(webhook.rollingUntil).toLocaleString()}.</span>
+                <span className="text-muted">Old secret also signs until {displayDateTimeUtc(webhook.rollingUntil)}.</span>
               )}
             </div>
           )}
@@ -161,7 +162,7 @@ export function WebhookPanel({
                 <li key={d.eventId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
                   <span className="font-mono">{d.type}</span>
                   <span className="text-muted">
-                    {outcome(d)} · {new Date(d.createdAt).toLocaleString()}
+                    {outcome(d)} · {displayDateTimeUtc(d.createdAt)}
                   </span>
                 </li>
               ))}

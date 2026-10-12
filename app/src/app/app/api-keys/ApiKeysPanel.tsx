@@ -8,6 +8,7 @@ export function ApiKeysPanel({ tenant, keyMode }: { tenant: OwnTenantView | null
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const active = tenant?.keys.filter((key) => !key.revoked).length ?? 0;
   const suspended = tenant?.status === "suspended";
@@ -99,10 +100,31 @@ export function ApiKeysPanel({ tenant, keyMode }: { tenant: OwnTenantView | null
                     <span className="font-mono tracking-wide slashed-zero">{key.prefix}</span>
                     <span className="ml-3 text-muted">{key.revoked ? "Revoked" : "Active"}</span>
                   </span>
-                  {!key.revoked && (
+                  {!key.revoked && confirming === key.prefix && (
+                    <span className="flex flex-wrap items-center justify-end gap-3 text-xs">
+                      <span className="max-w-xs text-muted">
+                        Revoke <span className="font-mono">{key.prefix}…</span>? Apps using it stop working immediately.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirming(null);
+                          revoke(key.prefix);
+                        }}
+                        disabled={pending}
+                        className="text-red-300 hover:underline disabled:state-disabled"
+                      >
+                        Yes, revoke
+                      </button>
+                      <button type="button" onClick={() => setConfirming(null)} className="text-muted hover:underline">
+                        Keep it
+                      </button>
+                    </span>
+                  )}
+                  {!key.revoked && confirming !== key.prefix && (
                     <button
                       type="button"
-                      onClick={() => revoke(key.prefix)}
+                      onClick={() => setConfirming(key.prefix)}
                       disabled={pending}
                       className="text-sm text-muted hover:text-foreground disabled:state-disabled"
                     >

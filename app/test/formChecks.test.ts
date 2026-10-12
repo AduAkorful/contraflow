@@ -4,9 +4,10 @@ import { isZeroAddress, pastMaturityNote } from "../src/format/formChecks";
 describe("composer field checks", () => {
   const now = new Date("2026-10-12T10:00:00Z");
 
-  it("notes a maturity date that has passed, and says nothing for today or later", () => {
+  it("notes a maturity date that has passed or is today, and says nothing for later", () => {
     expect(pastMaturityNote("2020-01-01", now)).toMatch(/already passed/);
-    expect(pastMaturityNote("2026-10-12", now)).toBeNull();
+    expect(pastMaturityNote("2026-10-12", now)).toMatch(/due now/);
+    expect(pastMaturityNote("2026-10-13", now)).toBeNull();
     expect(pastMaturityNote("2026-12-31", now)).toBeNull();
     expect(pastMaturityNote("", now)).toBeNull();
   });

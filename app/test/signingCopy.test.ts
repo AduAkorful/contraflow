@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   certificateSigningConfirmation,
   earlyNettingHelper,
+  earlyNettingReview,
   invoiceSigningConfirmation,
   obligationSigningConfirmation,
   typedDataUiRoute,
@@ -11,6 +12,15 @@ describe("early netting helper", () => {
   it("states the consequence for on and off against the chosen date", () => {
     expect(earlyNettingHelper("2026-11-05", true)).toBe("On: this can join a loop before its due date.");
     expect(earlyNettingHelper("2026-11-05", false)).toBe("Off: it can't be netted until 5 November 2026.");
+  });
+
+  it("says a past maturity is already due, whatever early netting is set to", () => {
+    const now = Date.parse("2026-10-12T10:00:00Z");
+    expect(earlyNettingHelper("2025-01-15", false, now)).toBe("Already due, so this setting has no effect.");
+    expect(earlyNettingReview("2025-01-15", false, now)).toBe("Can be netted: now (due 15 January 2025)");
+    expect(earlyNettingReview("1736899200", true, now)).toBe("Can be netted: now (due 15 January 2025)");
+    expect(earlyNettingReview("2026-11-05", false, now)).toBe("Can be netted: only after 5 November 2026 (early netting off)");
+    expect(earlyNettingReview("2026-11-05", true, now)).toBe("Can be netted: anytime before its due date");
   });
 });
 

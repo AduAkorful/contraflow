@@ -43,6 +43,12 @@ describe("send amounts", () => {
     expect(checkSendAmount("11", 10_000_000n, 1_228n)).toMatchObject({ ok: false });
   });
 
+  it("says why an amount is refused, in plain words", () => {
+    expect(checkSendAmount("0", 10_000_000n, 1_228n)).toEqual({ ok: false, error: "Enter an amount above 0, with at most 6 decimals." });
+    expect(checkSendAmount("1.1234567", 10_000_000n, 1_228n)).toEqual({ ok: false, error: "Enter an amount above 0, with at most 6 decimals." });
+    expect(checkSendAmount("11", 10_000_000n, 1_228n)).toEqual({ ok: false, error: "That's more than your balance (10 USDC)." });
+  });
+
   it("refuses an amount that would leave nothing for the fee", () => {
     const result = checkSendAmount("9.999999", 10_000_000n, 1_228n);
     expect(result).toMatchObject({ ok: false });

@@ -130,7 +130,7 @@ export function SettleLoopCard({
         return;
       }
       if (receipt.status !== "success") {
-        setError("Arc confirmed that this settlement reverted. Nothing was netted.");
+        setError("Arc confirmed that this settlement reverted. Nothing was netted. An invoice in the loop may have changed since it was found. Reload to look for the loop again.");
         setPhase("reverted");
         return;
       }

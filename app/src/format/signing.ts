@@ -21,12 +21,21 @@ function displayMinorAmount(minor: string, currency: string): string {
 /// Last-step sentence shown before a party signs, and used as the Privy embedded-wallet popup
 /// description so the prompt isn't raw typed-data fields.
 
-export function earlyNettingHelper(maturityDate: string, on: boolean): string {
+/// A maturity at or before now is already due: the contract treats it as matured whatever the
+/// early-netting setting says.
+function isPast(value: string, now: number): boolean {
+  const ms = /^\d{4}-\d{2}-\d{2}$/.test(value) ? Date.parse(`${value}T00:00:00Z`) : Number(value) * 1000;
+  return Number.isFinite(ms) && ms <= now;
+}
+
+export function earlyNettingHelper(maturityDate: string, on: boolean, now: number = Date.now()): string {
+  if (isPast(maturityDate, now)) return "Already due, so this setting has no effect.";
   if (on) return "On: this can join a loop before its due date.";
   return `Off: it can't be netted until ${displayDate(maturityDate)}.`;
 }
 
-export function earlyNettingReview(maturity: string, on: boolean): string {
+export function earlyNettingReview(maturity: string, on: boolean, now: number = Date.now()): string {
+  if (isPast(maturity, now)) return `Can be netted: now (due ${displayDate(maturity)})`;
   if (on) return "Can be netted: anytime before its due date";
   return `Can be netted: only after ${displayDate(maturity)} (early netting off)`;
 }

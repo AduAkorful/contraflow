@@ -5,7 +5,7 @@
 export function pastMaturityNote(maturityDate: string, now: Date = new Date()): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(maturityDate)) return null;
   const today = now.toISOString().slice(0, 10);
-  return maturityDate < today ? "That date has already passed, so this can be netted as soon as it's signed and registered." : null;
+  return maturityDate <= today ? "That date has already passed or is today, so this is due now and can be netted as soon as it's signed and registered." : null;
 }
 
 export function isZeroAddress(address: string): boolean {

@@ -59,6 +59,7 @@ export function ProposalLanding({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
   async function load(session: Address) {
@@ -158,12 +159,26 @@ export function ProposalLanding({ token }: { token: string }) {
   }
 
   async function handleWithdraw() {
+    if (closing) return;
     setError(null);
-    setConfirmingClose(false);
-    const result = await withdrawProposal(token, proposal?.viewerRole === "counterparty" ? declineReason : undefined);
-    if (!result.ok) return setError(result.error);
-    setMessage(proposal?.viewerRole === "proposer" ? "You withdrew this proposal." : "You declined this proposal.");
-    setPhase("closed");
+    setClosing(true);
+    try {
+      const result = await withdrawProposal(token, proposal?.viewerRole === "counterparty" ? declineReason : undefined);
+      if (!result.ok) {
+        setConfirmingClose(false);
+        return setError(result.error);
+      }
+      setConfirmingClose(false);
+      // Read the closed proposal back so the card shows what the server now holds.
+      if (sessionAddress) {
+        await load(sessionAddress as Address);
+      } else {
+        setMessage(proposal?.viewerRole === "proposer" ? "You withdrew this proposal." : "You declined this proposal.");
+        setPhase("closed");
+      }
+    } finally {
+      setClosing(false);
+    }
   }
 
   useEffect(() => {
@@ -254,7 +269,7 @@ export function ProposalLanding({ token }: { token: string }) {
                   </p>
                 <button
                   onClick={handleSign}
-                  disabled={phase !== "ready"}
+                  disabled={phase !== "ready" || closing}
                   className="rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
                 >
                   {phase === "signing" ? signingInLabel(signingKind) : phase === "saving" ? "Recording..." : "Sign obligation"}
@@ -286,10 +301,10 @@ export function ProposalLanding({ token }: { token: string }) {
                   </>
                 )}
                 <div className="flex gap-4 text-xs">
-                  <button onClick={handleWithdraw} className="text-red-300 hover:underline">
-                    {phase === "waiting" ? "Yes, withdraw" : "Yes, decline"}
+                  <button onClick={handleWithdraw} disabled={closing} className="text-red-300 hover:underline disabled:text-faint disabled:no-underline">
+                    {closing ? (phase === "waiting" ? "Withdrawing…" : "Declining…") : phase === "waiting" ? "Yes, withdraw" : "Yes, decline"}
                   </button>
-                  <button onClick={() => setConfirmingClose(false)} className="text-muted hover:underline">
+                  <button onClick={() => setConfirmingClose(false)} disabled={closing} className="text-muted hover:underline disabled:text-faint">
                     Keep it
                   </button>
                 </div>

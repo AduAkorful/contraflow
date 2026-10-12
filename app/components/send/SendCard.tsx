@@ -311,6 +311,11 @@ export function SendCard({
             balance={<>Balance: {balance === null ? "…" : `${formatUsdcDisplay(balance)} USDC`}</>}
             onMax={maxAmount !== null && maxAmount > 0n ? () => edit(() => setAmount(formatUsdcDisplay(maxAmount))) : undefined}
           />
+          {amount.trim() !== "" && !amountCheck.ok && (
+            <p role="alert" className="mt-2 px-1 text-xs text-red-300">
+              {amountCheck.error}
+            </p>
+          )}
           <ArrowDivider />
           <div className="rounded-[20px] border border-border-subtle bg-surface-2/40 p-5">
             <label htmlFor="send-to" className="text-xs text-muted">To address</label>

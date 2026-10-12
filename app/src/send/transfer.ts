@@ -1,7 +1,7 @@
 /// Sending USDC from the signed-in wallet on Arc. Pure helpers: amount and recipient checks, the
 /// transfer calldata, the fee reserve, and the pending-send record. Nothing here talks to a server.
 
-import { encodeFunctionData, getAddress, isAddress, isAddressEqual, type Address, type Hex } from "viem";
+import { encodeFunctionData, formatUnits, getAddress, isAddress, isAddressEqual, type Address, type Hex } from "viem";
 import { parseUsdcAmount, UsdcAmountError } from "../attest/amount";
 import { addressesForChain } from "../contracts/addresses";
 
@@ -53,10 +53,14 @@ export function checkSendAmount(input: string, balance: bigint | null, estimated
   try {
     amount = parseUsdcAmount(input);
   } catch (error) {
-    return { ok: false, error: error instanceof UsdcAmountError ? error.message : "Enter a valid USDC amount." };
+    const tooLarge = error instanceof UsdcAmountError && /too large|uint256/.test(error.message);
+    return {
+      ok: false,
+      error: tooLarge ? "That amount is too large." : "Enter an amount above 0, with at most 6 decimals.",
+    };
   }
   if (balance === null) return { ok: false, error: "Your balance hasn't loaded yet." };
-  if (amount > balance) return { ok: false, error: "That's more than your balance." };
+  if (amount > balance) return { ok: false, error: `That's more than your balance (${formatUnits(balance, 6)} USDC).` };
   if (estimatedFee === null) return { ok: false, error: "The network fee couldn't be checked yet." };
   if (amount + reservedFee(estimatedFee) > balance) {
     return { ok: false, error: "Leave enough USDC to pay the network fee. Use Max to send the most you can." };
