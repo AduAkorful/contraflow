@@ -19,18 +19,27 @@ export type WalletState =
       returnTo: (chainId: number) => Promise<void>;
     };
 
+/// The wallet Privy holds for exactly this address, preferring the embedded one. A wallet for any
+/// other address is never returned, so nothing is signed for a different account than the session's.
+export function ownPrivyWallet<W extends { address: string; walletClientType?: string }>(
+  wallets: readonly W[],
+  owner: `0x${string}`,
+): W | undefined {
+  const matching = wallets.filter((w) => isAddressEqual(w.address as `0x${string}`, owner));
+  return matching.find((w) => w.walletClientType?.startsWith("privy")) ?? matching[0];
+}
+
 /// The connected wallet may act only when it is the signed-in address. Nothing is ever signed
 /// for a different account than the session's.
 export function useOwnerWallet(owner: `0x${string}`): WalletState {
   const { address, isConnected, connector } = useAccount();
   const { wallets } = useWallets();
   const wagmiIsOwner = Boolean(isConnected && address && connector && isAddressEqual(address, owner));
-  // An email account signs with its Privy embedded wallet. wagmi only follows it once it is the
-  // active wallet, which a reload or a Privy re-login doesn't always restore, so fall back to the
-  // Privy wallet for the session's own address rather than asking for an outside wallet.
-  const ownWallet = wagmiIsOwner
-    ? undefined
-    : wallets.find((w) => w.walletClientType?.startsWith("privy") && isAddressEqual(w.address as `0x${string}`, owner));
+  // wagmi only follows the signed-in account once it is the active wallet, which a reload or a
+  // Privy re-login doesn't always restore, for an email account's embedded wallet and for an
+  // extension wallet alike. So fall back to the wallet Privy already holds for the session's own
+  // address, whichever kind it is, rather than asking the person to connect it again.
+  const ownWallet = wagmiIsOwner ? undefined : ownPrivyWallet(wallets, owner);
   if (!wagmiIsOwner && !ownWallet) {
     if (!isConnected || !address || !connector) return { status: "disconnected" };
     return { status: "mismatch", connected: address };

@@ -20,7 +20,7 @@ import { DepositPanel } from "./DepositPanel";
 import { MovePanel } from "./MovePanel";
 import { SendCard } from "@/components/send/SendCard";
 import { BalanceQuote } from "@/components/balance/BalanceQuote";
-import { useOwnerWallet } from "./wallet";
+import { ownPrivyWallet, useOwnerWallet } from "./wallet";
 
 const READ_ATTEMPTS = 3;
 const PENDING_POLL_MS = 30_000;
@@ -63,11 +63,10 @@ export function BalanceClient({
   const { setActiveWallet } = useSetActiveWallet();
   const { address: wagmiAddress } = useAccount();
 
-  // Point wagmi at the session's own embedded wallet (email accounts), so Send, which signs
-  // through wagmi, uses it too. Deposit and move already use its provider directly.
-  const ownEmbedded = wallets.find(
-    (w) => w.walletClientType?.startsWith("privy") && isAddressEqual(w.address as `0x${string}`, owner),
-  );
+  // Point wagmi at the session's own wallet (embedded for email accounts, the extension wallet
+  // otherwise), so Send, which signs through wagmi, uses it too. Deposit and move already use its
+  // provider directly.
+  const ownEmbedded = ownPrivyWallet(wallets, owner);
   useEffect(() => {
     if (!ownEmbedded) return;
     if (wagmiAddress && isAddressEqual(wagmiAddress, owner)) return;
