@@ -88,17 +88,17 @@ export async function authenticate(authorization: string | null, store: TenantSt
   const mode = keyMode(key);
   if (!mode) throw UNAUTHORIZED;
 
-  const stored = await store.findKey(hashApiKey(key));
-  if (!stored || stored.revoked || !stored.tenantActive || stored.mode !== mode) throw UNAUTHORIZED;
-
   // The services under the API are bound to the chain this deployment serves, so a key for the
-  // other chain can never be honoured here, whatever else is configured.
+  // other chain can never be honoured here, whatever else is configured. Checked on the key's
+  // prefix before any lookup, so a test key on mainnet is told why instead of "invalid".
   const chainId = chainIdForMode(mode);
   if (chainId !== APP_CHAIN_ID) {
     throw mode === "live"
       ? new ApiError(403, "live_unavailable", "Live keys work on Contraflow's Arc mainnet deployment. This deployment serves the test network; use a test key.")
       : new ApiError(403, "test_unavailable", "Test keys aren't available on Arc mainnet. Sign in and create a live key at /app/api-keys.");
   }
+  const stored = await store.findKey(hashApiKey(key));
+  if (!stored || stored.revoked || !stored.tenantActive || stored.mode !== mode) throw UNAUTHORIZED;
   if (!chainDeployed(chainId)) {
     throw new ApiError(403, "live_unavailable", "Live keys work once Contraflow is on Arc mainnet.");
   }

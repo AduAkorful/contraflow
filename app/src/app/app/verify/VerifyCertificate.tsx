@@ -125,9 +125,10 @@ export function VerifyCertificate() {
           className="mt-3 text-sm text-muted file:mr-3 file:rounded-pill file:border file:border-white/15 file:bg-transparent file:px-4 file:py-1.5 file:text-sm file:text-foreground"
         />
       </div>
-      <label className="text-xs uppercase tracking-wide text-muted" htmlFor="apply-tx">
-        Apply transaction hash (optional, for certificates applied a while ago)
+      <label className="text-sm text-foreground" htmlFor="apply-tx">
+        Apply transaction (optional)
       </label>
+      <p className="-mt-1 text-xs text-muted">For a certificate applied a while ago: paste the hash of the transaction that applied it.</p>
       <input
         id="apply-tx"
         value={applyTx}

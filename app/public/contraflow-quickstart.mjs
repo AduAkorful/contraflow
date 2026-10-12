@@ -1,6 +1,7 @@
 // Contraflow sandbox quick-start: three companies, one loop, one applied certificate.
 //
-// What it does, in order, on Arc testnet:
+// What it does, in order, on the network your key belongs to (a cfk_live_ key runs on Arc mainnet,
+// a cfk_test_ key on Arc testnet):
 //   1. creates three company wallets (they only sign; they never need funds)
 //   2. each company grants your API key a signed permission
 //   3. records three obligations in a circle: A owes B 1000, B owes C 800, C owes A 600
@@ -8,11 +9,12 @@
 //
 // Needs Node 20+ and viem:  npm install viem
 // Run:
-//   CONTRAFLOW_API_KEY=cfk_test_...  PAYER_PRIVATE_KEY=0x...  node contraflow-quickstart.mjs
+//   CONTRAFLOW_API_KEY=cfk_live_...  PAYER_PRIVATE_KEY=0x...  node contraflow-quickstart.mjs
 //
-// CONTRAFLOW_API_KEY  a test key from https://contraflow.vercel.app/app/api-keys
-// PAYER_PRIVATE_KEY   any Arc testnet wallet holding a little testnet USDC for gas (the only wallet
-//                     that pays). It sends the apply transaction; Contraflow never does.
+// CONTRAFLOW_API_KEY  your key from https://contraflow.vercel.app/app/api-keys
+// PAYER_PRIVATE_KEY   a wallet on the key's network holding a little USDC for gas (the only wallet
+//                     that pays, about 0.005 USDC). It sends the apply transaction; Contraflow never does.
+//                     On mainnet this is real USDC and the applied certificate is a real onchain event.
 // CONTRAFLOW_API_URL  optional, defaults to https://contraflow.vercel.app/api/v1
 //
 // Never commit keys. Read them from the environment, as here.
@@ -24,15 +26,24 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 const API = (process.env.CONTRAFLOW_API_URL ?? "https://contraflow.vercel.app/api/v1").replace(/\/$/, "");
 const KEY = process.env.CONTRAFLOW_API_KEY;
 const PAYER_KEY = process.env.PAYER_PRIVATE_KEY;
-if (!KEY || !KEY.startsWith("cfk_test_")) throw new Error("Set CONTRAFLOW_API_KEY to a cfk_test_ key.");
-if (!PAYER_KEY) throw new Error("Set PAYER_PRIVATE_KEY to a funded Arc testnet wallet key.");
+if (!KEY || !/^cfk_(live|test)_/.test(KEY)) throw new Error("Set CONTRAFLOW_API_KEY to your cfk_live_ or cfk_test_ key.");
+if (!PAYER_KEY) throw new Error("Set PAYER_PRIVATE_KEY to the key of a wallet funded with USDC for gas.");
 
-const arcTestnet = defineChain({
-  id: 5042002,
-  name: "Arc Testnet",
-  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-  rpcUrls: { default: { http: [process.env.ARC_TESTNET_RPC ?? "https://rpc.testnet.arc.io"] } },
-});
+// The key decides the network. GET /tenant reports its chain id, and the transaction goes there.
+const NETWORKS = {
+  5042: { name: "Arc", rpc: process.env.ARC_RPC_URL ?? "https://rpc.mainnet.arc.io" },
+  5042002: { name: "Arc Testnet", rpc: process.env.ARC_RPC_URL ?? process.env.ARC_TESTNET_RPC ?? "https://rpc.testnet.arc.io" },
+};
+function arcChain(chainId) {
+  const network = NETWORKS[chainId];
+  if (!network) throw new Error(`This key is for chain ${chainId}, which the script doesn't know.`);
+  return defineChain({
+    id: chainId,
+    name: network.name,
+    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+    rpcUrls: { default: { http: [network.rpc] } },
+  });
+}
 
 // --- API helper -------------------------------------------------------------------------------
 
@@ -187,12 +198,13 @@ for (const company of companies) {
 }
 
 // 5. Apply. Anyone can send it; the payer wallet pays gas.
-log("5. Apply on Arc testnet");
+const arc = arcChain(tenant.chainId);
+log(`5. Apply on ${arc.name}`);
 const tx = await api("GET", `/certificates/${token}/apply-transaction?party=${A.account.address}`);
 if (tx.submit?.estimatedCostUsdc) console.log(`   estimated gas cost ${tx.submit.estimatedCostUsdc} USDC`);
 const payer = privateKeyToAccount(PAYER_KEY.startsWith("0x") ? PAYER_KEY : `0x${PAYER_KEY}`);
-const wallet = createWalletClient({ account: payer, chain: arcTestnet, transport: http() });
-const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
+const wallet = createWalletClient({ account: payer, chain: arc, transport: http() });
+const publicClient = createPublicClient({ chain: arc, transport: http() });
 const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: 0n });
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
 if (receipt.status !== "success") throw new Error(`The apply transaction failed: ${hash}`);

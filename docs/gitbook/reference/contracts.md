@@ -9,10 +9,9 @@ debts and reduce them in place.
 | `ContraflowSettler` | Checks that a set of invoices forms a closed loop and reduces every one of them by the same amount, in one transaction. |
 | `ContraflowNettingLedger` | Records a blinded state for each offchain obligation, advanced only by a netting certificate every party in the loop signed. |
 
-All three are written for Solidity `0.8.36` and OpenZeppelin v5, and sit behind ERC-1967 proxies. (The current
-testnet deployment was compiled with `0.8.37`; the source was pinned to `0.8.36` afterwards so the Arc explorer can
-verify it.) See
-[Upgradeability](#upgradeability).
+All three are written for Solidity `0.8.36` and OpenZeppelin v5, and sit behind ERC-1967 proxies. The Arc mainnet
+deployment is compiled with `0.8.36`. (The test network deployment predates the pin and was compiled with `0.8.37`.)
+See [Upgradeability](#upgradeability).
 
 ```mermaid
 graph LR
@@ -34,10 +33,11 @@ The app reads addresses from `app/src/contracts/addresses.ts`. The deployment re
 
 | Network | Chain ID | Registry | Settler | Netting ledger | USDC (ERC-20) |
 |---|---|---|---|---|---|
-| Arc testnet | `5042002` | `0x304450Dc27f644AcA55773895409ff500AFb2Bf7` | `0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015` | `0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7` | `0x3600000000000000000000000000000000000000` |
-| Arc | `5042` | Added at the mainnet deploy | | | |
+| Arc mainnet | `5042` | `0x8a04cd9856c5A9F240C293B9fa65A7D171d8C312` | `0x3B084b5b2046E7651bb701d1cF729Be7Cb9fAf03` | `0xCf7759128399ACF6f69dd76c852074ed9050fc28` | `0x3600000000000000000000000000000000000000` |
+| Arc testnet (test network) | `5042002` | `0x304450Dc27f644AcA55773895409ff500AFb2Bf7` | `0x25851c3fa9438AA53B0bd6ecc3347010b3ccB015` | `0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7` | `0x3600000000000000000000000000000000000000` |
 
-These are the proxy addresses. The source of every contract is verified on Sourcify.
+These are the proxy addresses, the ones you interact with. The implementation contracts behind them are verified on
+Sourcify with an exact match.
 
 ## ContraflowRegistry
 
@@ -172,20 +172,18 @@ both parties of every obligation.
 
 ## Gas
 
-Measured on Arc testnet:
+Gas used by full transactions on Arc mainnet, measured on 11 October 2026:
 
 | Operation | Gas |
 |---|---|
 | `register` | 168,563 |
-| `settle`, 3 invoices | 101,129 |
-| `settle`, 4 invoices | 121,601 |
-| `settle`, 5 invoices | 142,165 |
-| `applyCertificate`, 2 / 3 / 5 obligations (execution only) | 96,870 / 129,680 / 196,773 |
-| `applyCertificate`, 2 obligations, full transaction | 131,527 |
+| `settle`, 3 invoices | 100,127 |
+| `applyCertificate`, 2 obligations | 131,539 |
+| `applyCertificate`, 3 obligations | 167,742 |
+| `applyCertificate`, 5 obligations | 241,635 |
 
-The `register` and `settle` figures are full transactions measured on 18 September 2026, before the
-distinct-party check (`DuplicateParty`) was added to `settle`. That check compares at most five addresses. Gas on
-Arc is paid in native USDC.
+On the test network, a `settle` of 4 and of 5 invoices used 123,033 and 144,504 gas. Gas on Arc is paid in native
+USDC: on mainnet that was between 0.002 and 0.005 USDC per transaction in the same run.
 
 ## Upgradeability
 

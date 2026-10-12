@@ -39,6 +39,11 @@ const CHAINS_BY_ID: Record<number, Chain> = {
   [arcMainnet.id]: arcMainnet,
 };
 
+/// Display name for a chain id, for labels that must follow the deployment's chain.
+export function arcNetworkName(chainId: number): string {
+  return CHAINS_BY_ID[chainId]?.name ?? `Chain ${chainId}`;
+}
+
 export class UnknownArcChainError extends Error {
   constructor(chainId: number) {
     super(`No Arc chain definition for chain id ${chainId}`);

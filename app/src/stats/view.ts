@@ -74,10 +74,18 @@ export function buildStatsView(
     staleness = `${staleness ?? "The latest update failed."} Retrying automatically.`;
   }
 
+  // A first backfill that hasn't reached any event yet would otherwise read as real zeros.
+  if (!isCaughtUp(state) && loops === 0 && totals.invoicesRegistered === 0 && totals.valueNetted === "0") {
+    for (const tile of headline) {
+      tile.value = "Counting…";
+      tile.exact = "Still counting from the chain";
+    }
+  }
+
   return {
-    chainName: state.chainId === ARC_MAINNET_CHAIN_ID ? "Arc" : "Arc testnet",
+    chainName: state.chainId === ARC_MAINNET_CHAIN_ID ? "Arc mainnet" : "Arc testnet",
     asOf: formatAsOf(state.updatedAt),
-    since: state.firstEventAt ? formatDate(state.firstEventAt) : null,
+    since: state.firstEventAt ? formatDate(state.firstEventAt) : `block ${state.startBlock}`,
     headline,
     detail,
     staleness,

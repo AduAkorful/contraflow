@@ -29,7 +29,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ txHash
             <h1 className="heading-2">No settlement found</h1>
             <p className="mt-3 text-sm text-muted">
               <span className="break-all font-mono">{txHash.length > 80 ? `${txHash.slice(0, 80)}…` : txHash}</span>{" "}
-              isn&apos;t a settle() transaction on Arc testnet, or the transaction is too new for the explorer to have
+              isn&apos;t a settle() transaction on Arc, or the transaction is too new for the explorer to have
               indexed yet.
             </p>
           </div>

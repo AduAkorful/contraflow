@@ -44,7 +44,7 @@ Contraflow finds loops of debt between counterparties and nets them out, so mone
 
 - Base URL: \`${base}\`
 - Full docs: ${DOCS_URL} (agent index: ${DOCS_URL}/llms.txt)
-- A runnable end-to-end example (three companies, one loop, applied on testnet): ${origin()}/contraflow-quickstart.mjs
+- A runnable end-to-end example (three companies, one loop, applied on the network your key belongs to): ${origin()}/contraflow-quickstart.mjs
 - Scope: offchain obligations only. There is no invoice or settlement API.
 - ${keyLine()}
 
@@ -60,7 +60,7 @@ Contraflow finds loops of debt between counterparties and nets them out, so mone
 
 ## Authentication and conventions
 
-- \`Authorization: Bearer cfk_test_…\` (scheme is case-insensitive). A bad or revoked key is \`401 unauthorized\`.
+- \`Authorization: Bearer <your API key>\` (scheme is case-insensitive). A bad or revoked key is \`401 unauthorized\`.
 - Create a key at \`${origin()}/app/api-keys\` after signing in (a live key on mainnet, a test key on the test network). Two active keys at a time.
 - JSON in, JSON out. Optional \`X-Request-Id\` is echoed back.
 - List and summary amounts are \`amountMinor\` (integer string in minor units) and \`amountDisplay\` (major units). Timestamps on those responses are unix-second strings. \`chainId\` is a JSON number.
@@ -156,7 +156,7 @@ export function llmsTxt(): string {
 
 - [API brief for agents](${brief}): scope, hard rules, the flow in order, signing, gas, webhooks, errors, endpoint index. Read this first.
 - [OpenAPI 3.1 document](${apiBaseUrl()}/openapi.json): exact request and response bodies.
-- [Quick-start script](${site ? `${site}/contraflow-quickstart.mjs` : "/contraflow-quickstart.mjs"}): a runnable three-company loop on testnet, key to applied certificate.
+- [Quick-start script](${site ? `${site}/contraflow-quickstart.mjs` : "/contraflow-quickstart.mjs"}): a runnable three-company loop on your key's network, key to applied certificate.
 - [API reference](${DOCS_URL}/reference/api.md): the full reference, with examples.
 
 ## Docs

@@ -174,6 +174,7 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     const { row } = found;
     const idx = row.entries.findIndex((e) => isAddressEqual(e.debtor as Address, session));
     if (idx < 0) return { ok: false, error: NOT_FOUND };
+    if (row.status === "abandoned") return { ok: false, error: "This certificate is no longer collecting signatures." };
     if (row.signatures.some((s) => s.idx === idx)) return { ok: true };
     if (row.status !== "collecting") return { ok: false, error: "This certificate is no longer collecting signatures." };
     if (deps.now() >= BigInt(row.deadline)) return { ok: false, error: "This certificate has expired." };
@@ -347,6 +348,7 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     if (!isAddressEqual(session, row.debtor as Address) && !isAddressEqual(session, row.creditor as Address)) {
       return { ok: false, error: NOT_FOUND };
     }
+    if (row.status !== "disputed") return { ok: false, error: "This obligation isn't disputed." };
     const result = await store.withdrawDispute(id, session);
     return result === "withdrawn" ? { ok: true } : { ok: false, error: "Only the party that raised a dispute can withdraw it." };
   }

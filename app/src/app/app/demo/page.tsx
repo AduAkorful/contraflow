@@ -161,6 +161,9 @@ export default function DemoPage() {
         <span className="inline-flex items-center gap-2 rounded-pill border border-gold/30 bg-gold/10 px-4 py-1.5 text-xs font-medium text-gold">
           DEMO
         </span>
+        <span className="ml-2 inline-flex items-center rounded-pill border border-white/15 px-3 py-1.5 text-xs text-muted">
+          Test network · no real funds
+        </span>
         <h1 className="mt-4 heading-1">
           Watch a cycle cancel, live
         </h1>

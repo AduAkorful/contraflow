@@ -321,11 +321,14 @@ async function noneWithHint(
       (c) => (c.status === "collecting" || c.status === "ready") && BigInt(c.deadline) > now,
     );
     if (open.length === 0) return base;
+    // Held obligations are why there was nothing to search, so say "no candidates", not "no loop".
+    const held = none("no-candidates");
     return {
       ok: true,
       outcome: {
         ...base.outcome,
-        message: `${base.outcome.message} ${open.length === 1 ? "One certificate you're in is" : `${open.length} certificates you're in are`} still open and holds your obligations until ${open.length === 1 ? "it is" : "they are"} signed, applied or declined.`,
+        reason: "no-candidates",
+        message: `${held.ok && !held.outcome.found ? held.outcome.message : base.outcome.message} ${open.length === 1 ? "One certificate you're in is" : `${open.length} certificates you're in are`} still open and holds your obligations until ${open.length === 1 ? "it is" : "they are"} signed, applied or declined.`,
         pendingCertificates: open.map((c) => c.token),
       },
     };

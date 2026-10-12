@@ -42,8 +42,6 @@ export function marketingFooterColumns(docs = docsNavLink()): { title: string; l
       title: "Trust",
       links: [
         { label: "Verify a certificate", href: "/app/verify" },
-        { label: "Terms of Service", href: "/terms" },
-        { label: "Privacy Policy", href: "/privacy" },
       ],
     },
     {

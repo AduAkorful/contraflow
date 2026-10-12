@@ -11,7 +11,7 @@ those loops and nets them in one step.
 2. **Register.** Either party submits both signatures to Contraflow's invoice registry on Arc,
    which checks that each signature belongs to the party it names.
 3. **Find a loop.** Contraflow looks for closed loops of three to five invoices among registered
-   invoices and works out the largest amount that can come off every invoice in the loop.
+   invoices (offchain obligations can form loops of two to five) and works out the largest amount that can come off every invoice in the loop.
 4. **Settle.** Anyone can submit the loop to Contraflow's settler. It checks that the invoices
    really form a loop and that the amount fits every one of them, then reduces them all in a
    single transaction. If any check fails, nothing changes.

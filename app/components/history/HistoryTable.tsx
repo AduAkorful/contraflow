@@ -3,6 +3,7 @@
 import { Address } from "../ui/Address";
 import { Money } from "../ui/Money";
 import { EurcQuote } from "../quote/EurcQuote";
+import { explorerTxUrl } from "../../src/blockscout/explorer";
 import { APP_CHAIN_ID } from "../../src/contracts/addresses";
 import { usdcBaseUnits } from "../../src/format/money";
 import { NETTING_STATUS_LABEL, nettingStatus } from "../../src/format/netting";
@@ -10,7 +11,6 @@ import { unifiedBalanceEnabled } from "../../src/kits/gatewayChains";
 import { earlyNettingReview } from "../../src/format/signing";
 import type { HistoryInvoiceView } from "../../src/app/app/history/actions";
 
-const EXPLORER_BASE = "https://explorer.testnet.arc.io";
 
 function stillOwed(inv: HistoryInvoiceView): boolean {
   const owed = inv.status === "settled" ? inv.remainingUsdc : inv.amountUsdc;
@@ -69,8 +69,10 @@ function TxLink({ inv }: { inv: HistoryInvoiceView }) {
       </a>
     );
   }
+  const href = explorerTxUrl(APP_CHAIN_ID, inv.registerTxHash);
+  if (!href) return null;
   return (
-    <a href={`${EXPLORER_BASE}/tx/${inv.registerTxHash}`} target="_blank" rel="noreferrer" className="text-muted hover:underline">
+    <a href={href} target="_blank" rel="noreferrer" className="text-muted hover:underline">
       View tx →
     </a>
   );

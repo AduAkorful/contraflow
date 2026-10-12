@@ -1,11 +1,11 @@
 # Quick start: a three-company loop in ten minutes
 
-This script runs a complete loop on Arc testnet: three companies, three obligations in a circle, a netting certificate that every company signs, and the apply transaction. When it finishes you have an applied certificate you can verify.
+This script runs a complete loop on the network your key belongs to: three companies, three obligations in a circle, a netting certificate that every company signs, and the apply transaction. When it finishes you have an applied certificate you can verify.
 
 You need:
 
-* **A test API key.** Sign in at the app, open **API keys**, and create a test key (`cfk_test_…`).
-* **A payer wallet** holding a little Arc testnet USDC for gas. This is the only wallet that pays; the three companies only sign, so they need no funds. Get testnet USDC from Circle's faucet at `faucet.circle.com` (choose Arc Testnet).
+* **An API key.** Sign in at the app, open **API keys**, and create one. On Contraflow's Arc mainnet deployment that is a live key (`cfk_live_…`). A test key (`cfk_test_…`) runs the same script on Arc testnet.
+* **A payer wallet** holding a little USDC on the key's network, about 0.005 USDC for gas. This is the only wallet that pays; the three companies only sign, so they need no funds. On mainnet this is real USDC, and the applied certificate is a real onchain event that appears in the public totals. For testnet USDC, use Circle's faucet at `faucet.circle.com` (choose Arc Testnet).
 * **Node 20 or later** and `viem`.
 
 ## Run it
@@ -15,7 +15,7 @@ mkdir contraflow-sandbox && cd contraflow-sandbox
 npm init -y
 npm install viem
 curl -O https://contraflow.vercel.app/contraflow-quickstart.mjs
-CONTRAFLOW_API_KEY=cfk_test_... PAYER_PRIVATE_KEY=0x... node contraflow-quickstart.mjs
+CONTRAFLOW_API_KEY=cfk_live_... PAYER_PRIVATE_KEY=0x... node contraflow-quickstart.mjs
 ```
 
 Use environment variables for both keys, as above, and never commit them.

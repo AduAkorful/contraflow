@@ -39,7 +39,7 @@ sequenceDiagram
 Send your key as a bearer token:
 
 ```
-Authorization: Bearer cfk_test_…
+Authorization: Bearer cfk_live_…
 ```
 
 * **Test and live keys.** Keys starting `cfk_live_` act on Arc mainnet. Keys starting `cfk_test_` act on Arc testnet and work only on a testnet deployment; a mainnet deployment answers `403 test_unavailable`, and a testnet deployment answers `403 live_unavailable` to a live key. The network always comes from the key, never from the request.
@@ -138,7 +138,7 @@ Your own usage: daily counts of this tenant's calls, the last use of each key, a
     "topErrorCodes": [{ "code": "not_found", "count": 2 }]
   },
   "daily": [{ "day": "2026-10-10", "requests": 41, "errors": 3 }],
-  "keys": [{ "prefix": "cfk_test_3tfj", "mode": "test", "lastUsedAt": "2026-10-10T18:09:26.000Z", "revoked": false }],
+  "keys": [{ "prefix": "cfk_live_3tfj", "mode": "live", "lastUsedAt": "2026-10-10T18:09:26.000Z", "revoked": false }],
   "parties": [
     {
       "party": "0x4e71b023324bb2f66fe3e4153bc4b40fb913b24f",
@@ -184,7 +184,7 @@ Builds the EIP-712 payload a party signs to grant you scopes.
 ```json
 {
   "typedData": {
-    "domain": { "name": "Contraflow API", "version": "1", "chainId": 5042002 },
+    "domain": { "name": "Contraflow API", "version": "1", "chainId": 5042 },
     "types": {
       "ContraflowTenantPermission": [
         { "name": "party", "type": "address" },
@@ -333,7 +333,7 @@ The domain is `{ name: "ContraflowNettingLedger", version: "1", chainId, verifyi
 
 ```ts
 const signature = await account.signTypedData({
-  domain: { name: "ContraflowNettingLedger", version: "1", chainId: 5042002, verifyingContract: ledgerAddress },
+  domain: { name: "ContraflowNettingLedger", version: "1", chainId: 5042, verifyingContract: ledgerAddress },
   types: {
     NettingObligation: [
       { name: "documentHash", type: "bytes32" },
@@ -360,12 +360,12 @@ const signature = await account.signTypedData({
     "state": "open",
     "viewerRole": "proposer",
     "proposerRole": "debtor",
-    "domain": { "chainId": 5042002, "verifyingContract": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7" },
+    "domain": { "chainId": 5042, "verifyingContract": "0xCf7759128399ACF6f69dd76c852074ed9050fc28" },
     "obligation": { "…": "as submitted" },
     "document": { "…": "as submitted" },
     "proposerSignature": "0x…",
     "expiresAt": "1793021341",
-    "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042002, "verifyingContract": "0x2F59…2ef7" }, "types": { "NettingObligation": ["…"] }, "primaryType": "NettingObligation", "message": { "…": "…" } },
+    "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042, "verifyingContract": "0xCf77…fc28" }, "types": { "NettingObligation": ["…"] }, "primaryType": "NettingObligation", "message": { "…": "…" } },
     "digest": "0x…"
   }
 }
@@ -499,7 +499,7 @@ Scope: `read`. Returns the party's view and the typed data it signs.
     "appliedTxHash": null,
     "view": { "format": "contraflow-netting-certificate/1", "…": "the party's view; see Offchain netting" }
   },
-  "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042002, "verifyingContract": "0x2F59…2ef7" }, "primaryType": "NettingCertificate", "message": { "…": "…" } },
+  "typedData": { "domain": { "name": "ContraflowNettingLedger", "version": "1", "chainId": 5042, "verifyingContract": "0xCf77…fc28" }, "primaryType": "NettingCertificate", "message": { "…": "…" } },
   "digest": "0x…"
 }
 ```
@@ -524,15 +524,15 @@ Scope: `read`. **409** `not_ready` until every party has signed (and if the cert
 
 ```json
 {
-  "chainId": 5042002,
-  "to": "0x2F5996aaE68CbC8026543c405Cc81C26D58c2ef7",
+  "chainId": 5042,
+  "to": "0xCf7759128399ACF6f69dd76c852074ed9050fc28",
   "value": "0",
   "data": "0x…",
   "note": "Submit this from your own wallet; the sender pays the gas. Then report the hash to /transactions."
 }
 ```
 
-`data` is `applyCertificate(certificate, signatures)`. Anyone can submit it; Contraflow never does, and doesn't sponsor the gas. A 3-party certificate costs about 0.0042 USDC in gas on Arc testnet.
+`data` is `applyCertificate(certificate, signatures)`. Anyone can submit it; Contraflow never does, and doesn't sponsor the gas. A 3-party certificate costs about 0.0034 USDC in gas on Arc mainnet.
 
 ### Who pays the gas
 
@@ -579,7 +579,7 @@ A tenant has one HTTPS endpoint and a signing secret (`whsec_…`), shown once. 
   "id": "evt_41_c4a42fd5e0d427c0",
   "type": "certificate.applied",
   "created": 1790000000,
-  "chainId": 5042002,
+  "chainId": 5042,
   "data": {
     "certificateId": "0x1f00cc58f52f7a85ada8fcbeca335feba55fab73f59418145b62de4f3574b4e7",
     "token": "zWa9t3gHKtmQZY3uiBvJQg",

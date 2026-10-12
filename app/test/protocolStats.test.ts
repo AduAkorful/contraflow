@@ -235,6 +235,14 @@ describe("buildStatsView", () => {
   const caughtUp = (): StatsState => ({ ...emptyState(CHAIN_ID, 1n, T0), cursorBlock: "9", headBlock: "9", firstEventAt: "2026-09-22T08:18:35.000Z" });
   const opts = (now = T0) => ({ now: new Date(now), staleAfterMs: 15 * 60_000, lastError: null });
 
+  it("shows 'Counting…' rather than zeros while the first backfill has found nothing, and names mainnet", () => {
+    const behind: StatsState = { ...emptyState(5042, 1n, T0), cursorBlock: "4", headBlock: "9" };
+    const view = buildStatsView(behind, contracts, opts());
+    expect(view.headline.map((t) => t.value)).toEqual(["Counting…", "Counting…", "Counting…"]);
+    expect(view.chainName).toBe("Arc mainnet");
+    expect(view.since).toBe("block 1");
+  });
+
   it("shows three headline figures with their sublines, and no operator line", () => {
     const view = buildStatsView(caughtUp(), contracts, opts());
     expect(view.headline.map((t) => t.label)).toEqual(["Invoices registered", "Value netted", "Loops settled"]);

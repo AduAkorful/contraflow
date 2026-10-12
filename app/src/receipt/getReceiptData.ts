@@ -4,6 +4,7 @@
 /// (`before = remainingAfter + wNet`), same formula `app/src/app/app/demo/actions.ts` already uses.
 
 import { getSettlement, getInvoicesForSettlement } from "../db/invoices";
+import { explorerTxUrl as explorerTxUrlFor } from "../blockscout/explorer";
 import { paramValue } from "../blockscout/client";
 import { fetchTransactionFromChain } from "../chain/txReceipt";
 import type { ReceiptData, ReceiptInvoiceRow } from "../../components/receipt/Receipt";
@@ -31,7 +32,7 @@ function addUsdcAmounts(a: string, b: string): string {
 }
 
 function explorerTxUrl(txHash: string): string {
-  return `https://explorer.testnet.arc.io/tx/${txHash}`;
+  return explorerTxUrlFor(APP_CHAIN_ID, txHash) ?? "";
 }
 
 async function fromDatabase(txHash: string): Promise<ReceiptData | null> {

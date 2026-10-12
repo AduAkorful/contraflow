@@ -20,4 +20,4 @@ If you are building the integration with a coding agent, give it the brief. It i
 
 Paste the URL of `contraflow-api.md` into your agent's context, or save the file in your project (for example as `docs/contraflow-api.md`) and point your agent's instructions at it. Keep keys and webhook secrets in your secret manager and give the agent only the variable names. Run the whole loop on a test key before asking for a live one.
 
-The brief is a summary. The [API reference](reference/api.md) is the full contract. The [quick start](quickstart.md) is a script the agent can run end to end on testnet.
+The brief is a summary. The [API reference](reference/api.md) is the full contract. The [quick start](quickstart.md) is a script the agent can run end to end on the network its key belongs to.

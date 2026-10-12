@@ -10,7 +10,7 @@
 
 **Does a settlement or certificate legally discharge the debt?** No. It's a signed record that works alongside your agreements with your counterparties. See [Trust and security](how-it-works.md#trust-and-security).
 
-**Does Contraflow move or hold my money?** No. A settlement or certificate changes what the parties have signed as owed; no USDC moves, and Contraflow holds no funds or keys. It isn't connected to your bank accounts or to the asset behind a debt, so what is still owed after netting is paid between you and your counterparty, and your own books are yours to update. See the [Roadmap](roadmap.md) for what's not available yet.
+**Does Contraflow move or hold my money?** No. A settlement or certificate changes what the parties have signed as owed; no USDC moves, and Contraflow holds none of your funds and no keys to your wallets. It isn't connected to your bank accounts or to the asset behind a debt, so what is still owed after netting is paid between you and your counterparty, and your own books are yours to update. See the [Roadmap](roadmap.md) for what's not available yet.
 
 **Who can trigger settlement?** Anyone, once a loop is fully signed. It isn't gated behind Contraflow.
 

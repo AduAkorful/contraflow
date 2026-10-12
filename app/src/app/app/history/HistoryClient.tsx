@@ -69,7 +69,7 @@ export function HistoryClient({ initialAddress, sessionAddress }: { initialAddre
       <section className="mx-auto max-w-5xl min-w-0 overflow-x-clip px-4 pb-10 pt-10 sm:px-6">
         <h1 className="heading-1">Invoice history</h1>
         <p className="mt-4 max-w-2xl text-muted">
-          Look up any address&apos;s invoices on Arc testnet — no sign-in needed. Useful for
+          Look up any address&apos;s invoices on Arc — no sign-in needed. Useful for
           checking a counterparty, or your own address after running{" "}
           <a href="/app/demo" className="text-gold hover:underline">
             the demo

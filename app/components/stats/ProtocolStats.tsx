@@ -31,7 +31,7 @@ function Loaded({ view, variant }: { view: StatsView; variant: "headline" | "ful
   const howId = useId();
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle lg:grid-cols-3 [&>div:last-child:nth-child(odd)]:col-span-2 lg:[&>div:last-child:nth-child(odd)]:col-span-1">
         {view.headline.map((tile) => (
           <div key={tile.label} className="bg-surface-1 p-5">
             <dt className="text-xs text-muted">{tile.label}</dt>

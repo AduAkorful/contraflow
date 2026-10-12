@@ -8,6 +8,7 @@
 import { useState } from "react";
 import type { InvoiceAttestation } from "../../src/attest/signAttestation";
 import { Address } from "../ui/Address";
+import { arcNetworkName } from "../../src/chain/client";
 import { Money } from "../ui/Money";
 import { formatUsdcAmount } from "../../src/attest/amount";
 
@@ -60,7 +61,7 @@ export function ReviewAndSign({
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Network</dt>
-          <dd className="mt-1">Arc Testnet · {invoice.chainId.toString()}</dd>
+          <dd className="mt-1">{arcNetworkName(Number(invoice.chainId))} · {invoice.chainId.toString()}</dd>
         </div>
       </dl>
 
