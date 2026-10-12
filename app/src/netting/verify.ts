@@ -52,9 +52,19 @@ export interface VerifyOptions {
   /// can be confirmed without searching history. A miss at this block falls back to the bounded
   /// window below rather than failing.
   applicationBlock?: bigint;
+  /// The earliest block the ledger could have emitted an event in (its chain's deployment block).
+  /// With it, the search for the application event runs from the newest block back to this floor
+  /// instead of only the last `APPLICATION_LOG_LOOKBACK` blocks, so an older genuine certificate
+  /// can be confirmed. A search that reaches the floor is a complete history.
+  searchFloorBlock?: bigint;
 }
 
 const APPLICATION_LOG_CHUNK = 2_000n;
+/// With a floor, ranges are larger (Arc's public endpoints allow 9,999 blocks), read a few at a time,
+/// newest first, and given up on after this many ranges (about three weeks of blocks).
+const FLOOR_SEARCH_CHUNK = 9_000n;
+const FLOOR_SEARCH_PARALLEL = 4;
+const FLOOR_SEARCH_MAX_CHUNKS = 400;
 const APPLICATION_LOG_LOOKBACK = 10_000n;
 const CERTIFICATE_APPLIED_EVENT = parseAbiItem(
   "event CertificateApplied(bytes32 indexed certificateId, bytes32 contentHash, address indexed submitter)",
@@ -148,7 +158,7 @@ async function runChecks(view: CertificateView, options: VerifyOptions, add: Add
       : "The certificate's contentHash doesn't match its contents",
   );
 
-  if (stage === "applied") await checkOnchain(view, add, client, options.applicationBlock);
+  if (stage === "applied") await checkOnchain(view, add, client, options.applicationBlock, options.searchFloorBlock);
 }
 
 async function checkFullEntry(
@@ -219,6 +229,7 @@ async function checkOnchain(
   add: AddCheck,
   client: ChainReader | undefined,
   applicationBlock?: bigint,
+  searchFloorBlock?: bigint,
 ): Promise<void> {
   if (!client) {
     add("onchain", "unverifiable", "No chain client given, so the ledger wasn't read");
@@ -242,19 +253,47 @@ async function checkOnchain(
     }
     if (!isExactApplication(applicationLogs, certificate)) {
       const latest = await client.getBlockNumber();
-      const first = latest > APPLICATION_LOG_LOOKBACK ? latest - APPLICATION_LOG_LOOKBACK : 0n;
-      completeHistory = first === 0n;
-      for (let fromBlock = first; fromBlock <= latest; fromBlock += APPLICATION_LOG_CHUNK) {
-        const toBlock = fromBlock + APPLICATION_LOG_CHUNK - 1n < latest ? fromBlock + APPLICATION_LOG_CHUNK - 1n : latest;
-        const logs = await client.getLogs({
-          address: ledger,
-          event: CERTIFICATE_APPLIED_EVENT,
-          args: { certificateId: certificate.certificateId },
-          fromBlock,
-          toBlock,
-        });
-        applicationLogs.push(...(logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]));
-        if (isExactApplication(applicationLogs, certificate)) break;
+      if (searchFloorBlock !== undefined) {
+        const floor = searchFloorBlock;
+        const ranges: [bigint, bigint][] = [];
+        for (let to = latest; to >= floor && ranges.length < FLOOR_SEARCH_MAX_CHUNKS; to -= FLOOR_SEARCH_CHUNK) {
+          const from = to - FLOOR_SEARCH_CHUNK + 1n > floor ? to - FLOOR_SEARCH_CHUNK + 1n : floor;
+          ranges.push([from, to]);
+          if (from === floor) break;
+        }
+        completeHistory = ranges.length > 0 && ranges[ranges.length - 1]![0] === floor;
+        for (let i = 0; i < ranges.length && !isExactApplication(applicationLogs, certificate); i += FLOOR_SEARCH_PARALLEL) {
+          const batch = ranges.slice(i, i + FLOOR_SEARCH_PARALLEL);
+          const results = await Promise.all(
+            batch.map(([fromBlock, toBlock]) =>
+              client.getLogs({
+                address: ledger,
+                event: CERTIFICATE_APPLIED_EVENT,
+                args: { certificateId: certificate.certificateId },
+                fromBlock,
+                toBlock,
+              }),
+            ),
+          );
+          for (const logs of results) {
+            applicationLogs.push(...(logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]));
+          }
+        }
+      } else {
+        const first = latest > APPLICATION_LOG_LOOKBACK ? latest - APPLICATION_LOG_LOOKBACK : 0n;
+        completeHistory = first === 0n;
+        for (let fromBlock = first; fromBlock <= latest; fromBlock += APPLICATION_LOG_CHUNK) {
+          const toBlock = fromBlock + APPLICATION_LOG_CHUNK - 1n < latest ? fromBlock + APPLICATION_LOG_CHUNK - 1n : latest;
+          const logs = await client.getLogs({
+            address: ledger,
+            event: CERTIFICATE_APPLIED_EVENT,
+            args: { certificateId: certificate.certificateId },
+            fromBlock,
+            toBlock,
+          });
+          applicationLogs.push(...(logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[]));
+          if (isExactApplication(applicationLogs, certificate)) break;
+        }
       }
     }
   } catch {
@@ -309,6 +348,19 @@ async function checkLedgerState(view: CertificateView, add: AddCheck, client: Ch
     const current = state.toLowerCase() === entry.nextCommitment.toLowerCase();
     add(`onchain:entry:${i}:state`, "pass", current ? "Current state" : "Netted again since");
   }
+}
+
+/// Whether the certificate's `CertificateApplied` event, with this exact ID and content hash, is in
+/// `block`. Lets a page say that a pasted transaction didn't apply the certificate.
+export async function isAppliedAtBlock(client: ChainReader, view: CertificateView, block: bigint): Promise<boolean> {
+  const logs = await client.getLogs({
+    address: view.domain.verifyingContract,
+    event: CERTIFICATE_APPLIED_EVENT,
+    args: { certificateId: view.certificate.certificateId },
+    fromBlock: block,
+    toBlock: block,
+  });
+  return isExactApplication(logs as unknown as { args?: { certificateId?: Hex; contentHash?: Hex } }[], view.certificate);
 }
 
 /// The block a transaction was mined in, or undefined when it can't be read. Used only as a

@@ -28,6 +28,8 @@ import { prepareWalletContext } from "@/src/attest/walletContext";
 import { serializeObligation } from "@/src/netting/serialize";
 import type { NettingObligation } from "@/src/netting/types";
 import { createProposal } from "../actions";
+import { MAX_DESCRIPTION_LENGTH } from "@/src/format/description";
+import { isZeroAddress, pastMaturityNote } from "@/src/format/formChecks";
 
 type Phase = "compose" | "review" | "signing" | "done";
 type Role = "debtor" | "creditor";
@@ -70,24 +72,52 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<"counterparty" | "currency" | "amount" | "maturity" | "description", string>>
+  >({});
+
+  /// Editing a field clears its own problem, and the general one, so nothing stale stays on screen.
+  function edit<T>(field: keyof typeof fieldErrors, set: (value: T) => void) {
+    return (value: T) => {
+      set(value);
+      setError(null);
+      setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+    };
+  }
 
   const currency = currencyChoice === OTHER ? otherCurrency.trim().toUpperCase() : currencyChoice;
 
   function handleContinueToReview() {
     setError(null);
-    if (!isAddress(counterparty.trim())) return setError("Enter a valid counterparty address.");
-    const other = getAddress(counterparty.trim());
-    const me = getAddress(signerAddress);
-    if (other === me) return setError("The counterparty must be a different address from yours.");
-    if (!isIsoCurrency(currency)) return setError("Enter a three-letter ISO currency code, like USD or GHS.");
-    if (!maturityDate) return setError("Pick a maturity date.");
-
-    let amount: string;
-    try {
-      amount = formatAmount(parseAmount(amountInput, currency), currency);
-    } catch (err) {
-      return setError(err instanceof Error ? err.message : "Enter a valid amount.");
+    const problems: typeof fieldErrors = {};
+    const who = counterparty.trim();
+    if (!isAddress(who)) problems.counterparty = "Enter a valid address, starting with 0x.";
+    else if (isZeroAddress(who)) problems.counterparty = "That's the zero address. Enter your counterparty's address.";
+    else if (getAddress(who) === getAddress(signerAddress)) {
+      problems.counterparty = "The counterparty must be a different address from yours.";
     }
+    if (!isIsoCurrency(currency)) problems.currency = "Enter a three-letter ISO currency code, like USD or GHS.";
+    if (!maturityDate) problems.maturity = "Pick a maturity date.";
+    if (!description.trim()) problems.description = "Describe what this obligation is for.";
+    else if (description.trim().length > MAX_DESCRIPTION_LENGTH) {
+      problems.description = `The description can be at most ${MAX_DESCRIPTION_LENGTH} characters.`;
+    }
+
+    let amount = "";
+    if (!problems.currency) {
+      try {
+        amount = formatAmount(parseAmount(amountInput, currency), currency);
+      } catch (err) {
+        problems.amount = err instanceof Error ? err.message : "Enter a valid amount.";
+      }
+    } else if (!amountInput.trim()) {
+      problems.amount = "Enter an amount.";
+    }
+    setFieldErrors(problems);
+    if (Object.keys(problems).length > 0) return setError("Fix the highlighted fields to continue.");
+
+    const other = getAddress(who);
+    const me = getAddress(signerAddress);
 
     const document: CanonicalObligationDocument = {
       format: OBLIGATION_DOCUMENT_FORMAT,
@@ -214,12 +244,12 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
       <div className="flex flex-col gap-5">
         <Segmented label="Who owes whom" value={role} options={ROLE_OPTIONS} onChange={setRole} />
 
-        <Field label="Counterparty address">
+        <Field label="Counterparty address" error={fieldErrors.counterparty}>
           {(p) => (
             <input
               {...p}
               value={counterparty}
-              onChange={(e) => setCounterparty(e.target.value)}
+              onChange={(e) => edit<string>("counterparty", setCounterparty)(e.target.value)}
               placeholder="0x..."
               spellCheck={false}
               className={`${inputClass} font-mono`}
@@ -228,9 +258,9 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
         </Field>
 
         <div className="grid grid-cols-[8rem_1fr] gap-3">
-          <Field label="Currency">
+          <Field label="Currency" error={fieldErrors.currency}>
             {(p) => (
-              <select {...p} value={currencyChoice} onChange={(e) => setCurrencyChoice(e.target.value)} className={inputClass}>
+              <select {...p} value={currencyChoice} onChange={(e) => edit<string>("currency", setCurrencyChoice)(e.target.value)} className={inputClass}>
                 {COMMON_CURRENCIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -240,12 +270,12 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
               </select>
             )}
           </Field>
-          <Field label="Amount">
+          <Field label="Amount" error={fieldErrors.amount}>
             {(p) => (
               <input
                 {...p}
                 value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
+                onChange={(e) => edit<string>("amount", setAmountInput)(e.target.value)}
                 placeholder="1250.00"
                 inputMode="decimal"
                 className={inputClass}
@@ -259,7 +289,7 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
               <input
                 {...p}
                 value={otherCurrency}
-                onChange={(e) => setOtherCurrency(e.target.value)}
+                onChange={(e) => edit<string>("currency", setOtherCurrency)(e.target.value)}
                 placeholder="CHF"
                 maxLength={3}
                 className={`${inputClass} uppercase`}
@@ -268,19 +298,23 @@ export function ComposeObligation({ signerAddress }: { signerAddress: string }) 
           </Field>
         )}
 
-        <Field label="Maturity date">
-          {(p) => <input {...p} type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} className={inputClass} />}
+        <Field label="Maturity date" error={fieldErrors.maturity} note={pastMaturityNote(maturityDate)}>
+          {(p) => <input {...p} type="date" value={maturityDate} onChange={(e) => edit<string>("maturity", setMaturityDate)(e.target.value)} className={inputClass} />}
         </Field>
 
-        <Field label="What's this for?" hint="Hashed and signed as part of this obligation. Your counterparty sees it before they sign too.">
+        <Field
+          label="What's this for?"
+          hint={`Hashed and signed as part of this obligation. Your counterparty sees it before they sign too. ${description.length}/${MAX_DESCRIPTION_LENGTH}`}
+          error={fieldErrors.description}
+        >
           {(p) => (
             <textarea
               {...p}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => edit<string>("description", setDescription)(e.target.value)}
               placeholder="Invoice #, PO #, or a short description of what this is for"
               rows={2}
-              maxLength={500}
+              maxLength={MAX_DESCRIPTION_LENGTH}
               className={`${inputClass} resize-none`}
             />
           )}

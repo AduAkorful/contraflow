@@ -7,7 +7,7 @@ import { commitment } from "../src/netting/commitment";
 import { obligationKey } from "../src/netting/obligation";
 import { parseCertificateView } from "../src/netting/serialize";
 import type { CertificateView, LedgerDomain } from "../src/netting/types";
-import { blockOfTransaction, verifyCertificateView } from "../src/netting/verify";
+import { blockOfTransaction, isAppliedAtBlock, verifyCertificateView } from "../src/netting/verify";
 import { CERTIFICATE_LIFETIME_SECONDS, createCertificateService, type CertificateService } from "../src/obligations/certificates";
 import { fakeLedgerChain } from "./helpers/fakeLedgerChain";
 import { createMemoryCertificateStore, seedObligation, type MemoryCertificateStore } from "./helpers/memoryCertificateStore";
@@ -381,6 +381,29 @@ describe("declining, closing and expiry", () => {
     await propose(parties[0]!.address);
   });
 
+  it("lets only the other party reply to a dispute, and clears the reply when it is withdrawn", async () => {
+    const { rows } = await seededLoop([100n, 100n, 100n]);
+    const id = rows[0]!.obligationId;
+    const row = store.obligations.get(id)!;
+    const raiser = row.debtor as Address;
+    const other = row.creditor as Address;
+    const stranger = getAddress("0x" + "ab".repeat(20));
+
+    expect(await service.replyToDispute(other, id, "Not disputed yet")).toEqual({ ok: false, error: "This obligation isn't disputed." });
+    expect(await service.disputeObligation(raiser, id, "Not delivered")).toEqual({ ok: true });
+
+    expect(await service.replyToDispute(raiser, id, "I raised this")).toMatchObject({ ok: false });
+    expect(await service.replyToDispute(stranger, id, "hello")).toEqual({ ok: false, error: "Not found." });
+    expect(await service.replyToDispute(other, id, "   ")).toEqual({ ok: false, error: "Write a reply." });
+    expect(await service.replyToDispute(other, id, "x".repeat(201))).toMatchObject({ ok: false });
+
+    expect(await service.replyToDispute(other, id, "  Delivered on 3 Oct, receipt attached  ")).toEqual({ ok: true });
+    expect(store.obligations.get(id)).toMatchObject({ status: "disputed", disputeReply: "Delivered on 3 Oct, receipt attached" });
+
+    expect(await service.withdrawDispute(raiser, id)).toEqual({ ok: true });
+    expect(store.obligations.get(id)).toMatchObject({ status: "active", disputeReply: null });
+  });
+
   it("refuses a dispute from a stranger, a too-long note, or while a fully signed certificate holds the obligation", async () => {
     const { parties, rows } = await seededLoop([100n, 100n]);
     const id = rows[0]!.obligationId;
@@ -643,6 +666,26 @@ describe("a certificate applied long ago", () => {
     const result = await verifyCertificateView(view, { now: clock, stage: "applied", client, applicationBlock: block });
     expect(result.checks.filter((c) => c.status !== "pass")).toEqual([]);
     expect(result.ok).toBe(true);
+  });
+
+  it("passes every check with only a search floor, no transaction hash", async () => {
+    const { view, client } = await appliedLongAgo();
+    const result = await verifyCertificateView(view, { now: clock, stage: "applied", client, searchFloorBlock: 1n });
+    expect(result.checks.filter((c) => c.status !== "pass")).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("fails, rather than leaving unconfirmed, a certificate absent from a complete search", async () => {
+    const { view, client } = await appliedLongAgo();
+    const other = { ...view, certificate: { ...view.certificate, contentHash: `0x${"ee".repeat(32)}` as Hex } };
+    const result = await verifyCertificateView(other, { now: clock, stage: "applied", client, searchFloorBlock: 1n });
+    expect(result.checks.find((c) => c.name === "onchain:application-event")?.status).toBe("fail");
+  });
+
+  it("says whether a transaction block holds the certificate's application", async () => {
+    const { view, client } = await appliedLongAgo();
+    expect(await isAppliedAtBlock(client, view, APPLIED_AT)).toBe(true);
+    expect(await isAppliedAtBlock(client, view, APPLIED_AT + 1n)).toBe(false);
   });
 
   it("still fails a certificate the ledger has not applied", async () => {

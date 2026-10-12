@@ -32,7 +32,7 @@ export function ObligationTerms({
         {viewerRole === "debtor" ? "You owe" : "You are owed"}{" "}
         <span className="text-gold">{displayMajorAmount(document.amount, document.currency)}</span>
       </p>
-      <p className="mt-2 whitespace-pre-line text-sm text-muted">{document.description.trim()}</p>
+      <p className="mt-2 whitespace-pre-line text-sm text-muted [overflow-wrap:anywhere]">{document.description.trim()}</p>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>

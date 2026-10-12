@@ -23,6 +23,8 @@ import { prepareWalletContext } from "@/src/attest/walletContext";
 import { starterGrantToast } from "@/src/attest/grantCopy";
 import { nextNonceFor, saveInvoiceDocument, createInvoiceLink } from "./actions";
 import { requestGrant } from "../grant/actions";
+import { MAX_DESCRIPTION_LENGTH } from "@/src/format/description";
+import { isZeroAddress, pastMaturityNote } from "@/src/format/formChecks";
 
 type Phase = "compose" | "review" | "signing" | "done";
 type Role = "debtor" | "creditor";
@@ -66,6 +68,17 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   const [error, setError] = useState<string | null>(null);
   const [grantNote, setGrantNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<"counterparty" | "amount" | "maturity" | "description", string>>>({});
+  const [checking, setChecking] = useState(false);
+
+  /// Editing a field clears its own problem, and the general one, so nothing stale stays on screen.
+  function edit<T>(field: keyof typeof fieldErrors, set: (value: T) => void) {
+    return (value: T) => {
+      set(value);
+      setError(null);
+      setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+    };
+  }
 
   async function ensureGrant() {
     const result = await requestGrant();
@@ -75,44 +88,48 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
   }
 
   async function handleContinueToReview() {
+    if (checking) return;
+    setChecking(true);
     try {
       await continueToReview();
     } catch (err) {
       // A step that throws must never leave the button looking dead.
       setError(err instanceof Error && err.message ? err.message : "Something went wrong. Try again.");
+    } finally {
+      setChecking(false);
     }
   }
 
   async function continueToReview() {
     setError(null);
-    if (!isAddress(counterparty)) {
-      setError("Enter a valid counterparty address.");
-      return;
+    const problems: typeof fieldErrors = {};
+    const who = counterparty.trim();
+    if (!isAddress(who)) problems.counterparty = "Enter a valid address, starting with 0x.";
+    else if (isZeroAddress(who)) problems.counterparty = "That's the zero address. Enter your counterparty's address.";
+    else if (signerAddress && who.toLowerCase() === signerAddress.toLowerCase()) {
+      problems.counterparty = "The counterparty must be a different address from yours.";
     }
-    if (signerAddress && counterparty.toLowerCase() === signerAddress.toLowerCase()) {
-      setError("The counterparty must be a different address from yours.");
-      return;
-    }
-    let amount: bigint;
+    let amount: bigint = 0n;
     try {
       amount = parseUsdcAmount(amountUsd);
     } catch (err) {
-      setError(err instanceof UsdcAmountError ? err.message : "Enter a valid USDC amount.");
-      return;
+      problems.amount = err instanceof UsdcAmountError ? err.message : "Enter a valid USDC amount.";
     }
-    if (!maturityDate) {
-      setError("Pick a maturity date.");
-      return;
+    if (!maturityDate) problems.maturity = "Pick a maturity date.";
+    if (!description.trim()) problems.description = "Describe what this invoice is for.";
+    else if (description.trim().length > MAX_DESCRIPTION_LENGTH) {
+      problems.description = `The description can be at most ${MAX_DESCRIPTION_LENGTH} characters.`;
     }
-    if (!description.trim()) {
-      setError("Describe what this invoice is for.");
+    setFieldErrors(problems);
+    if (Object.keys(problems).length > 0) {
+      setError("Fix the highlighted fields to continue.");
       return;
     }
 
     await ensureGrant();
 
-    const debtor = (role === "debtor" ? signerAddress : counterparty) as Address;
-    const creditor = (role === "creditor" ? signerAddress : counterparty) as Address;
+    const debtor = (role === "debtor" ? signerAddress : counterparty.trim()) as Address;
+    const creditor = (role === "creditor" ? signerAddress : counterparty.trim()) as Address;
 
     const nonceResult = await nextNonceFor(debtor, creditor);
     if (!nonceResult.ok) {
@@ -254,12 +271,12 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
       <div className="flex flex-col gap-5">
         <Segmented label="Who owes whom" value={role} options={ROLE_OPTIONS} onChange={setRole} />
 
-        <Field label="Counterparty address">
+        <Field label="Counterparty address" error={fieldErrors.counterparty}>
           {(p) => (
             <input
               {...p}
               value={counterparty}
-              onChange={(e) => setCounterparty(e.target.value)}
+              onChange={(e) => edit<string>("counterparty", setCounterparty)(e.target.value)}
               placeholder="0x..."
               spellCheck={false}
               className={`${inputClass} font-mono`}
@@ -267,31 +284,36 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
           )}
         </Field>
 
-        <Field label="Amount" hint="Up to 6 decimal places.">
+        <Field label="Amount" hint="Up to 6 decimal places." error={fieldErrors.amount}>
           {(p) => (
             <SuffixInput
               {...p}
               suffix="USDC"
               value={amountUsd}
-              onChange={(e) => setAmountUsd(e.target.value)}
+              onChange={(e) => edit<string>("amount", setAmountUsd)(e.target.value)}
               placeholder="1000.00"
               inputMode="decimal"
             />
           )}
         </Field>
 
-        <Field label="Maturity date">
-          {(p) => <input {...p} type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} className={inputClass} />}
+        <Field label="Maturity date" error={fieldErrors.maturity} note={pastMaturityNote(maturityDate)}>
+          {(p) => <input {...p} type="date" value={maturityDate} onChange={(e) => edit<string>("maturity", setMaturityDate)(e.target.value)} className={inputClass} />}
         </Field>
 
-        <Field label="What's this for?" hint="Hashed and signed as part of this invoice. Your counterparty sees it before they sign too.">
+        <Field
+          label="What's this for?"
+          hint={`Hashed and signed as part of this invoice. Your counterparty sees it before they sign too. ${description.length}/${MAX_DESCRIPTION_LENGTH}`}
+          error={fieldErrors.description}
+        >
           {(p) => (
             <textarea
               {...p}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => edit<string>("description", setDescription)(e.target.value)}
               placeholder="Invoice #, PO #, or a short description of what this is for"
               rows={2}
+              maxLength={MAX_DESCRIPTION_LENGTH}
               className={`${inputClass} resize-none`}
             />
           )}
@@ -307,9 +329,11 @@ export function ComposeForm({ signerAddress }: { signerAddress: string }) {
 
         <button
           onClick={handleContinueToReview}
-          className="mt-1 rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02]"
+          disabled={checking}
+          aria-busy={checking}
+          className="mt-1 rounded-pill bg-gold px-6 py-3 text-sm font-medium text-black hover:scale-[1.02] disabled:state-disabled disabled:scale-100"
         >
-          Continue to review
+          {checking ? "Checking…" : "Continue to review"}
         </button>
 
         {grantNote && <p className="text-center text-xs text-muted">{grantNote}</p>}

@@ -90,12 +90,17 @@ describe("canonical invoice document validation", () => {
     expect(invoiceDocumentProblem(doc)).toBeNull();
   });
 
+  it("accepts a description of exactly 500 characters", () => {
+    expect(invoiceDocumentProblem({ ...doc, description: "x".repeat(500) })).toBeNull();
+  });
+
   it.each([
     [{ ...doc, description: "  Consulting services " }, "Invoice description must be non-empty and trimmed"],
     [{ ...doc, debtor: doc.creditor }, "Invoice parties must be different"],
     [{ ...doc, amountUsdc: "1.0" }, "Invoice amount must use canonical USDC precision"],
     [{ ...doc, amountUsdc: "1e3" }, "Invoice amount is invalid"],
     [{ ...doc, maturity: "2026-02-30" }, "Invoice maturity is invalid"],
+    [{ ...doc, description: "x".repeat(501) }, "The description can be at most 500 characters"],
   ])("rejects non-canonical document terms", (candidate, message) => {
     expect(invoiceDocumentProblem(candidate as typeof doc)).toBe(message);
   });

@@ -105,6 +105,7 @@ export const API_INDEX = {
     { method: "GET", path: "/parties/{address}/obligations", description: "List a party's obligations" },
     { method: "POST", path: "/obligations/{obligationId}/dispute", description: "Mark an obligation disputed" },
     { method: "DELETE", path: "/obligations/{obligationId}/dispute", description: "Withdraw a dispute you raised" },
+    { method: "POST", path: "/obligations/{obligationId}/dispute/reply", description: "Reply to a dispute the other party raised" },
     { method: "GET", path: "/parties/{address}/rules", description: "Read a party's netting rules" },
     { method: "POST", path: "/parties/{address}/rules", description: "Set a party's approved-counterparty rule" },
     { method: "POST", path: "/parties/{address}/loops", description: "Find and propose a loop" },
@@ -130,7 +131,7 @@ export const OPENAPI = {
     version: "1.0.0",
     license: { name: "Proprietary", url: "https://contraflow.vercel.app/terms" },
     description:
-      "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Test keys (`cfk_test_`) use Arc testnet. List and summary responses name amounts `amountMinor` (an ISO 4217 minor-unit integer string) and `amountDisplay` (the same amount in major units). Their timestamps are unix-second strings. `chainId` is a JSON number on the tenant, an apply transaction, a webhook event, and a proposal's domain. Signed obligation documents, EIP-712 fields, and `contraflow-netting-certificate/1` files keep their own field names. In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers in those signed payloads stay decimal strings. Authorization is case-insensitive `Bearer`. There is no invoice or settlement API.",
+      "Record offchain obligations for your customers, find netting loops, collect each party's certificate signature and apply certificates on Arc. Contraflow never signs for anyone: every obligation and certificate carries the party's own signature, and you act for a party only under a permission it signed. Live keys (`cfk_live_`) act on Arc mainnet and test keys (`cfk_test_`) on Arc testnet; a deployment serves one network and answers a key for the other with 403. List and summary responses name amounts `amountMinor` (an ISO 4217 minor-unit integer string) and `amountDisplay` (the same amount in major units). Their timestamps are unix-second strings. `chainId` is a JSON number on the tenant, an apply transaction, a webhook event, and a proposal's domain. Signed obligation documents, EIP-712 fields, and `contraflow-netting-certificate/1` files keep their own field names. In EIP-712 typed-data responses, `domain.chainId` is a JSON number and `digest` is the payload's hash; other integers in those signed payloads stay decimal strings. Authorization is case-insensitive `Bearer`. There is no invoice or settlement API.",
   },
   servers: [
     { url: "https://contraflow.vercel.app/api/v1", description: "Hosted app" },
@@ -285,6 +286,29 @@ export const OPENAPI = {
         responses: { "204": { description: "No content" }, ...authErrors, ...errors("404", "422") },
       }),
     },
+    "/obligations/{obligationId}/dispute/reply": {
+      post: op({
+        operationId: "replyToObligationDispute",
+        tags: ["Obligations"],
+        summary: "Reply to a dispute the other party raised",
+        description:
+          "Needs the named party's `propose` scope. Only the party that did not raise the dispute can reply, and only while it is open. Body: `{ party, note }` (note 1 to 200 characters). The reply is shown to both parties as `disputeReply` on the listed obligation and is cleared when the dispute is withdrawn. Replying changes nothing about netting: the obligation stays out of loops until the dispute is withdrawn.",
+        parameters: [{ name: "obligationId", in: "path", required: true, schema: { $ref: "#/components/schemas/Bytes32" } }, idempotencyKey],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["party", "note"],
+                properties: { party: { $ref: "#/components/schemas/Address" }, note: { type: "string", minLength: 1, maxLength: 200 } },
+              },
+            },
+          },
+        },
+        responses: { ...ok({ type: "object", properties: { replied: { type: "boolean" } } }), ...jsonErrors },
+      }),
+    },
     "/obligations/proposals/batch": {
       post: op({
         operationId: "createObligationProposals",
@@ -329,8 +353,8 @@ export const OPENAPI = {
         operationId: "withdrawObligationProposal",
         tags: ["Obligations"],
         summary: "Withdraw a proposal",
-        description: "Needs the named party's `propose` scope. The proposer withdraws, and the counterparty can send the same request to decline. Repeating it is the same as doing it once.",
-        parameters: [tokenPath, partyQuery],
+        description: "Needs the named party's `propose` scope. The proposer withdraws, and the counterparty can send the same request to decline, optionally with a short `note` (up to 200 characters) that the proposer sees as `closeNote`. Repeating it is the same as doing it once.",
+        parameters: [tokenPath, partyQuery, { name: "note", in: "query", required: false, schema: { type: "string", maxLength: 200 }, description: "A reason, kept only when the counterparty is declining." }],
         responses: { "204": { description: "No content" }, ...jsonErrors },
       }),
     },
@@ -846,6 +870,7 @@ export const OPENAPI = {
           closedReason: { type: "string", enum: ["netted", "closed_by_party"], description: "Present when `status` is `closed`." },
           disputedBy: { type: ["string", "null"], enum: ["you", "counterparty", null], description: "Present while `status` is `disputed`." },
           disputeNote: { type: ["string", "null"] },
+          disputeReply: { type: ["string", "null"], description: "The other party's reply to the dispute, while `status` is `disputed`." },
           earlyNetConsent: { type: "boolean" },
         },
       },
@@ -933,7 +958,9 @@ export const OPENAPI = {
         ],
         properties: {
           token: { type: "string" },
-          state: { type: "string", enum: ["open", "accepted", "withdrawn", "expired"] },
+          state: { type: "string", enum: ["open", "accepted", "withdrawn", "expired"], description: "`withdrawn` covers both a proposer taking it back and a counterparty declining it; `closedBy` says which." },
+          closeNote: { type: ["string", "null"], description: "The reason the counterparty gave when declining, if any." },
+          closedBy: { type: "string", enum: ["proposer", "counterparty"], nullable: true, description: "For a `withdrawn` proposal: `proposer` withdrew it, `counterparty` declined it. Otherwise null." },
           viewerRole: { type: "string", enum: ["proposer", "counterparty"] },
           proposerRole: { type: "string", enum: ["debtor", "creditor"] },
           domain: {

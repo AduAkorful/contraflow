@@ -10,6 +10,7 @@
 ///
 /// Dependencies are injected so the same code runs in unit tests, against anvil, and live.
 
+import { descriptionTextProblem } from "../format/description";
 import { loopRejectedBy, parseAllowlist } from "./partyRules";
 import { decodeEventLog, isAddressEqual, isHex, size, type Address, type Hex, type PublicClient } from "viem";
 import type { ComplianceProvider } from "../compliance";
@@ -340,6 +341,30 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     return { ok: false, error: "Only an active obligation can be disputed." };
   }
 
+  /// The party that did not raise a dispute can answer it with a short note. Contraflow shows both
+  /// sides and decides nothing; a withdrawn dispute clears the reply.
+  async function replyToDispute(session: Address, id: unknown, note: unknown): Promise<Result> {
+    if (typeof id !== "string" || !isHex(id)) return { ok: false, error: NOT_FOUND };
+    if (typeof note !== "string") return { ok: false, error: "Write a reply." };
+    const reply = note.trim();
+    if (reply.length === 0) return { ok: false, error: "Write a reply." };
+    if (reply.length > MAX_DISPUTE_NOTE) return { ok: false, error: `Keep the reply under ${MAX_DISPUTE_NOTE} characters.` };
+    const textProblem = descriptionTextProblem(reply);
+    if (textProblem) return { ok: false, error: `${textProblem}.` };
+    if (await deps.rateLimited("write", session)) return { ok: false, error: RATE_LIMITED };
+    const row = await store.getObligationById(id);
+    if (!row) return { ok: false, error: NOT_FOUND };
+    if (!isAddressEqual(session, row.debtor as Address) && !isAddressEqual(session, row.creditor as Address)) {
+      return { ok: false, error: NOT_FOUND };
+    }
+    if (row.status !== "disputed") return { ok: false, error: "This obligation isn't disputed." };
+    if (row.disputedBy && row.disputedBy.toLowerCase() === session.toLowerCase()) {
+      return { ok: false, error: "You raised this dispute. You can withdraw it, but the reply is for the other party." };
+    }
+    const result = await store.replyToDispute(id, session, reply);
+    return result === "replied" ? { ok: true } : { ok: false, error: "This dispute just changed. Reload to see its current status." };
+  }
+
   async function withdrawDispute(session: Address, id: unknown): Promise<Result> {
     if (typeof id !== "string" || !isHex(id)) return { ok: false, error: NOT_FOUND };
     if (await deps.rateLimited("write", session)) return { ok: false, error: RATE_LIMITED };
@@ -396,6 +421,7 @@ export function createCertificateService(deps: CertificateServiceDeps) {
     closeObligation,
     disputeObligation,
     withdrawDispute,
+    replyToDispute,
     getMyRules,
     setMyRules,
     listCertificates,

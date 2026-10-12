@@ -23,6 +23,7 @@ function row(partial: Partial<ObligationSummary> & Pick<ObligationSummary, "curr
     earlyNetConsent: true,
     disputedBy: null,
     disputeNote: null,
+    disputeReply: null,
     ...partial,
   };
 }
@@ -37,13 +38,29 @@ describe("obligation position", () => {
       row({ currency: "GHS", remaining: "1000", youOwe: false, status: "out_of_sync" }),
     ]);
     expect(positions).toEqual([
-      { currency: "GHS", youOwe: 50000n, owedToYou: 25000n },
-      { currency: "USD", youOwe: 1000n, owedToYou: 0n },
+      { currency: "GHS", youOwe: 50000n, owedToYou: 25000n, disputed: 0n },
+      { currency: "USD", youOwe: 1000n, owedToYou: 0n, disputed: 0n },
     ]);
   });
 
+  it("keeps a disputed obligation out of what you owe, what you're owed and the net", () => {
+    const positions = obligationPositionByCurrency([
+      row({ currency: "GHS", remaining: "320000", youOwe: false, status: "disputed" }),
+      row({ currency: "GHS", remaining: "50000", youOwe: false }),
+      row({ currency: "GHS", remaining: "10000", youOwe: true, status: "disputed" }),
+    ]);
+    expect(positions).toEqual([{ currency: "GHS", youOwe: 0n, owedToYou: 50000n, disputed: 330000n }]);
+    const line = obligationPositionLine(positions[0]!);
+    expect(line).toMatch(/Net \+/);
+    expect(line).toMatch(/Disputed .*3,300\.00.*not counted/);
+  });
+
+  it("says nothing about disputes when there are none", () => {
+    expect(obligationPositionLine({ currency: "USD", youOwe: 50000n, owedToYou: 25000n, disputed: 0n })).not.toMatch(/Disputed/);
+  });
+
   it("formats a net-negative GHS position", () => {
-    const line = obligationPositionLine({ currency: "USD", youOwe: 50000n, owedToYou: 25000n });
+    const line = obligationPositionLine({ currency: "USD", youOwe: 50000n, owedToYou: 25000n, disputed: 0n });
     expect(line).toContain("You owe");
     expect(line).toContain("You're owed");
     expect(line).toMatch(/Net −/);
@@ -89,7 +106,7 @@ describe("invoice USDC position", () => {
       ],
       me,
     );
-    expect(pos).toEqual({ currency: "USDC", youOwe: 1_000_000_000n, owedToYou: 250_000_000n });
+    expect(pos).toEqual({ currency: "USDC", youOwe: 1_000_000_000n, owedToYou: 250_000_000n, disputed: 0n });
     expect(invoiceUsdcPositionLine(pos!)).toMatch(/You owe 1,000\.00 USDC/);
     expect(invoiceUsdcPositionLine(pos!)).toMatch(/Net −750\.00 USDC/);
   });

@@ -58,6 +58,8 @@ export function ProposalLanding({ token }: { token: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
 
   async function load(session: Address) {
     setPhase("loading");
@@ -99,7 +101,13 @@ export function ProposalLanding({ token }: { token: string }) {
         view.state === "accepted"
           ? "This obligation has been signed by both parties."
           : view.state === "withdrawn"
-            ? "This proposal was withdrawn."
+            ? view.closedBy === "counterparty"
+              ? view.viewerRole === "proposer"
+                ? `Your counterparty declined this proposal.${view.closeNote ? ` Reason: ${view.closeNote}` : ""}`
+                : "You declined this proposal."
+              : view.viewerRole === "proposer"
+                ? "You withdrew this proposal."
+                : "The sender withdrew this proposal."
             : "This proposal has expired. Ask your counterparty for a new one.",
       );
       setPhase("closed");
@@ -151,7 +159,8 @@ export function ProposalLanding({ token }: { token: string }) {
 
   async function handleWithdraw() {
     setError(null);
-    const result = await withdrawProposal(token);
+    setConfirmingClose(false);
+    const result = await withdrawProposal(token, proposal?.viewerRole === "counterparty" ? declineReason : undefined);
     if (!result.ok) return setError(result.error);
     setMessage(proposal?.viewerRole === "proposer" ? "You withdrew this proposal." : "You declined this proposal.");
     setPhase("closed");
@@ -256,9 +265,40 @@ export function ProposalLanding({ token }: { token: string }) {
                   Connect {shortAddr(expectedSigner)} in your wallet to sign.
                 </p>
               ))}
-            <button onClick={handleWithdraw} className="text-xs text-muted hover:underline">
-              {phase === "waiting" ? "Withdraw this proposal" : "Decline"}
-            </button>
+            {confirmingClose ? (
+              <div className="flex flex-col items-center gap-2 text-center" role="alertdialog" aria-label="Confirm">
+                <p className="max-w-sm text-xs text-muted">
+                  {phase === "waiting"
+                    ? "Withdraw this proposal? Your counterparty won't be able to sign it, and it can't be undone."
+                    : "Decline this proposal? Your counterparty will see that you declined, and it can't be undone."}
+                </p>
+                {phase !== "waiting" && (
+                  <>
+                    <label className="sr-only" htmlFor="decline-reason">Reason (optional)</label>
+                    <input
+                      id="decline-reason"
+                      value={declineReason}
+                      onChange={(event) => setDeclineReason(event.target.value)}
+                      maxLength={200}
+                      placeholder="Reason, optional. Your counterparty will see it."
+                      className="w-72 max-w-full rounded-lg border border-border-input bg-bg px-3 py-2 text-sm"
+                    />
+                  </>
+                )}
+                <div className="flex gap-4 text-xs">
+                  <button onClick={handleWithdraw} className="text-red-300 hover:underline">
+                    {phase === "waiting" ? "Yes, withdraw" : "Yes, decline"}
+                  </button>
+                  <button onClick={() => setConfirmingClose(false)} className="text-muted hover:underline">
+                    Keep it
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmingClose(true)} className="text-xs text-muted hover:underline">
+                {phase === "waiting" ? "Withdraw this proposal" : "Decline"}
+              </button>
+            )}
             {error && <p className="text-center text-xs text-red-300">{error}</p>}
           </div>
         </ObligationTerms>

@@ -11,24 +11,29 @@ export interface CurrencyPosition {
   currency: string;
   youOwe: bigint;
   owedToYou: bigint;
+  /// Remaining on obligations either party has disputed, in both directions. It is left out of
+  /// `youOwe`, `owedToYou` and the net: a disputed obligation is in no certificate until withdrawn.
+  disputed: bigint;
 }
 
 export function obligationPositionByCurrency(obligations: ObligationSummary[]): CurrencyPosition[] {
-  const map = new Map<string, { youOwe: bigint; owedToYou: bigint }>();
+  const map = new Map<string, { youOwe: bigint; owedToYou: bigint; disputed: bigint }>();
   for (const o of obligations) {
     if (o.status !== "active" && o.status !== "disputed") continue;
     const remaining = BigInt(o.remaining);
-    const slot = map.get(o.currency) ?? { youOwe: 0n, owedToYou: 0n };
-    if (o.youOwe) slot.youOwe += remaining;
+    const slot = map.get(o.currency) ?? { youOwe: 0n, owedToYou: 0n, disputed: 0n };
+    if (o.status === "disputed") slot.disputed += remaining;
+    else if (o.youOwe) slot.youOwe += remaining;
     else slot.owedToYou += remaining;
     map.set(o.currency, slot);
   }
   return [...map.entries()].map(([currency, slot]) => ({ currency, ...slot }));
 }
 
-function positionLine(youOwe: string, owedToYou: string, netFormatted: string, net: bigint): string {
+function positionLine(youOwe: string, owedToYou: string, netFormatted: string, net: bigint, disputed?: string): string {
   const sign = net < 0n ? "−" : net > 0n ? "+" : "";
-  return `You owe ${youOwe} · You're owed ${owedToYou} · Net ${sign}${netFormatted}`;
+  const base = `You owe ${youOwe} · You're owed ${owedToYou} · Net ${sign}${netFormatted}`;
+  return disputed ? `${base} · Disputed ${disputed}, not counted` : base;
 }
 
 export function obligationPositionLine(row: CurrencyPosition): string {
@@ -39,6 +44,7 @@ export function obligationPositionLine(row: CurrencyPosition): string {
     displayMinorAmount(row.owedToYou.toString(), row.currency),
     displayMinorAmount(abs.toString(), row.currency),
     net,
+    row.disputed > 0n ? displayMinorAmount(row.disputed.toString(), row.currency) : undefined,
   );
 }
 
@@ -56,7 +62,7 @@ export function invoiceUsdcPosition(invoices: InvoiceRow[], viewer: string): Cur
     else if (inv.creditor.toLowerCase() === me) owedToYou += remaining;
   }
   if (youOwe === 0n && owedToYou === 0n) return null;
-  return { currency: "USDC", youOwe, owedToYou };
+  return { currency: "USDC", youOwe, owedToYou, disputed: 0n };
 }
 
 /// USDC invoices are six-decimal, which Intl doesn't know, so this line uses the USDC formatter

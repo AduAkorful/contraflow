@@ -382,7 +382,7 @@ A proposal expires after 30 days.
 
 ### GET `/obligations/proposals/{token}?party=`
 
-Scope: `read`. **200:** `{ "proposal": { … as above } }`.
+Scope: `read`. **200:** `{ "proposal": { … as above } }`. A proposal that was taken back or declined has `state` `withdrawn`, and `closedBy` says which: `proposer` withdrew it, `counterparty` declined it. `closedBy` is null otherwise. `closeNote` is the reason a decline carried, or null.
 
 ### POST `/obligations/proposals/{token}/accept`
 
@@ -396,7 +396,7 @@ Scope: `deliverSignatures` (as the counterparty).
 
 ### DELETE `/obligations/proposals/{token}?party=`
 
-Scope: `propose`. Withdraws an open proposal. The counterparty can send the same request to decline it. Repeating it is the same as doing it once. **204**.
+Scope: `propose`. Withdraws an open proposal. The counterparty can send the same request to decline it, with an optional `?note=` (up to 200 characters) that the proposer reads as `closeNote` on the proposal. Repeating it is the same as doing it once. **204**.
 
 ### POST `/obligations/{obligationId}/dispute`
 
@@ -408,7 +408,11 @@ Scope: `propose` (as `party`, who must be the obligation's debtor or creditor). 
 
 **200:** `{ "disputed": true }`. `note` is optional, up to 200 characters. A disputed obligation is left out of every loop search and certificate, and a certificate still collecting signatures that includes it is cancelled. It is refused (**422** `rejected`) while the obligation is in a certificate every party has signed. Contraflow doesn't decide who is right. Send an `Idempotency-Key`.
 
-Listed obligations then show `"status": "disputed"` with `disputedBy` (`you` or `counterparty`, from the viewing party's side) and `disputeNote`.
+Listed obligations then show `"status": "disputed"` with `disputedBy` (`you` or `counterparty`, from the viewing party's side), `disputeNote` and, once the other party has answered, `disputeReply`.
+
+### POST `/obligations/{obligationId}/dispute/reply`
+
+Scope: `propose` (as `party`). The party that did not raise the dispute answers it. Body `{ "party": "0x…", "note": "…" }`, `note` 1 to 200 characters. **200:** `{ "replied": true }`. The raiser can't reply to their own dispute (**422**), and there must be an open dispute. A reply can be sent again to replace it. It is cleared when the dispute is withdrawn, and it changes nothing about netting. Send an `Idempotency-Key`.
 
 ### DELETE `/obligations/{obligationId}/dispute?party=`
 

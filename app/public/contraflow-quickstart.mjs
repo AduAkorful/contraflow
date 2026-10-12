@@ -14,7 +14,8 @@
 // CONTRAFLOW_API_KEY  your key from https://contraflow.vercel.app/app/api-keys
 // PAYER_PRIVATE_KEY   a wallet on the key's network holding a little USDC for gas (the only wallet
 //                     that pays, about 0.005 USDC). It sends the apply transaction; Contraflow never does.
-//                     On mainnet this is real USDC and the applied certificate is a real onchain event.
+//                     On mainnet this is real USDC and the applied certificate is a real onchain event,
+//                     so the script stops unless you also set CONTRAFLOW_CONFIRM_MAINNET=yes.
 // CONTRAFLOW_API_URL  optional, defaults to https://contraflow.vercel.app/api/v1
 //
 // Never commit keys. Read them from the environment, as here.
@@ -112,6 +113,13 @@ const log = (message) => console.log(`\n${message}`);
 
 const tenant = await api("GET", "/tenant");
 log(`Tenant ${tenant.tenantId.slice(0, 10)}…  chain ${tenant.chainId}  ledger ${tenant.ledger}`);
+if (tenant.chainId === 5042 && process.env.CONTRAFLOW_CONFIRM_MAINNET !== "yes") {
+  throw new Error(
+    "This key is for Arc mainnet. The script records three made-up obligations and applies one certificate there: " +
+      "it spends real USDC for gas (about 0.005) and the certificate is a real event in the public totals. " +
+      "Set CONTRAFLOW_CONFIRM_MAINNET=yes to run it anyway.",
+  );
+}
 
 const names = ["Atlas", "Meridian", "Northwind"];
 const companies = names.map((name) => ({ name, account: privateKeyToAccount(generatePrivateKey()) }));

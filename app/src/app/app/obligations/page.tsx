@@ -59,7 +59,7 @@ export default async function ObligationsPage() {
             )}
             {result && result.ok && (
               <SessionBound loadedFor={session.address}>
-                <ObligationsList proposals={result.proposals} obligations={result.obligations} />
+                <ObligationsList proposals={result.proposals} obligations={result.obligations} closedProposals={result.closedProposals} />
               </SessionBound>
             )}
           </div>

@@ -12,7 +12,7 @@ export function connectedButUnsignedHint(kind: SignInKind, email: string | null)
   if (kind === "embedded" && email) {
     return `Welcome, ${email}. Confirm once to finish signing in: free, no transaction.`;
   }
-  return "Your wallet is connected. Signing in takes a free signature (your wallet may ask twice): no transaction, no gas.";
+  return "Your wallet is connected. Signing in takes a free signature (your wallet may ask twice, and the first may name Ethereum: that is only its own proof you own the wallet): no transaction, no gas.";
 }
 
 export function nextStepsYouSign(): string {

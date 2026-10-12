@@ -19,6 +19,7 @@ const OPERATIONS = new Map<unknown, string>([
   [h.listPartyObligations, "listPartyObligations"],
   [h.disputeObligationHandler, "disputeObligation"],
   [h.withdrawDisputeHandler, "withdrawObligationDispute"],
+  [h.replyToDisputeHandler, "replyToObligationDispute"],
   [h.getPartyRulesHandler, "getPartyRules"],
   [h.setPartyRulesHandler, "setPartyRules"],
   [h.findLoop, "findLoop"],

@@ -382,11 +382,26 @@ export const postgresCertificateStore: CertificateStore = {
     return withDbRetry(async () => {
       const rows = (await sql()`
         UPDATE netting_obligations
-        SET status = 'active', disputed_by = NULL, disputed_at = NULL, dispute_note = NULL
+        SET status = 'active', disputed_by = NULL, disputed_at = NULL, dispute_note = NULL,
+            dispute_reply = NULL, dispute_replied_at = NULL
         WHERE obligation_id = ${id} AND status = 'disputed' AND disputed_by = ${by.toLowerCase()}
         RETURNING obligation_id
       `) as unknown[];
       return rows.length === 1 ? "withdrawn" : "not_disputer";
+    });
+  },
+
+  async replyToDispute(obligationId, by, reply) {
+    const id = obligationId.toLowerCase();
+    return withDbRetry(async () => {
+      const rows = (await sql()`
+        UPDATE netting_obligations
+        SET dispute_reply = ${reply}::text, dispute_replied_at = now()
+        WHERE obligation_id = ${id} AND status = 'disputed' AND disputed_by IS NOT NULL
+          AND disputed_by <> ${by.toLowerCase()}
+        RETURNING obligation_id
+      `) as unknown[];
+      return rows.length === 1 ? "replied" : "not_replyable";
     });
   },
 };

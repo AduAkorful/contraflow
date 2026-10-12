@@ -44,7 +44,7 @@ export function ReviewAndSign({
       <p className="mt-3 heading-2">
         {verb} <span className="text-gold"><Money value={formatUsdcAmount(invoice.amount)} /></span>
       </p>
-      {description && <p className="mt-2 text-sm text-muted">{description}</p>}
+      {description && <p className="mt-2 whitespace-pre-line text-sm text-muted [overflow-wrap:anywhere]">{description}</p>}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>

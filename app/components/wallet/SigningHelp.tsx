@@ -27,7 +27,7 @@ export function SigningHelp({ className }: { className?: string }) {
     <div className={className ?? "max-w-xs text-center text-sm text-muted"} role="status">
       <p>
         Still waiting? Your wallet may be holding more than one request. Open the wallet extension and approve or reject
-        each one, or start over.
+        each one. If it has several accounts, check the account you want to use is the active one. Or start over.
       </p>
       <button type="button" onClick={cancel} className="mt-2 text-gold hover:underline">
         Start over

@@ -34,7 +34,7 @@ export interface ApiDeps {
   >;
   certificates: Pick<
     CertificateService,
-    "listCertificates" | "declineCertificate" | "disputeObligation" | "withdrawDispute" | "getMyRules" | "setMyRules" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
+    "listCertificates" | "declineCertificate" | "disputeObligation" | "withdrawDispute" | "replyToDispute" | "getMyRules" | "setMyRules" | "findAndProposeLoop" | "getCertificateView" | "submitCertificateSignature" | "recordApplicationTx" | "exportCertificate"
   >;
   tagProposal(token: string, tenantId: Hex): Promise<void>;
   /// The tenant's webhook endpoint, keyed by tenant id. Plain `http://localhost` receivers are
@@ -471,7 +471,7 @@ export async function acceptObligationProposal(caller: ApiCaller, req: ApiReques
 
 export async function withdrawObligationProposal(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   const party = await actingParty(caller, req.query.get("party"), "propose", deps);
-  unwrap(await deps.obligations.withdrawProposal(party, req.params.token));
+  unwrap(await deps.obligations.withdrawProposal(party, req.params.token, req.query.get("note") ?? undefined));
   return { status: 204, body: null };
 }
 
@@ -523,6 +523,13 @@ export async function disputeObligationHandler(caller: ApiCaller, req: ApiReques
   const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
   unwrap(await deps.certificates.disputeObligation(party, req.params.obligationId, field(req.body, "note")));
   return { status: 200, body: { disputed: true } };
+}
+
+/// The party that did not raise a dispute answers it with a short note.
+export async function replyToDisputeHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
+  const party = await actingParty(caller, field(req.body, "party"), "propose", deps);
+  unwrap(await deps.certificates.replyToDispute(party, req.params.obligationId, field(req.body, "note")));
+  return { status: 200, body: { replied: true } };
 }
 
 export async function withdrawDisputeHandler(caller: ApiCaller, req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {

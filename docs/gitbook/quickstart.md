@@ -15,10 +15,10 @@ mkdir contraflow-sandbox && cd contraflow-sandbox
 npm init -y
 npm install viem
 curl -O https://contraflow.vercel.app/contraflow-quickstart.mjs
-CONTRAFLOW_API_KEY=cfk_live_... PAYER_PRIVATE_KEY=0x... node contraflow-quickstart.mjs
+CONTRAFLOW_API_KEY=cfk_live_... PAYER_PRIVATE_KEY=0x... CONTRAFLOW_CONFIRM_MAINNET=yes node contraflow-quickstart.mjs
 ```
 
-Use environment variables for both keys, as above, and never commit them.
+Use environment variables for both keys, as above, and never commit them. With a live key the script stops unless `CONTRAFLOW_CONFIRM_MAINNET=yes` is set, because it spends real USDC and records a real certificate. Leave it off with a test key.
 
 ## What it does
 

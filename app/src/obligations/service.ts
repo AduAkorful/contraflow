@@ -3,6 +3,7 @@
 /// `getSession()`'s address), never from a request parameter. Anyone who isn't one of the two
 /// parties gets "Not found", so a lookup can't confirm a proposal or obligation exists.
 
+import { descriptionTextProblem } from "../format/description";
 import { isAddressEqual, isHex, type Address, type Hex } from "viem";
 import { createArcPublicClient } from "../chain/client";
 import { defaultComplianceProvider } from "../compliance";
@@ -16,6 +17,7 @@ import {
   insertProposal,
   listObligationsForParty,
   listOpenProposalsForParty,
+  listRecentlyClosedProposalsForParty,
   markProposalWithdrawn,
   obligationExistsForDocument,
   type ObligationStatus,
@@ -156,6 +158,17 @@ export interface ProposalView {
   document: CanonicalObligationDocument;
   proposerSignature: Hex;
   expiresAt: string;
+  /// For a `withdrawn` proposal: the proposer took it back, or the counterparty declined it.
+  closedBy: "proposer" | "counterparty" | null;
+  /// A reason the counterparty left when declining, if any.
+  closeNote: string | null;
+}
+
+const MAX_CLOSE_NOTE = 200;
+
+function closedByOf(row: { status: string; closedBy: string | null; proposer: string }): "proposer" | "counterparty" | null {
+  if (row.status !== "withdrawn" || !row.closedBy) return null;
+  return row.closedBy.toLowerCase() === row.proposer.toLowerCase() ? "proposer" : "counterparty";
 }
 
 function stateOf(status: string, expiresAt: Date, now: Date): ProposalState {
@@ -194,6 +207,8 @@ export async function getProposal(session: Address, token: unknown): Promise<Res
       document,
       proposerSignature: row.proposerSignature as Hex,
       expiresAt: row.expiresAt.toISOString(),
+      closedBy: closedByOf(row),
+      closeNote: row.status === "withdrawn" ? row.closeNote : null,
     },
   };
 }
@@ -229,7 +244,14 @@ export async function acceptProposal(session: Address, token: unknown, signature
   if (state === "accepted") {
     return (await getObligationById(row.obligationId)) ? { ok: true } : { ok: false, error: "This proposal was already closed." };
   }
-  if (state === "withdrawn") return { ok: false, error: "This proposal was withdrawn." };
+  if (state === "withdrawn") {
+    const byThem = closedByOf(row) === "counterparty";
+    const isProposer = isAddressEqual(session, row.proposer as Address);
+    return {
+      ok: false,
+      error: byThem ? (isProposer ? "Your counterparty declined this proposal." : "You declined this proposal.") : "This proposal was withdrawn.",
+    };
+  }
   if (state === "expired") return { ok: false, error: "This proposal has expired. Ask for a new one." };
 
   const document = toDocument(row.document);
@@ -289,8 +311,17 @@ export async function acceptProposal(session: Address, token: unknown, signature
 }
 
 /// Withdraw (proposer) or decline (counterparty) an open proposal. Idempotent.
-export async function withdrawProposal(session: Address, token: unknown): Promise<Result> {
+export async function withdrawProposal(session: Address, token: unknown, note?: unknown): Promise<Result> {
   if (!isShareToken(token)) return { ok: false, error: NOT_FOUND };
+  let reason: string | null = null;
+  if (note !== undefined && note !== null && note !== "") {
+    if (typeof note !== "string") return { ok: false, error: "The reason must be text." };
+    reason = note.trim();
+    if (reason.length > MAX_CLOSE_NOTE) return { ok: false, error: `Keep the reason under ${MAX_CLOSE_NOTE} characters.` };
+    const problem = descriptionTextProblem(reason);
+    if (problem) return { ok: false, error: `${problem}.` };
+    if (reason.length === 0) reason = null;
+  }
   if (await rateLimited("write", session, WRITE_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
   const row = await getProposalByToken(token);
   if (!row) return { ok: false, error: NOT_FOUND };
@@ -300,7 +331,10 @@ export async function withdrawProposal(session: Address, token: unknown): Promis
   if (row.status === "accepted") return { ok: false, error: "This proposal was already accepted." };
   // Withdrawing or declining twice is the same as once.
   if (row.status === "withdrawn") return { ok: true };
-  const withdrawn = await markProposalWithdrawn(token, session);
+  // Only a counterparty's decline carries a reason; a proposer taking back their own proposal has
+  // nothing to explain to themselves.
+  const declining = isAddressEqual(session, row.counterparty as Address);
+  const withdrawn = await markProposalWithdrawn(token, session, declining ? reason : null);
   return withdrawn
     ? { ok: true }
     : { ok: false, error: "This proposal just changed. Reload to see its current status." };
@@ -317,6 +351,20 @@ export interface ProposalSummary {
   expiresAt: string;
 }
 
+/// A proposal that was declined or withdrawn recently, so a party can see what happened to it.
+export interface ClosedProposalSummary {
+  token: string;
+  outcome: "you-declined" | "declined-by-them" | "you-withdrew" | "withdrawn-by-them";
+  youOwe: boolean;
+  counterparty: Address;
+  currency: string;
+  amount: string;
+  description: string;
+  closedAt: string;
+  /// The reason the counterparty gave when declining, if any.
+  note: string | null;
+}
+
 export interface ObligationSummary {
   obligationId: string;
   youOwe: boolean;
@@ -331,16 +379,19 @@ export interface ObligationSummary {
   /// Present while disputed: `you` raised it, or the counterparty did.
   disputedBy: "you" | "counterparty" | null;
   disputeNote: string | null;
+  /// The other party's reply, while disputed.
+  disputeReply: string | null;
 }
 
 export async function listMine(
   session: Address,
-): Promise<Result<{ proposals: ProposalSummary[]; obligations: ObligationSummary[] }>> {
+): Promise<Result<{ proposals: ProposalSummary[]; obligations: ObligationSummary[]; closedProposals: ClosedProposalSummary[] }>> {
   if (await rateLimited("read", session, READ_LIMIT)) return { ok: false, error: "Too many requests. Try again shortly." };
   const me = session.toLowerCase();
-  const [proposalRows, obligationRows] = await Promise.all([
+  const [proposalRows, obligationRows, closedRows] = await Promise.all([
     listOpenProposalsForParty(session),
     listObligationsForParty(session),
+    listRecentlyClosedProposalsForParty(session).catch(() => []),
   ]);
 
   const proposals: ProposalSummary[] = [];
@@ -373,7 +424,34 @@ export async function listMine(
     earlyNetConsent: row.earlyNetConsent,
     disputedBy: row.status === "disputed" && row.disputedBy ? (row.disputedBy === me ? "you" : "counterparty") : null,
     disputeNote: row.status === "disputed" ? row.disputeNote : null,
+    disputeReply: row.status === "disputed" ? row.disputeReply : null,
   }));
 
-  return { ok: true, proposals, obligations };
+  const closedProposals: ClosedProposalSummary[] = [];
+  for (const row of closedRows) {
+    const document = toDocument(row.document);
+    if (!document) continue;
+    const isProposer = row.proposer === me;
+    const closedBy = closedByOf(row);
+    closedProposals.push({
+      token: row.token,
+      outcome:
+        closedBy === "counterparty"
+          ? isProposer
+            ? "declined-by-them"
+            : "you-declined"
+          : isProposer
+            ? "you-withdrew"
+            : "withdrawn-by-them",
+      youOwe: document.debtor.toLowerCase() === me,
+      counterparty: (isProposer ? row.counterparty : row.proposer) as Address,
+      currency: document.currency,
+      amount: document.amount,
+      description: document.description.trim(),
+      closedAt: (row.closedAt ?? row.createdAt).toISOString(),
+      note: closedBy === "counterparty" ? row.closeNote : null,
+    });
+  }
+
+  return { ok: true, proposals, obligations, closedProposals };
 }

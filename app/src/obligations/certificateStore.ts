@@ -124,4 +124,6 @@ export interface CertificateStore {
   setPartyRules(party: string, rules: { enabled: boolean; allowed: string[] }): Promise<void>;
   /// Back to `active`, only by the party that raised the dispute.
   withdrawDispute(obligationId: string, by: string): Promise<"withdrawn" | "not_disputer">;
+  /// A reply to a dispute, only from the party that did not raise it, and only while it's open.
+  replyToDispute(obligationId: string, by: string, reply: string): Promise<"replied" | "not_replyable">;
 }

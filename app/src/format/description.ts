@@ -8,3 +8,6 @@ const DISALLOWED_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 export function descriptionTextProblem(text: string): string | null {
   return DISALLOWED_CONTROL.test(text) ? "The description can't contain control characters" : null;
 }
+
+/// The longest description an invoice or obligation may carry, in characters.
+export const MAX_DESCRIPTION_LENGTH = 500;

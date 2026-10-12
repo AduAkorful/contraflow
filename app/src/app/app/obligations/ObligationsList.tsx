@@ -6,25 +6,42 @@ import { Address } from "@/components/ui/Address";
 import { displayDate, displayMajorAmount, displayMinorAmount } from "@/components/netting/format";
 import { earlyNettingReview } from "@/src/format/signing";
 import { obligationStatusLabel } from "@/src/obligations/position";
-import type { ObligationSummary, ProposalSummary } from "@/src/obligations/service";
-import { closeObligation, disputeObligation, withdrawDispute, withdrawProposal } from "./actions";
+import type { ClosedProposalSummary, ObligationSummary, ProposalSummary } from "@/src/obligations/service";
+import { closeObligation, disputeObligation, replyToDispute, withdrawDispute, withdrawProposal } from "./actions";
 
 const OUT_OF_SYNC_EXPLAINED =
   "Its recorded state disagrees with the ledger, for example after a certificate was applied outside Contraflow. It won't be netted from here again.";
 const CLOSE_CONFIRM =
   "Close this obligation? It can't be undone, and it won't be netted in any certificate.";
 
+function closedOutcomeLabel(outcome: ClosedProposalSummary["outcome"]): string {
+  switch (outcome) {
+    case "declined-by-them":
+      return "Declined by";
+    case "you-declined":
+      return "You declined a proposal from";
+    case "you-withdrew":
+      return "You withdrew your proposal to";
+    case "withdrawn-by-them":
+      return "Withdrawn by";
+  }
+}
+
 export function ObligationsList({
   proposals,
   obligations,
+  closedProposals = [],
 }: {
   proposals: ProposalSummary[];
   obligations: ObligationSummary[];
+  closedProposals?: ClosedProposalSummary[];
 }) {
   const router = useRouter();
   const [confirmingClose, setConfirmingClose] = useState<string | null>(null);
   const [disputing, setDisputing] = useState<string | null>(null);
   const [disputeNote, setDisputeNote] = useState("");
+  const [replying, setReplying] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,10 +52,12 @@ export function ObligationsList({
     setConfirmingClose(null);
     setDisputing(null);
     setDisputeNote("");
+    setReplying(null);
+    setReplyText("");
     router.refresh();
   }
 
-  if (proposals.length === 0 && obligations.length === 0) {
+  if (proposals.length === 0 && obligations.length === 0 && closedProposals.length === 0) {
     return (
       <p className="rounded-card border border-border-subtle bg-surface-1 px-6 py-12 text-center text-sm text-muted">
         Nothing yet.{" "}
@@ -128,6 +147,34 @@ export function ObligationsList({
                       {o.disputeNote ? <> Note: {o.disputeNote}</> : null}
                     </p>
                   )}
+                  {o.status === "disputed" && o.disputeReply && (
+                    <p className="mt-1 text-xs text-muted">
+                      {o.disputedBy === "you" ? "Their reply" : "Your reply"}: {o.disputeReply}
+                    </p>
+                  )}
+                  {replying === o.obligationId && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="sr-only" htmlFor={`reply-${o.obligationId}`}>Your reply</label>
+                      <input
+                        id={`reply-${o.obligationId}`}
+                        value={replyText}
+                        onChange={(event) => setReplyText(event.target.value)}
+                        maxLength={200}
+                        placeholder="Your reply to the dispute"
+                        className="w-64 rounded-lg border border-border-input bg-bg px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={() => run(() => replyToDispute(o.obligationId, replyText))}
+                        disabled={replyText.trim() === ""}
+                        className="text-gold hover:underline disabled:text-faint disabled:no-underline"
+                      >
+                        Send reply
+                      </button>
+                      <button onClick={() => setReplying(null)} className="text-muted hover:underline">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   {disputing === o.obligationId && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <label className="sr-only" htmlFor={`dispute-${o.obligationId}`}>Reason (optional)</label>
@@ -168,6 +215,17 @@ export function ObligationsList({
                       Dispute
                     </button>
                   )}
+                  {o.status === "disputed" && o.disputedBy === "counterparty" && replying !== o.obligationId && (
+                    <button
+                      onClick={() => {
+                        setReplying(o.obligationId);
+                        setReplyText(o.disputeReply ?? "");
+                      }}
+                      className="text-gold hover:underline"
+                    >
+                      {o.disputeReply ? "Edit reply" : "Reply"}
+                    </button>
+                  )}
                   {o.status === "disputed" && o.disputedBy === "you" && (
                     <button onClick={() => run(() => withdrawDispute(o.obligationId))} className="text-gold hover:underline">
                       Withdraw dispute
@@ -194,6 +252,27 @@ export function ObligationsList({
                       </button>
                     ))}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {closedProposals.length > 0 && (
+        <div>
+          <h2 className="text-xs uppercase tracking-wide text-muted">Closed recently</h2>
+          <p className="mt-1 text-xs text-muted">Proposals that were declined or withdrawn in the last 30 days.</p>
+          <div className="mt-3 divide-y divide-white/10 rounded-card border border-white/10 bg-white/[0.02]">
+            {closedProposals.map((c) => (
+              <div key={c.token} className="p-4">
+                <p className="text-sm">
+                  {closedOutcomeLabel(c.outcome)}{" "}
+                  <Address address={c.counterparty} className="text-foreground/90" />
+                </p>
+                <p className="mt-1 truncate text-xs text-muted">
+                  {c.youOwe ? "You owed" : "Owed to you"} {displayMajorAmount(c.amount, c.currency)} · {c.description}
+                </p>
+                {c.note && <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">Reason: {c.note}</p>}
               </div>
             ))}
           </div>

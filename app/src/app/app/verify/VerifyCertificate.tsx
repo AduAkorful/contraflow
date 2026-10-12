@@ -14,10 +14,10 @@ import {
 import { displayMinorAmount } from "@/components/netting/format";
 import { parseCertificateView } from "@/src/netting/serialize";
 import type { ChainReader } from "@/src/netting/signature";
-import { blockOfTransaction, verifyCertificateView, type VerificationResult } from "@/src/netting/verify";
+import { blockOfTransaction, isAppliedAtBlock, verifyCertificateView, type VerificationResult } from "@/src/netting/verify";
 import type { CertificateView } from "@/src/netting/types";
-import { APP_CHAIN_ID } from "@/src/contracts/addresses";
-import { createArcPublicClient } from "@/src/chain/client";
+import { addressesForChain, APP_CHAIN_ID } from "@/src/contracts/addresses";
+import { arcNetworkName, createArcPublicClient } from "@/src/chain/client";
 import sampleCertificate from "./sample-certificate.json";
 
 const publicClient = createArcPublicClient(APP_CHAIN_ID);
@@ -36,12 +36,14 @@ export function VerifyCertificate() {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [sample, setSample] = useState(false);
   const [applyTx, setApplyTx] = useState("");
+  const [txNotice, setTxNotice] = useState<string | null>(null);
 
   async function verify(json: string) {
     setResult(null);
     setView(null);
     setSummary(null);
     setError(null);
+    setTxNotice(null);
     if (json.length > MAX_FILE_BYTES) {
       setError(`That is too large to be a certificate (over ${MAX_FILE_BYTES / 1_000_000} MB).`);
       return;
@@ -64,11 +66,26 @@ export function VerifyCertificate() {
               applyTx.trim(),
             )
           : undefined;
+      const reader = isSample ? undefined : (publicClient as unknown as ChainReader | undefined);
+      if (!isSample && applyTx.trim()) {
+        if (applicationBlock === undefined) {
+          setTxNotice("That transaction couldn't be found on this network, so it wasn't used for the check.");
+        } else if (reader && parsed.domain.chainId === BigInt(APP_CHAIN_ID)) {
+          try {
+            if (!(await isAppliedAtBlock(reader, parsed, applicationBlock))) {
+              setTxNotice("That transaction didn't apply this certificate, so it wasn't used for the check.");
+            }
+          } catch {
+            setTxNotice("That transaction couldn't be checked right now, so it wasn't used for the check.");
+          }
+        }
+      }
       const outcome = await verifyCertificateView(parsed, {
         now: BigInt(Math.floor(Date.now() / 1000)),
         stage: isSample ? "signed" : "applied",
-        client: isSample ? undefined : (publicClient as unknown as ChainReader | undefined),
+        client: reader,
         applicationBlock,
+        searchFloorBlock: isSample ? undefined : addressesForChain(APP_CHAIN_ID).registryDeployBlock,
       });
       setView(parsed);
       setResult(outcome);
@@ -99,6 +116,7 @@ export function VerifyCertificate() {
   const fullCount = view ? view.entries.filter((e) => e.kind === "full").length : 0;
   const totalCount = view ? view.certificate.entries.length : 0;
   const groups = result ? groupChecks(result.checks) : [];
+  const otherNetwork = view && !sample && view.domain.chainId !== BigInt(APP_CHAIN_ID);
 
   return (
     <div className="mt-8 flex flex-col gap-4">
@@ -162,6 +180,11 @@ export function VerifyCertificate() {
       </button>
       <p className="text-xs text-muted">A made-up certificate. It is not a settlement on Arc.</p>
 
+      {txNotice && (
+        <p role="status" className="rounded-lg border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-foreground">
+          {txNotice}
+        </p>
+      )}
       {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
 
       {result && view && (
@@ -169,7 +192,14 @@ export function VerifyCertificate() {
           {sample && (
             <p className="text-sm text-muted">This is a sample. It is not a settlement on Arc.</p>
           )}
-          <p className={`text-sm${sample ? " mt-1" : ""}`}>
+          {otherNetwork && (
+            <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              This certificate is for {arcNetworkName(Number(view.domain.chainId))} (chain {view.domain.chainId.toString()}).
+              This page is checking against {arcNetworkName(APP_CHAIN_ID)} (chain {APP_CHAIN_ID}), so it can&apos;t be
+              confirmed here.
+            </p>
+          )}
+          <p className={`text-sm${sample || otherNetwork ? " mt-3" : ""}`}>
             {result.ok
               ? sample
                 ? "The sample's signatures and hashes check out."

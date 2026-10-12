@@ -1,4 +1,5 @@
 import { isAddressEqual, type Address, type EIP1193Provider } from "viem";
+import { arcNetworkName } from "../chain/client";
 
 export interface WalletContextConnector {
   getProvider(): Promise<unknown>;
@@ -22,7 +23,7 @@ async function readWalletContext(connector: WalletContextConnector): Promise<{ a
 async function assertWalletContext(connector: WalletContextConnector, expectedAddress: Address, chainId: number): Promise<void> {
   const actual = await readWalletContext(connector);
   if (!isAddressEqual(actual.address, expectedAddress)) throw new Error("Your wallet account changed. Reconnect the wallet signed in to Contraflow and try again.");
-  if (actual.chainId !== chainId) throw new Error("Your wallet network changed. Switch back to Arc Testnet and try again.");
+  if (actual.chainId !== chainId) throw new Error(`Your wallet network changed. Switch back to ${arcNetworkName(chainId)} and try again.`);
 }
 
 /// Switches to the required chain and confirms the wallet still exposes the expected account.
@@ -40,7 +41,7 @@ export async function prepareWalletContext(
     try {
       await switchChain({ chainId });
     } catch {
-      throw new Error("Switch your wallet to Arc Testnet to continue. Nothing was signed or sent.");
+      throw new Error(`Switch your wallet to ${arcNetworkName(chainId)} to continue. Nothing was signed or sent.`);
     }
   }
   await assertWalletContext(connector, expectedAddress, chainId);

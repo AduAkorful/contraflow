@@ -251,9 +251,19 @@ export function createMemoryCertificateStore(): MemoryCertificateStore {
         row.status = "active";
         row.disputedBy = null;
         row.disputeNote = null;
+        row.disputeReply = null;
         return "withdrawn";
       }
       return "not_disputer";
+    },
+
+    async replyToDispute(id, by, reply) {
+      const row = obligations.get(id.toLowerCase());
+      if (row && row.status === "disputed" && row.disputedBy && row.disputedBy !== by.toLowerCase()) {
+        row.disputeReply = reply;
+        return "replied";
+      }
+      return "not_replyable";
     },
   };
 }
@@ -278,6 +288,7 @@ export function seedObligation(store: MemoryCertificateStore, domain: LedgerDoma
     description: "Test obligation",
     disputedBy: null,
     disputeNote: null,
+    disputeReply: null,
     remaining: item.remaining.toString(),
     blinding: (item.blinding ?? (ZERO_HASH as Hex)).toLowerCase(),
     status: "active",

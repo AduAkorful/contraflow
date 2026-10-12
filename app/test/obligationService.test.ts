@@ -67,10 +67,13 @@ vi.mock("../src/db/obligations", () => ({
     if (proposal?.status === "open") proposal.status = "accepted";
     return "accepted";
   }),
-  markProposalWithdrawn: vi.fn(async (token: string) => {
+  markProposalWithdrawn: vi.fn(async (token: string, by: string, note: string | null = null) => {
     const proposal = db.proposals.get(token);
     if (proposal?.status === "open") {
       proposal.status = "withdrawn";
+      proposal.closedBy = by.toLowerCase();
+      proposal.closeNote = note;
+      proposal.closedAt = new Date();
       return true;
     }
     return false;
@@ -78,6 +81,11 @@ vi.mock("../src/db/obligations", () => ({
   getObligationById: vi.fn(async (id: string) => db.obligations.get(id) ?? null),
   listObligationsForParty: vi.fn(async (a: string) =>
     [...db.obligations.values()].filter((o) => o.debtor === a.toLowerCase() || o.creditor === a.toLowerCase()),
+  ),
+  listRecentlyClosedProposalsForParty: vi.fn(async (a: string) =>
+    [...db.proposals.values()].filter(
+      (p) => (p.proposer === a.toLowerCase() || p.counterparty === a.toLowerCase()) && p.status === "withdrawn",
+    ),
   ),
   listOpenProposalsForParty: vi.fn(async (a: string) =>
     [...db.proposals.values()].filter(
@@ -217,6 +225,58 @@ describe("obligation proposals", () => {
     expect(await service.withdrawProposal(f.counterparty.address, f.token)).toEqual({ ok: true });
     const view = await service.getProposal(f.proposer.address, f.token);
     expect(view.ok && view.proposal.state).toBe("withdrawn");
+  });
+
+  it("tells the proposer their counterparty declined, and keeps a record of it", async () => {
+    const f = await proposeFixture();
+    expect(await service.withdrawProposal(f.counterparty.address, f.token)).toEqual({ ok: true });
+
+    const asProposer = await service.getProposal(f.proposer.address, f.token);
+    expect(asProposer.ok && asProposer.proposal.closedBy).toBe("counterparty");
+    const asCounterparty = await service.getProposal(f.counterparty.address, f.token);
+    expect(asCounterparty.ok && asCounterparty.proposal.closedBy).toBe("counterparty");
+
+    const accept = await service.acceptProposal(f.proposer.address, f.token, await f.sign(f.proposer));
+    expect(accept).toEqual({ ok: false, error: "Your counterparty declined this proposal." });
+
+    const proposerList = await service.listMine(f.proposer.address);
+    expect(proposerList.ok && proposerList.closedProposals.map((c) => c.outcome)).toEqual(["declined-by-them"]);
+    const counterpartyList = await service.listMine(f.counterparty.address);
+    expect(counterpartyList.ok && counterpartyList.closedProposals.map((c) => c.outcome)).toEqual(["you-declined"]);
+  });
+
+  it("keeps a decline's reason for the proposer, and only a decline's", async () => {
+    const declined = await proposeFixture();
+    expect(await service.withdrawProposal(declined.counterparty.address, declined.token, "  Wrong amount, please resend  ")).toEqual({ ok: true });
+    const view = await service.getProposal(declined.proposer.address, declined.token);
+    expect(view.ok && view.proposal.closeNote).toBe("Wrong amount, please resend");
+    const list = await service.listMine(declined.proposer.address);
+    expect(list.ok && list.closedProposals[0]?.note).toBe("Wrong amount, please resend");
+
+    const withdrawn = await proposeFixture();
+    expect(await service.withdrawProposal(withdrawn.proposer.address, withdrawn.token, "changed my mind")).toEqual({ ok: true });
+    const back = await service.getProposal(withdrawn.counterparty.address, withdrawn.token);
+    expect(back.ok && back.proposal.closeNote).toBeNull();
+  });
+
+  it("refuses a reason that is too long or has control characters, and closes nothing", async () => {
+    const f = await proposeFixture();
+    expect(await service.withdrawProposal(f.counterparty.address, f.token, "x".repeat(201))).toEqual({
+      ok: false,
+      error: "Keep the reason under 200 characters.",
+    });
+    expect((await service.withdrawProposal(f.counterparty.address, f.token, "bad\u0000text")).ok).toBe(false);
+    const view = await service.getProposal(f.proposer.address, f.token);
+    expect(view.ok && view.proposal.state).toBe("open");
+  });
+
+  it("distinguishes a proposer withdrawing from a decline", async () => {
+    const f = await proposeFixture();
+    expect(await service.withdrawProposal(f.proposer.address, f.token)).toEqual({ ok: true });
+    const view = await service.getProposal(f.counterparty.address, f.token);
+    expect(view.ok && view.proposal.closedBy).toBe("proposer");
+    const list = await service.listMine(f.counterparty.address);
+    expect(list.ok && list.closedProposals.map((c) => c.outcome)).toEqual(["withdrawn-by-them"]);
   });
 
   it("rejects stored terms that were altered after the proposal was made", async () => {

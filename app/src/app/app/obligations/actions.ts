@@ -36,10 +36,10 @@ export async function acceptProposal(token: string, signature: string): Promise<
   return session ? service.acceptProposal(session.address, token, signature) : SIGN_IN_FIRST;
 }
 
-export async function withdrawProposal(token: string): Promise<Result> {
+export async function withdrawProposal(token: string, note?: string): Promise<Result> {
   notifyWebhooks();
   const session = await getSession();
-  return session ? service.withdrawProposal(session.address, token) : SIGN_IN_FIRST;
+  return session ? service.withdrawProposal(session.address, token, note) : SIGN_IN_FIRST;
 }
 
 export async function closeObligation(obligationId: string): Promise<Result> {
@@ -52,6 +52,12 @@ export async function disputeObligation(obligationId: string, note?: string): Pr
   notifyWebhooks();
   const session = await getSession();
   return session ? certificateService().disputeObligation(session.address, obligationId, note) : SIGN_IN_FIRST;
+}
+
+export async function replyToDispute(obligationId: string, note: string): Promise<Result> {
+  notifyWebhooks();
+  const session = await getSession();
+  return session ? certificateService().replyToDispute(session.address, obligationId, note) : SIGN_IN_FIRST;
 }
 
 export async function withdrawDispute(obligationId: string): Promise<Result> {

@@ -249,7 +249,9 @@ export function SendCard({
         can&apos;t be undone.
       </p>
 
-      {pending && (
+      {/* The record is written before the wallet prompt as a guard; while this page is the one
+          sending, the stage message already says what is happening, so the banner waits. */}
+      {pending && stage.kind !== "sending" && (
         <div className="mb-3 rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-3 text-sm">
           <p className="font-medium">A previous send needs checking</p>
           <p className="mt-1 text-xs text-muted">

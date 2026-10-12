@@ -86,7 +86,7 @@ export function OwnObligation({
         <span className="text-gold">{displayMinorAmount(doc.remainingAfter.toString(), currency)}</span>
       </p>
       <p className="mt-1 text-xs text-muted">Due {displayDate(doc.obligation.maturity.toString())}</p>
-      {description ? <p className="mt-1 text-xs text-muted">{description}</p> : null}
+      {description ? <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">{description}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );

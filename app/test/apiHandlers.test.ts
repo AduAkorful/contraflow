@@ -611,6 +611,17 @@ describe("disputes over the API", () => {
     expect(withdraw).toHaveBeenCalledWith(party, id);
   });
 
+  it("replies to a dispute as the party, under the propose scope", async () => {
+    const { d, store, certificates } = deps();
+    await grant(store, SCOPE.propose, party);
+    const reply = vi.fn(async () => ({ ok: true as const }));
+    (certificates as unknown as Record<string, unknown>).replyToDispute = reply;
+    const id = `0x${"ab".repeat(32)}`;
+    const res = await handlers.replyToDisputeHandler(caller, req({ params: { obligationId: id }, body: { party, note: "Delivered" } }), d);
+    expect(res).toEqual({ status: 200, body: { replied: true } });
+    expect(reply).toHaveBeenCalledWith(party, id, "Delivered");
+  });
+
   it("needs a propose permission for the party", async () => {
     const { d, store } = deps();
     await grant(store, SCOPE.read, party);

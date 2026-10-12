@@ -3,13 +3,14 @@
 /// lowercased addresses, trimmed description), plus a `format` tag so an obligation document can
 /// never hash-equal an invoice document. Browser-safe: both parties' browsers compute this.
 
-import { descriptionTextProblem } from "../format/description";
+import { descriptionTextProblem, MAX_DESCRIPTION_LENGTH } from "../format/description";
+
+export { MAX_DESCRIPTION_LENGTH };
 import { isAddress, isAddressEqual, keccak256, toHex, zeroAddress, type Address, type Hex } from "viem";
 import { isIsoCurrency, parseAmount, MAX_AMOUNT_MAJOR, maxAmountMinor } from "./currency";
 import type { NettingObligation } from "./types";
 
 export const OBLIGATION_DOCUMENT_FORMAT = "contraflow-obligation/1";
-export const MAX_DESCRIPTION_LENGTH = 500;
 
 export interface CanonicalObligationDocument {
   format: typeof OBLIGATION_DOCUMENT_FORMAT;

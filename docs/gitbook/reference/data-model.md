@@ -79,6 +79,8 @@ erDiagram
     jsonb document
     text proposer_signature
     text status "open, accepted, withdrawn"
+    text closed_by "who withdrew or declined it"
+    text close_note "a decline's reason, up to 200 characters"
     timestamptz expires_at "30 days"
     text created_by_tenant "API tenant, if any"
   }
@@ -103,6 +105,8 @@ erDiagram
     text disputed_by "party that raised a dispute"
     timestamptz disputed_at
     text dispute_note "optional, up to 200 characters"
+    text dispute_reply "the other party's reply, up to 200 characters"
+    timestamptz dispute_replied_at
   }
   netting_certificates {
     text certificate_id PK

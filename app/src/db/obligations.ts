@@ -22,6 +22,11 @@ export interface ProposalRow {
   document: unknown;
   proposerSignature: string;
   status: ProposalStatus;
+  /// Who closed it: the proposer withdrew it, or the counterparty declined it. Null while open.
+  closedBy: string | null;
+  closedAt: Date | null;
+  /// A reason the counterparty gave when declining.
+  closeNote: string | null;
   createdAt: Date;
   expiresAt: Date;
 }
@@ -49,6 +54,8 @@ export interface ObligationRow {
   /// Set while `status` is `disputed`: who raised it, and an optional short reason.
   disputedBy: string | null;
   disputeNote: string | null;
+  /// The other party's reply to a dispute, while it is disputed.
+  disputeReply: string | null;
 }
 
 /// A different obligation for the same document and pair already exists.
@@ -74,6 +81,9 @@ function toProposalRow(r: Record<string, unknown>): ProposalRow {
     document: r.document,
     proposerSignature: r.proposer_signature as string,
     status: r.status as ProposalStatus,
+    closedBy: (r.closed_by as string | null) ?? null,
+    closedAt: r.closed_at ? new Date(r.closed_at as string) : null,
+    closeNote: (r.close_note as string | null) ?? null,
     createdAt: new Date(r.created_at as string),
     expiresAt: new Date(r.expires_at as string),
   };
@@ -100,6 +110,7 @@ export function toObligationRow(r: Record<string, unknown>): ObligationRow {
     status: r.status as ObligationStatus,
     disputedBy: (r.disputed_by as string | null) ?? null,
     disputeNote: (r.dispute_note as string | null) ?? null,
+    disputeReply: (r.dispute_reply as string | null) ?? null,
     createdBy: r.created_by as string,
     createdAt: new Date(r.created_at as string),
   };
@@ -250,13 +261,21 @@ export async function acceptProposalWithObligation(token: string, input: InsertO
   }
 }
 
-export async function markProposalWithdrawn(token: string, by: string): Promise<boolean> {
+export async function markProposalWithdrawn(token: string, by: string, note: string | null = null): Promise<boolean> {
   return withDbRetry(async () => {
-    const rows = (await sql()`
-      UPDATE netting_proposals SET status = 'withdrawn', closed_by = ${by.toLowerCase()}, closed_at = now()
-      WHERE token = ${token} AND status = 'open'
-      RETURNING token
-    `) as unknown[];
+    // Without a note the statement never names the newer column, so a withdraw works either way.
+    const rows = (note === null
+      ? await sql()`
+          UPDATE netting_proposals SET status = 'withdrawn', closed_by = ${by.toLowerCase()}, closed_at = now()
+          WHERE token = ${token} AND status = 'open'
+          RETURNING token
+        `
+      : await sql()`
+          UPDATE netting_proposals
+          SET status = 'withdrawn', closed_by = ${by.toLowerCase()}, closed_at = now(), close_note = ${note}::text
+          WHERE token = ${token} AND status = 'open'
+          RETURNING token
+        `) as unknown[];
     return rows.length > 0;
   });
 }
@@ -277,6 +296,20 @@ export async function listObligationsForParty(address: string): Promise<Obligati
       SELECT * FROM netting_obligations WHERE debtor = ${a} OR creditor = ${a} ORDER BY created_at DESC LIMIT 200
     `) as Record<string, unknown>[];
     return rows.map(toObligationRow);
+  });
+}
+
+/// Proposals the address was part of that were declined or withdrawn in the last 30 days.
+export async function listRecentlyClosedProposalsForParty(address: string): Promise<ProposalRow[]> {
+  return withDbRetry(async () => {
+    const a = address.toLowerCase();
+    const rows = (await sql()`
+      SELECT * FROM netting_proposals
+      WHERE (proposer = ${a} OR counterparty = ${a}) AND status = 'withdrawn'
+        AND closed_at > now() - interval '30 days'
+      ORDER BY closed_at DESC LIMIT 20
+    `) as Record<string, unknown>[];
+    return rows.map(toProposalRow);
   });
 }
 

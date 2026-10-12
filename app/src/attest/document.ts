@@ -4,7 +4,7 @@
 /// Node-only APIs), since `ComposeForm.tsx` and `LandingClient.tsx` both call this client-side —
 /// same constraint `src/attest/link.ts` already documents for itself.
 
-import { descriptionTextProblem } from "../format/description";
+import { descriptionTextProblem, MAX_DESCRIPTION_LENGTH } from "../format/description";
 import { isAddress, keccak256, toHex, type Address, type Hex } from "viem";
 import { formatUsdcAmount, parseUsdcAmount } from "./amount";
 
@@ -43,6 +43,9 @@ export function invoiceDocumentProblem(doc: CanonicalInvoiceDocument): string | 
   if (!doc || typeof doc !== "object") return "Invoice document is invalid";
   if (typeof doc.description !== "string" || doc.description.length === 0 || doc.description !== doc.description.trim()) {
     return "Invoice description must be non-empty and trimmed";
+  }
+  if (doc.description.length > MAX_DESCRIPTION_LENGTH) {
+    return `The description can be at most ${MAX_DESCRIPTION_LENGTH} characters`;
   }
   const textProblem = descriptionTextProblem(doc.description);
   if (textProblem) return textProblem;
